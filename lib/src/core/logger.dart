@@ -99,3 +99,28 @@ class DeveloperBacnetLogger implements BacnetLogger {
     }
   }
 }
+
+/// Silent logger that produces no output.
+///
+/// This logger is useful when you need to completely disable logging
+/// to avoid interfering with Flutter's machine mode JSON protocol
+/// or other stdout/stderr sensitive operations.
+///
+/// Example usage:
+/// ```dart
+/// final client = BacnetClient(logger: const NoOpBacnetLogger());
+/// ```
+class NoOpBacnetLogger implements BacnetLogger {
+  /// Creates a silent logger.
+  const NoOpBacnetLogger();
+
+  @override
+  void log(
+    BacnetLogLevel level,
+    String message, [
+    Object? error,
+    StackTrace? stackTrace,
+  ]) {
+    // Do nothing - silent logger
+  }
+}

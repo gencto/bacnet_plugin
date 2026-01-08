@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../widgets/empty_state_widget.dart';
+import 'object_monitor_screen.dart';
 
 /// Screen displaying details and objects for a specific BACnet device.
 class DeviceDetailScreen extends StatefulWidget {
@@ -62,12 +63,70 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     }
   }
 
+  Future<void> _testRpm() async {
+    final appState = context.read<AppState>();
+
+    debugPrint('🧪 Testing ReadPropertyMultiple...');
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Testing RPM...')));
+
+    try {
+      final results = await appState.client.readMultiple(widget.deviceId, [
+        BacnetReadAccessSpecification(
+          objectIdentifier: BacnetObject(
+            type: BacnetObjectType.device,
+            instance: widget.deviceId,
+          ),
+          properties: const [
+            BacnetPropertyReference(
+              propertyIdentifier: BacnetPropertyId.objectName,
+            ),
+            BacnetPropertyReference(
+              propertyIdentifier: BacnetPropertyId.vendorIdentifier,
+            ),
+            BacnetPropertyReference(
+              propertyIdentifier: BacnetPropertyId.modelName,
+            ),
+          ],
+        ),
+      ]);
+
+      debugPrint('🧪 RPM Results: $results');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('RPM Success! Results: $results'),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } on Exception catch (e) {
+      debugPrint('🧪 RPM Failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('RPM Failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_device?.deviceName ?? 'Device ${widget.deviceId}'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.science),
+            onPressed: _isLoading ? null : _testRpm,
+            tooltip: 'Test ReadPropertyMultiple',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _isLoading ? null : _loadDeviceData,
@@ -195,10 +254,14 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
                   subtitle: Text('Type: ${obj.type}'),
                   trailing: const Icon(Icons.chevron_right, size: 16),
                   onTap: () {
-                    // TODO: Navigate to object detail or show property monitor
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Object ${obj.type}:${obj.instance}'),
+                    // Navigate to object monitor screen
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => ObjectMonitorScreen(
+                          deviceId: widget.deviceId,
+                          object: obj,
+                        ),
                       ),
                     );
                   },

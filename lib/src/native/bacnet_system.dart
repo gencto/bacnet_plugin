@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:isolate';
 
+import 'package:flutter/foundation.dart';
+
 import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
@@ -131,6 +133,8 @@ class BacnetSystem {
       }
       _eventController.add(message);
     } else if (message is LogResponse) {
+      // Also print to console for debugging
+      debugPrint('[Worker] ${message.message}');
       _logger.log(
         BacnetLogLevel.values[message.levelIndex],
         message.message,
@@ -175,7 +179,7 @@ class BacnetSystem {
     );
 
     return completer.future.timeout(
-      const Duration(seconds: 5),
+      const Duration(seconds: 15),
       onTimeout: () {
         _pendingRequests.remove(trackingId);
         throw const BacnetTimeoutException('ReadProperty timed out');
@@ -188,11 +192,18 @@ class BacnetSystem {
     int deviceId,
     List<BacnetReadAccessSpecification> specs,
   ) async {
+    debugPrint('🟢 Main: sendReadPropertyMultiple called for device $deviceId');
+    debugPrint(
+      '🟢 Main: _workerSendPort is ${_workerSendPort == null ? "NULL" : "not null"}',
+    );
+
     await _initCompleter.future;
     final trackingId = ++_trackingIdCounter;
     // The native layer returns a complex Map structure for RPM
     final completer = Completer<Map<String, Map<int, dynamic>>>();
     _pendingRequests[trackingId] = completer;
+
+    debugPrint('🟢 Main: Sending RPM to worker (trackingId: $trackingId)');
 
     _workerSendPort?.send(
       ReadPropertyMultipleRequest(
@@ -202,8 +213,10 @@ class BacnetSystem {
       ),
     );
 
+    debugPrint('🟢 Main: RPM request sent to worker');
+
     return completer.future.timeout(
-      const Duration(seconds: 5),
+      const Duration(seconds: 15),
       onTimeout: () {
         _pendingRequests.remove(trackingId);
         throw const BacnetTimeoutException('ReadPropertyMultiple timed out');

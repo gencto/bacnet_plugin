@@ -41,6 +41,19 @@ void onIAm(
     logToMain(BacnetLogLevel.error, 'I-Am Decode Error', e);
   }
 
+  // CRITICAL: Store the device address for future requests!
+  // Without this, ReadPropertyMultiple and other requests will timeout
+  // because the stack doesn't know where to send them.
+  try {
+    bindings.address_add_binding(deviceId, maxAPDU, src);
+    logToMain(
+      BacnetLogLevel.info,
+      'Stored address binding for device $deviceId',
+    );
+  } on Exception catch (e) {
+    logToMain(BacnetLogLevel.error, 'Failed to add address binding', e);
+  }
+
   workerToMainSendPort?.send(
     IAmResponse(
       deviceId: deviceId,
@@ -61,6 +74,11 @@ void onReadPropertyAck(
   ffi.Pointer<BACNET_ADDRESS> src,
   ffi.Pointer<BACNET_CONFIRMED_SERVICE_ACK_DATA> serviceData,
 ) {
+  logToMain(
+    BacnetLogLevel.info,
+    '📥 ReadPropertyAck received! invokeId: ${serviceData.ref.invoke_id}, len: $serviceLen',
+  );
+
   dynamic decodedValue;
   try {
     int offset = 0;
@@ -82,6 +100,11 @@ void onReadPropertyAck(
   } on Exception catch (e) {
     decodedValue = 'Decode Error: $e';
   }
+
+  logToMain(
+    BacnetLogLevel.info,
+    '📦 Decoded value: $decodedValue (type: ${decodedValue.runtimeType})',
+  );
 
   workerToMainSendPort?.send(
     ReadPropertyAckResponse(

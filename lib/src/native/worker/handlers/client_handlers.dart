@@ -102,6 +102,11 @@ void handleWhoIs(WhoIsRequest req) {
 ///
 /// Sends a request to read a single property value from a BACnet object.
 void handleReadProp(ReadPropertyRequest req) {
+  logToMain(
+    BacnetLogLevel.info,
+    '📤 Sending ReadProperty to device ${req.deviceId}, prop ${req.propertyId}',
+  );
+
   final invokeId = bindings.Send_Read_Property_Request(
     req.deviceId,
     BACnetObjectType.fromValue(req.objectType),
@@ -109,6 +114,9 @@ void handleReadProp(ReadPropertyRequest req) {
     BACnetPropertyIdentifier.fromValue(req.propertyId),
     req.arrayIndex,
   );
+
+  logToMain(BacnetLogLevel.info, '📤 ReadProperty sent, invokeId: $invokeId');
+
   workerToMainSendPort?.send(
     ReadPropertySentResponse(trackingId: req.trackingId, invokeId: invokeId),
   );
@@ -155,6 +163,11 @@ void handleWriteProp(WritePropertyRequest req) {
 /// Sends a request to read multiple properties from multiple objects in a
 /// single transaction for improved efficiency.
 void handleReadPropMultiple(ReadPropertyMultipleRequest req) {
+  logToMain(
+    BacnetLogLevel.info,
+    '🔵 RPM Handler: Starting for device ${req.deviceId} with ${req.readAccessSpecs.length} specs',
+  );
+
   // We need to keep track of allocated pointers to free them later
   final allocatedPointers = <ffi.Pointer>[];
 
@@ -204,6 +217,11 @@ void handleReadPropMultiple(ReadPropertyMultipleRequest req) {
     final pduBuffer = calloc<ffi.Uint8>(maxAPDU);
     allocatedPointers.add(pduBuffer);
 
+    logToMain(
+      BacnetLogLevel.info,
+      '🔵 RPM Handler: Calling native Send_Read_Property_Multiple_Request for device ${req.deviceId}',
+    );
+
     final invokeId = bindings.Send_Read_Property_Multiple_Request(
       pduBuffer,
       maxAPDU,
@@ -211,7 +229,16 @@ void handleReadPropMultiple(ReadPropertyMultipleRequest req) {
       headReadAccessData,
     );
 
+    logToMain(
+      BacnetLogLevel.info,
+      '🔵 RPM Handler: Native call returned invokeId: $invokeId',
+    );
+
     if (invokeId > 0) {
+      logToMain(
+        BacnetLogLevel.info,
+        '✅ RPM Handler: Sending ReadPropertySentResponse (trackingId: ${req.trackingId}, invokeId: $invokeId)',
+      );
       workerToMainSendPort?.send(
         ReadPropertySentResponse(
           trackingId: req.trackingId ?? 0,

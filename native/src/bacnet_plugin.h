@@ -12,6 +12,7 @@
 #include "bacnet/bacapp.h"
 #include "bacnet/basic/binding/address.h"
 #include "bacnet/npdu.h"
+#include "bacnet/basic/npdu/h_npdu.h"
 #include "bacnet/apdu.h"
 #include "bacnet/datalink/datalink.h"
 #include "bacnet/basic/object/device.h"
@@ -25,6 +26,12 @@
 #include "bacnet/basic/service/s_readrange.h"
 #include "bacnet/readrange.h"
 
+/* Forward declaration for the exit handler used in macro redirection */
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+void bacnet_plugin_exit_handler(int code);
+
 /* Re-export WPM function just to be sure */
 uint8_t bacnet_plugin_send_write_property_multiple(
     uint32_t device_id,
@@ -33,5 +40,18 @@ uint8_t bacnet_plugin_send_write_property_multiple(
 uint8_t bacnet_plugin_send_read_range_request(
     uint32_t device_id,
     BACNET_READ_RANGE_DATA *read_range_data);
+
+/* Safe wrappers for initialization and processing */
+bool bacnet_plugin_safe_bip_init(char *ifname);
+bool bacnet_plugin_safe_datalink_init(char *ifname);
+int bacnet_plugin_safe_bip_receive(
+    BACNET_ADDRESS *src,
+    uint8_t *npdu,
+    uint16_t max_npdu,
+    unsigned timeout);
+void bacnet_plugin_safe_npdu_handler(
+    BACNET_ADDRESS *src,
+    uint8_t *npdu,
+    uint16_t pdu_len);
 
 #endif

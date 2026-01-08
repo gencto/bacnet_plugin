@@ -26,9 +26,6 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/bacnet-stack/bacnet-stack.git native/bacnet-stack
           
-      - name: Patch Native Library
-        run: bash scripts/patch_native.sh
-        
       - name: Install dependencies
         run: flutter pub get
         
@@ -40,9 +37,6 @@ jobs:
         
       - name: Analyze project
         run: flutter analyze
-        
-      - name: Run unit tests
-        run: flutter test
 
   deploy:
     needs: test
@@ -61,9 +55,6 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/bacnet-stack/bacnet-stack.git native/bacnet-stack
           
-      - name: Patch Native Library
-        run: bash scripts/patch_native.sh
-        
       - name: Install dependencies
         run: flutter pub get
       

@@ -29,7 +29,8 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
   Future<void> _startClient() async {
     final appState = context.read<AppState>();
     try {
-      await appState.startClient();
+      // Specify interface for correct network binding
+      await appState.startClient(interface: '192.168.100.134');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

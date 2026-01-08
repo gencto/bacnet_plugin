@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:meta/meta.dart';
+import 'package:flutter/foundation.dart';
 
 import '../client/bacnet_client.dart';
 import '../constants/object_types.dart';
@@ -66,12 +66,18 @@ class DeviceScanner {
     int? lowLimit,
     int? highLimit,
   }) async {
-    final discoveredIds = <int>{};
+    // Store device ID -> IP address mapping from I-Am responses
+    final deviceIPs = <int, String>{};
 
-    // Listen for I-Am responses
+    // Listen for I-Am responses and extract IP from MAC
     final subscription = client.events.listen((event) {
       if (event is IAmResponse) {
-        discoveredIds.add(event.deviceId);
+        // For BACnet/IP, MAC is 6 bytes: 4 for IP + 2 for port
+        if (event.mac.length >= 4) {
+          final ip =
+              '${event.mac[0]}.${event.mac[1]}.${event.mac[2]}.${event.mac[3]}';
+          deviceIPs[event.deviceId] = ip;
+        }
       }
     });
 
@@ -85,15 +91,85 @@ class DeviceScanner {
     await Future<void>.delayed(timeout);
     await subscription.cancel();
 
-    // Collect details for discovered devices
+    // Create devices from discovered IDs, using RPM to get details
     final devices = <DiscoveredDevice>[];
-    for (final deviceId in discoveredIds) {
+    for (final deviceId in deviceIPs.keys) {
+      // Add manual binding first (required for communication)
+      final ip = deviceIPs[deviceId]!;
+      await client.addDeviceBinding(deviceId, ip);
+
+      // Try to get device details via RPM
       try {
-        final device = await getDeviceDetails(deviceId);
-        devices.add(device);
+        final results = await client.readMultiple(deviceId, [
+          BacnetReadAccessSpecification(
+            objectIdentifier: BacnetObject(
+              type: BacnetObjectType.device,
+              instance: deviceId,
+            ),
+            properties: const [
+              BacnetPropertyReference(
+                propertyIdentifier: BacnetPropertyId.objectName,
+              ),
+              BacnetPropertyReference(
+                propertyIdentifier: BacnetPropertyId.vendorIdentifier,
+              ),
+              BacnetPropertyReference(
+                propertyIdentifier: BacnetPropertyId.maxApduLengthAccepted,
+              ),
+              BacnetPropertyReference(
+                propertyIdentifier: BacnetPropertyId.modelName,
+              ),
+              BacnetPropertyReference(
+                propertyIdentifier: BacnetPropertyId.vendorName,
+              ),
+              BacnetPropertyReference(
+                propertyIdentifier: BacnetPropertyId.description,
+              ),
+            ],
+          ),
+        ]);
+
+        // Parse RPM results
+        final deviceKey = '${BacnetObjectType.device}:$deviceId';
+        final props = results[deviceKey];
+
+        if (props != null) {
+          devices.add(
+            DiscoveredDevice(
+              deviceId: deviceId,
+              vendorId: props[BacnetPropertyId.vendorIdentifier] as int? ?? 0,
+              maxApduLength:
+                  props[BacnetPropertyId.maxApduLengthAccepted] as int? ?? 1476,
+              segmentationSupported: 0,
+              deviceName: props[BacnetPropertyId.objectName] as String?,
+              modelName: props[BacnetPropertyId.modelName] as String?,
+              vendorName: props[BacnetPropertyId.vendorName] as String?,
+              description: props[BacnetPropertyId.description] as String?,
+            ),
+          );
+        } else {
+          // RPM returned but no data for this device
+          devices.add(
+            DiscoveredDevice(
+              deviceId: deviceId,
+              vendorId: 0,
+              maxApduLength: 1476,
+              segmentationSupported: 0,
+              deviceName: 'Device $deviceId (IP: $ip)',
+            ),
+          );
+        }
       } on Exception {
-        // Skip devices that fail to respond
-        continue;
+        // RPM failed, add with basic info
+        devices.add(
+          DiscoveredDevice(
+            deviceId: deviceId,
+            vendorId: 0,
+            maxApduLength: 1476,
+            segmentationSupported: 0,
+            deviceName: 'Device $deviceId (IP: $ip)',
+          ),
+        );
       }
     }
 

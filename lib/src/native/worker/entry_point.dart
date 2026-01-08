@@ -34,7 +34,9 @@ void bacnetWorkerEntryPoint(Map<String, dynamic> args) {
     bindings.bip_set_port(port);
 
     final ifnamePtr = interface?.toNativeUtf8();
-    final success = bindings.bip_init(ifnamePtr?.cast() ?? ffi.nullptr);
+    final success = bindings.bacnet_plugin_safe_bip_init(
+      ifnamePtr?.cast() ?? ffi.nullptr,
+    );
     if (ifnamePtr != null) calloc.free(ifnamePtr);
 
     if (!success) {
@@ -115,7 +117,7 @@ void bacnetWorkerEntryPoint(Map<String, dynamic> args) {
 
     Timer.periodic(const Duration(milliseconds: 10), (_) {
       try {
-        int pduLen = bindings.bip_receive(
+        int pduLen = bindings.bacnet_plugin_safe_bip_receive(
           srcAddressBuffer,
           pduBuffer,
           maxAPDU,
@@ -123,7 +125,11 @@ void bacnetWorkerEntryPoint(Map<String, dynamic> args) {
         );
         if (pduLen > 0) {
           logToMain(BacnetLogLevel.debug, 'Rx PDU: $pduLen bytes');
-          bindings.npdu_handler(srcAddressBuffer, pduBuffer, pduLen);
+          bindings.bacnet_plugin_safe_npdu_handler(
+            srcAddressBuffer,
+            pduBuffer,
+            pduLen,
+          );
         }
         bindings.tsm_timer_milliseconds(
           DateTime.now().millisecondsSinceEpoch & 0xFFFFFFFF,
@@ -134,6 +140,10 @@ void bacnetWorkerEntryPoint(Map<String, dynamic> args) {
     });
 
     receivePort.listen((message) {
+      logToMain(
+        BacnetLogLevel.info,
+        '🟡 Worker: Received message of type: ${message.runtimeType}',
+      );
       if (message is WorkerRequest) {
         switch (message) {
           case WhoIsRequest():
@@ -161,6 +171,10 @@ void bacnetWorkerEntryPoint(Map<String, dynamic> args) {
             handleAddObject(message);
             break;
           case ReadPropertyMultipleRequest():
+            logToMain(
+              BacnetLogLevel.info,
+              '🔴 Worker: Received ReadPropertyMultipleRequest for device ${message.deviceId}',
+            );
             handleReadPropMultiple(message);
             break;
           case WritePropertyMultipleRequest():

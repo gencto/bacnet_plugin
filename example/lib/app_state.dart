@@ -6,7 +6,8 @@ import 'package:flutter/foundation.dart';
 /// Manages the BACnet client lifecycle, device discovery, and error states.
 class AppState extends ChangeNotifier {
   AppState() {
-    _client = BacnetClient();
+    // Enable logging to see what's happening
+    _client = BacnetClient(logger: const DeveloperBacnetLogger());
   }
 
   late final BacnetClient _client;
@@ -33,15 +34,22 @@ class AppState extends ChangeNotifier {
   /// Starts the BACnet client.
   ///
   /// Must be called before any other operations.
-  Future<void> startClient({String? interface}) async {
+  Future<void> startClient({String? interface, int port = 47808}) async {
+    debugPrint(
+      '🚀 Starting BACnet client with interface: $interface, port: $port',
+    );
+
     try {
       _errorMessage = null;
       notifyListeners();
 
-      await _client.start(interface: interface);
+      await _client.start(interface: interface, port: port);
       _isStarted = true;
+      debugPrint('✅ BACnet client started successfully!');
       notifyListeners();
-    } on Exception catch (e) {
+    } on Exception catch (e, stack) {
+      debugPrint('❌ Failed to start BACnet client: $e');
+      debugPrint('Stack trace: $stack');
       _errorMessage = 'Failed to start BACnet client: $e';
       _isStarted = false;
       notifyListeners();
@@ -57,6 +65,7 @@ class AppState extends ChangeNotifier {
   }) async {
     if (!_isStarted) {
       _errorMessage = 'Client not started. Call startClient() first.';
+      debugPrint('❌ Client not started!');
       notifyListeners();
       return;
     }
@@ -66,12 +75,24 @@ class AppState extends ChangeNotifier {
       _errorMessage = null;
       notifyListeners();
 
+      debugPrint('📡 Creating DeviceScanner...');
       final scanner = DeviceScanner(_client);
+
+      debugPrint('⏳ Waiting for devices (timeout: ${timeout.inSeconds}s)...');
       _devices = await scanner.discoverDevices(timeout: timeout);
+
+      debugPrint('✅ Discovery completed! Found ${_devices.length} devices');
+      for (var device in _devices) {
+        debugPrint(
+          '  - Device ${device.deviceId}: ${device.deviceName ?? "Unknown"}',
+        );
+      }
 
       _isScanning = false;
       notifyListeners();
-    } on Exception catch (e) {
+    } on Exception catch (e, stack) {
+      debugPrint('❌ Discovery failed: $e');
+      debugPrint('Stack trace: $stack');
       _errorMessage = 'Discovery failed: $e';
       _isScanning = false;
       notifyListeners();

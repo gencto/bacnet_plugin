@@ -35,6 +35,10 @@ list(FILTER BACNET_BASIC_SOURCES EXCLUDE REGEX "datetime_mstimer.c")
 list(FILTER BACNET_BASIC_SOURCES EXCLUDE REGEX "sc_netport.c")
 list(FILTER BACNET_BASIC_SOURCES EXCLUDE REGEX "bsc/.*")
 
+# Exclude Gateway (Optional and causes MSVC warnings)
+list(FILTER BACNET_BASIC_SOURCES EXCLUDE REGEX "basic/object/gateway/.*")
+list(FILTER BACNET_BASIC_SOURCES EXCLUDE REGEX "basic/npdu/h_routed_npdu.c")
+
 # 3. Datalink (IP - V4 ONLY + Dependencies)
 set(BACNET_DATALINK_SOURCES
     "${BACNET_ROOT}/src/bacnet/datalink/bvlc.c"
@@ -59,16 +63,33 @@ add_library(bacnet_plugin SHARED
     "${CMAKE_CURRENT_SOURCE_DIR}/../native/src/bacnet_plugin.c"
 )
 
+if(MSVC)
+    target_compile_options(bacnet_plugin PRIVATE /wd4244 /wd4267)
+endif()
+
 target_compile_definitions(bacnet_plugin PRIVATE 
     BACDL_BIP 
     PRINT_ENABLED=0
     BACNET_IP_BROADCAST_USE_INADDR_ANY
     BACNET_STACK_STATIC_DEFINE
     _WINSOCK_DEPRECATED_NO_WARNINGS
+    _CRT_SECURE_NO_WARNINGS
+    _CRT_NONSTDC_NO_DEPRECATE
     WIN32
     _WINDOWS
+    "exit=bacnet_plugin_exit_handler"
     # BACNET_CONFIG_H
 )
+
+if(MSVC)
+    target_compile_options(bacnet_plugin PRIVATE 
+        /wd4244 # conversion from 'type1' to 'type2', possible loss of data
+        /wd4267 # conversion from 'size_t' to 'type', possible loss of data
+        /wd4996 # The compiler encountered a deprecated declaration.
+        /wd4018 # signed/unsigned mismatch
+        /wd4083 # expected '('; found identifier 'This' (from #pragma message)
+    )
+endif()
 
 set_target_properties(bacnet_plugin PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
