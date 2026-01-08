@@ -1,0 +1,60 @@
+name: bacnet_plugin
+description: "A Flutter FFI plugin for BACnet protocol communication, supporting client and server operations with isolate-based architecture."
+version: 0.0.1
+license: MIT
+homepage: https://github.com/gencto/bacnet_plugin
+repository: https://github.com/gencto/bacnet_plugin
+issue_tracker: https://github.com/gencto/bacnet_plugin/issues
+
+environment:
+  sdk: ^3.10.4
+  flutter: ">=3.3.0"
+
+dependencies:
+  ffi: ^2.1.4
+  flutter:
+    sdk: flutter
+  json_annotation: ^4.9.0
+  meta: ^1.15.0
+  plugin_platform_interface: ^2.1.8
+
+dev_dependencies:
+  build_runner: ^2.4.0
+  ffigen: ^20.1.1
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  json_serializable: ^6.8.0
+  mocktail: ^1.0.0
+
+ffigen:
+  config: ffigen.yaml
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        ffiPlugin: true
+      ios:
+        ffiPlugin: true
+      linux:
+        ffiPlugin: true
+      macos:
+        ffiPlugin: true
+      windows:
+        ffiPlugin: true
+
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  windows:
+
+topics:
+  - bacnet
+  - bms
+  - iot
+  - protocol

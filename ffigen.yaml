@@ -1,0 +1,101 @@
+# Run with `dart run ffigen`
+name: BacnetBindings
+description: |
+  Bindings for bacnet-stack (C library).
+  Covers Core, Datalink (BIP), Services, and Basic Objects.
+output: "lib/bacnet_plugin_bindings.g.dart"
+headers:
+  entry-points:
+    # Core Definition & Enums
+    - "native/src/bacnet_plugin.h"
+    - "native/bacnet-stack/src/bacnet/bacdef.h"
+    - "native/bacnet-stack/src/bacnet/bacenum.h"
+    - "native/bacnet-stack/src/bacnet/bacstr.h"
+    - "native/bacnet-stack/src/bacnet/bacerror.h"
+    - "native/bacnet-stack/src/bacnet/bacapp.h"
+    - "native/bacnet-stack/src/bacnet/basic/binding/address.h"
+    
+    # Network & Application Layers
+    - "native/bacnet-stack/src/bacnet/npdu.h"
+    - "native/bacnet-stack/src/bacnet/apdu.h"
+    
+    # Datalink Layer (BACnet/IP)
+    - "native/bacnet-stack/src/bacnet/datalink/datalink.h"
+    - "native/bacnet-stack/src/bacnet/datalink/bip.h"
+    - "native/bacnet-stack/src/bacnet/datalink/bvlc.h"
+    
+
+    # Basic Objects (Server Support)
+    - "native/bacnet-stack/src/bacnet/basic/object/device.h"
+    - "native/bacnet-stack/src/bacnet/basic/object/ai.h"
+    - "native/bacnet-stack/src/bacnet/basic/object/ao.h"
+    - "native/bacnet-stack/src/bacnet/basic/object/av.h"
+    - "native/bacnet-stack/src/bacnet/basic/object/bi.h"
+    - "native/bacnet-stack/src/bacnet/basic/object/bo.h"
+    - "native/bacnet-stack/src/bacnet/basic/object/bv.h"
+    - "native/bacnet-stack/src/bacnet/basic/object/msv.h"
+    - "native/bacnet-stack/src/bacnet/basic/object/trendlog.h"
+
+    # Service Handlers (Client/Server)
+    - "native/bacnet-stack/src/bacnet/basic/service/s_whois.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/s_iam.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/s_rp.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/s_wp.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/s_cov.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/s_readrange.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/s_rpm.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/s_wpm.h"
+    
+    # Handlers
+    - "native/bacnet-stack/src/bacnet/basic/npdu/h_npdu.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/h_apdu.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/h_iam.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/h_rp.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/h_rpm.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/h_wp.h"
+    - "native/bacnet-stack/src/bacnet/basic/tsm/tsm.h"
+    - "native/bacnet-stack/src/bacnet/basic/bbmd/h_bbmd.h"
+    - "native/bacnet-stack/src/bacnet/basic/service/h_cov.h"
+    
+    # Encoding/Decoding
+    - "native/bacnet-stack/src/bacnet/whois.h"
+    - "native/bacnet-stack/src/bacnet/iam.h"
+    - "native/bacnet-stack/src/bacnet/rp.h"
+    - "native/bacnet-stack/src/bacnet/wp.h"
+    - "native/bacnet-stack/src/bacnet/cov.h"
+    - "native/bacnet-stack/src/bacnet/rpm.h"
+    - "native/bacnet-stack/src/bacnet/wpm.h"
+    - "native/bacnet-stack/src/bacnet/readrange.h"
+    - "native/bacnet-stack/src/bacnet/datetime.h"
+
+  include-directives:
+    - "native/src/**/*.h"
+    - "native/bacnet-stack/src/bacnet/**/*.h"
+
+comments:
+  style: any
+  length: full
+
+silence-enum-warning: true
+
+preamble: |
+  // ignore_for_file: always_specify_types
+  // ignore_for_file: camel_case_types
+  // ignore_for_file: non_constant_identifier_names
+  // ignore_for_file: unused_element
+  // ignore_for_file: constant_identifier_names
+
+compiler-opts:
+  - "-DBACDL_BIP"
+  - "-DPRINT_ENABLED=0"
+  - "-DBACAPP_MINIMAL"
+  - "-DBACAPP_BOOLEAN"
+  - "-DBACAPP_REAL"
+  - "-DBACAPP_UNSIGNED"
+  - "-DBACAPP_SIGNED"
+  - "-DBACAPP_OBJECT_ID"
+  - "-Inative/bacnet-stack/src"
+  - "-Inative/bacnet-stack/ports/win32"
+  - "-Inative/src"
+  - "-include"
+  - "native/bacnet-stack/src/bacnet/bacapp.h"
