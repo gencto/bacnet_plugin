@@ -1,6 +1,6 @@
 name: bacnet_plugin
 description: "A Flutter FFI plugin for BACnet protocol communication, supporting client and server operations with isolate-based architecture."
-version: 0.0.1
+version: 0.0.2
 license: MIT
 homepage: https://github.com/gencto/bacnet_plugin
 repository: https://github.com/gencto/bacnet_plugin

@@ -1,0 +1,71 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+  id-token: write # Required for OIDC authentication with pub.dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          
+      - name: Download Native Library
+        run: |
+          git clone --depth 1 https://github.com/bacnet-stack/bacnet-stack.git native/bacnet-stack
+          
+      - name: Patch Native Library
+        run: bash scripts/patch_native.sh
+        
+      - name: Install dependencies
+        run: flutter pub get
+        
+      - name: Code generation
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+        
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+        
+      - name: Analyze project
+        run: flutter analyze
+        
+      - name: Run unit tests
+        run: flutter test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    # Only run deploy if it is a tag push
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          
+      - name: Download Native Library
+        run: |
+          git clone --depth 1 https://github.com/bacnet-stack/bacnet-stack.git native/bacnet-stack
+          
+      - name: Patch Native Library
+        run: bash scripts/patch_native.sh
+        
+      - name: Install dependencies
+        run: flutter pub get
+      
+      - name: Publish to Pub.dev
+        run: flutter pub publish --force
