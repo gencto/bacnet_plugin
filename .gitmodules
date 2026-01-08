@@ -1,3 +1,0 @@
-[submodule "native/bacnet-stack"]
-	path = native/bacnet-stack
-	url = https://github.com/bacnet-stack/bacnet-stack.git
