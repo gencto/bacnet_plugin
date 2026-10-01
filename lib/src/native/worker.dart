@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:math';
 import 'dart:typed_data';
 
 import '../codec/requests.dart';
@@ -232,6 +233,9 @@ final class _Worker implements RequestTransport {
         if (command.vendorId case final vendorId?) {
           _engine.setVendorId(vendorId);
         }
+        _engine.setPassword(_password(command.password));
+      case SetPasswordCommand(:final password):
+        _engine.setPassword(_password(password));
       case SendIAmCommand():
         _engine.sendIAm();
       case CreateObjectCommand():
@@ -283,6 +287,16 @@ final class _Worker implements RequestTransport {
         _scheduler.cancelAll(const BacnetException('BACnet stack stopped'));
     }
     return null;
+  }
+
+  /// [password], or a random one nobody knows: bacnet-stack would accept
+  /// its well-known default password otherwise.
+  static String _password(String? password) {
+    if (password != null) return password;
+    final random = Random.secure();
+    return String.fromCharCodes(
+      List.generate(20, (_) => 0x21 + random.nextInt(0x5E)),
+    );
   }
 
   int _createObject(CreateObjectCommand command) {
@@ -555,6 +569,20 @@ final class _Worker implements RequestTransport {
             timeStamp: ack.timeStamp,
             source: ack.source,
             timeOfAcknowledgment: ack.timeOfAcknowledgment,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+        case BacnetConfirmedService.deviceCommunicationControl:
+          final dcc = decodeDeviceCommunicationControl(event.data);
+          return CommunicationControlEvent(
+            state: dcc.state,
+            duration: dcc.duration,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+        case BacnetConfirmedService.reinitializeDevice:
+          return ReinitializeDeviceEvent(
+            state: decodeReinitializeDevice(event.data).state,
             mac: event.sourceMac,
             net: event.sourceNetwork,
           );

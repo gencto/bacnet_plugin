@@ -84,6 +84,7 @@ typedef struct {
 #define BP_STRING_DESCRIPTION 1
 #define BP_STRING_STATE_TEXTS 2
 #define BP_STRING_DEVICE 3
+#define BP_STRING_PASSWORD 4
 
 /* ---- outstanding confirmed requests ----------------------------------- */
 

@@ -243,6 +243,11 @@ class NativeEngine {
   void setVendorId(int vendorId) =>
       checkNative(bacnet_plugin_device_set_vendor_id(vendorId));
 
+  /// Sets the password of DeviceCommunicationControl and
+  /// ReinitializeDevice ("" accepts requests without one).
+  void setPassword(String password) =>
+      checkNative(_withString(password, bacnet_plugin_device_set_password));
+
   /// Broadcasts an I-Am of the local device.
   void sendIAm() => checkNative(bacnet_plugin_send_i_am());
 

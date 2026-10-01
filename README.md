@@ -18,13 +18,17 @@ Dart programs such as headless gateways and supervisory services.
   WriteProperty(Multiple) with datatype inference, SubscribeCOV(Property)
   with decoded notifications, ReadRange/Trend Logs, alarms and events
   (typed event notifications, AcknowledgeAlarm, GetEventInformation,
-  GetAlarmSummary, Add/RemoveListElement), time synchronization, foreign
-  device registration and raw confirmed services.
+  GetAlarmSummary, Add/RemoveListElement), device management
+  (DeviceCommunicationControl, ReinitializeDevice, Create/DeleteObject),
+  file transfer (AtomicReadFile/AtomicWriteFile), private transfer, text
+  messages, time synchronization, foreign device registration and raw
+  confirmed services.
 - **Server**: hosts Analog/Binary/Multi-state Input/Output/Value, Integer,
   Positive Integer, CharacterString Value and Notification Class objects;
   answers Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property),
   ReadRange, Add/RemoveListElement, DeviceCommunicationControl and
-  ReinitializeDevice natively; reports alarms of analog and binary objects
+  ReinitializeDevice (password protected, reported to the application)
+  natively; reports alarms of analog and binary objects
   (intrinsic reporting) and answers AcknowledgeAlarm, GetEventInformation
   and GetAlarmSummary; batch updates of present values; write
   notifications.
@@ -43,7 +47,7 @@ Dart programs such as headless gateways and supervisory services.
 
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.4.0
+  bacnet_plugin: ^0.5.0
 ```
 
 Requirements:
@@ -532,6 +536,58 @@ Notification Class instances 0..63 are available, with up to 10
 recipients each. bacnet-stack keeps one destination per recipient: adding
 a destination for a recipient that is already in the list replaces it.
 
+## Device management and files
+
+```dart
+// stop a device from initiating requests for 30 minutes
+await client.deviceCommunicationControl(
+  1234,
+  BacnetCommunicationState.disableInitiation,
+  duration: const Duration(minutes: 30),
+  password: 'secret',
+);
+await client.reinitializeDevice(1234, BacnetReinitializedState.warmStart,
+    password: 'secret');
+
+// objects
+final setpoint = await client.createObject(1234,
+    type: BacnetObjectType.analogValue,
+    initialValues: const [
+      BacnetPropertyValue(
+        propertyIdentifier: BacnetPropertyId.presentValue,
+        value: BacnetReal(21),
+      ),
+    ]);
+await client.deleteObject(1234, setpoint);
+
+// files: whole files in chunks that fit into one APDU of the device
+final backup = await client.readFile(1234, 1,
+    onProgress: (done, total) => print('$done / $total'));
+await client.writeFile(1234, 1, backup);
+
+// vendor services and messages
+final result = await client.privateTransfer(1234, 260, 7,
+    parameters: const BacnetUnsigned(5));
+await client.sendTextMessage('Shutdown at 18:00'); // broadcast
+```
+
+When a device rejects an initial value of `createObject` (or an element
+of `addListElement`), `BacnetProtocolException.firstFailedElement` names
+its position. `readFileStream`/`writeFileStream` and
+`readFileRecords`/`writeFileRecords` access parts of files.
+
+The server answers DeviceCommunicationControl and ReinitializeDevice only
+with the password given to `init` (none: it refuses both) and reports
+accepted requests; restarting is up to the application:
+
+```dart
+await server.init(4194300, 'Controller', password: 'secret');
+server.reinitializeRequests.listen((request) {
+  if (request.state == BacnetReinitializedState.warmStart) restart();
+});
+server.communicationControls.listen(print);
+```
+
 ## Testing your application
 
 `package:bacnet_plugin/testing.dart` provides `FakeBacnetClient`, a
@@ -590,6 +646,17 @@ sensor.reportEvent(
   ),
 );
 ```
+
+## Migrating from 0.4.x
+
+- The server refuses DeviceCommunicationControl and ReinitializeDevice
+  unless `init` (or `setPassword`) sets a password. Before, it accepted
+  bacnet-stack's default password "filister".
+- `CommunicationControlEvent` and `ReinitializeDeviceEvent` are new
+  `BacnetEvent` subclasses: a `switch` over `BacnetEvent` needs cases for
+  them.
+- Classes implementing `BacnetClient` need the new device management,
+  file and messaging methods and `deviceMaxApdu`.
 
 ## Migrating from 0.3.x
 

@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - Unreleased
+
+Device management, files and messages. See *Migrating from 0.4.x* in the
+README.
+
+### Added
+
+- **Client — device management**: `deviceCommunicationControl`
+  (`BacnetCommunicationState`), `reinitializeDevice`
+  (`BacnetReinitializedState`), `createObject` (by type or identifier,
+  with initial values) and `deleteObject`.
+  `BacnetProtocolException.firstFailedElement` names the initial value or
+  list element a device rejected (CreateObject, Add/RemoveListElement).
+- **Client — files**: `readFileStream`/`writeFileStream` and
+  `readFileRecords`/`writeFileRecords` (AtomicReadFile/AtomicWriteFile),
+  and `readFile`/`writeFile` (`BacnetFileTransfer`) for whole files in
+  chunks that fit into the device's maximum APDU (`deviceMaxApdu`), with
+  progress and optional truncation.
+- **Client — vendor services and messages**: `privateTransfer`
+  (ConfirmedPrivateTransfer, returns the result block),
+  `sendPrivateTransfer`, `textMessage` and `sendTextMessage`.
+- **Server**: `init(password:)` and `setPassword` protect
+  DeviceCommunicationControl and ReinitializeDevice;
+  `communicationControls` (`CommunicationControlEvent`) and
+  `reinitializeRequests` (`ReinitializeDeviceEvent`) report accepted
+  requests.
+- **Testing**: fake devices simulate DeviceCommunicationControl (silent
+  device, `password`), `reinitializations`, object creation and deletion,
+  File objects (`addFile`, `fileContent`), `onPrivateTransfer` and
+  received `messages`.
+
+### Changed
+
+- **Breaking, security**: the server accepted DeviceCommunicationControl
+  and ReinitializeDevice with bacnet-stack's well-known default password
+  "filister", so anyone on the network could silence it. Without a
+  password set it now refuses both.
+- **Breaking**: `CommunicationControlEvent` and `ReinitializeDeviceEvent`
+  are new `BacnetEvent` subclasses; `BacnetClient` has new methods.
+
 ## [0.4.1] - 2026-10-01
 
 ### Fixed

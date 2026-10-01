@@ -74,9 +74,10 @@ extern "C" {
 /** Diagnostic message, data = UTF-8 text, a = level (0 debug .. 3 error) */
 #define BP_EVENT_LOG 10
 /** A confirmed service request of a remote client changed the server and
- *  was answered with success: AcknowledgeAlarm, AddListElement or
- *  RemoveListElement. service = confirmed service choice, data = the
- *  service request. */
+ *  was answered with success: AcknowledgeAlarm, AddListElement,
+ *  RemoveListElement, DeviceCommunicationControl or ReinitializeDevice.
+ *  service = confirmed service choice, data = the service request (without
+ *  the password of DeviceCommunicationControl and ReinitializeDevice). */
 #define BP_EVENT_SERVICE 11
 
 #define BP_FLAG_ABORT_FROM_SERVER 0x01
@@ -285,6 +286,13 @@ bacnet_plugin_device_set_string(uint32_t property, const char *value);
 
 /** Sets the vendor identifier of the local Device object. */
 BP_API int32_t bacnet_plugin_device_set_vendor_id(uint16_t vendor_id);
+
+/**
+ * Sets the password DeviceCommunicationControl and ReinitializeDevice
+ * requests must carry (up to 20 characters). NULL or "" accepts requests
+ * without a password.
+ */
+BP_API int32_t bacnet_plugin_device_set_password(const char *password);
 
 /** Broadcasts an I-Am for the local device. */
 BP_API int32_t bacnet_plugin_send_i_am(void);

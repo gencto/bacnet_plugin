@@ -819,4 +819,95 @@ void main() {
       expect(await recipients(), isNot(contains(alarms.destination)));
     });
   });
+
+  group('device management', () {
+    const deviceObject = BacnetObject(
+      type: BacnetObjectType.device,
+      instance: device,
+    );
+
+    /// Waits for a server output line starting with [prefix] and
+    /// containing [text].
+    Future<String> serverLine(String prefix, String text) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (DateTime.now().isBefore(deadline)) {
+        for (final line in server.lines) {
+          if (line.startsWith(prefix) && line.contains(text)) return line;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      throw TimeoutException('no "$prefix ... $text" line from the server');
+    }
+
+    Matcher passwordFailure() => throwsA(
+      isA<BacnetProtocolException>().having(
+        (e) => e.errorCode,
+        'code',
+        BacnetErrorCode.passwordFailure,
+      ),
+    );
+
+    test('requires the server password', () async {
+      // bacnet-stack's default password is not accepted
+      await expectLater(
+        client.reinitializeDevice(
+          device,
+          BacnetReinitializedState.warmStart,
+          password: 'filister',
+        ),
+        passwordFailure(),
+      );
+      await expectLater(
+        client.deviceCommunicationControl(
+          device,
+          BacnetCommunicationState.disableInitiation,
+          password: 'filister',
+        ),
+        passwordFailure(),
+      );
+      expect(server.lines.where((l) => l.startsWith('REINIT')), isEmpty);
+      expect(server.lines.where((l) => l.startsWith('DCC')), isEmpty);
+    });
+
+    test('reports ReinitializeDevice requests', () async {
+      await client.reinitializeDevice(
+        device,
+        BacnetReinitializedState.warmStart,
+        password: 'demo-password',
+      );
+      await serverLine('REINIT', 'Warm Start');
+    });
+
+    test('reports DeviceCommunicationControl requests', () async {
+      await client.deviceCommunicationControl(
+        device,
+        BacnetCommunicationState.disableInitiation,
+        duration: const Duration(minutes: 5),
+        password: 'demo-password',
+      );
+      await serverLine('DCC', 'Disable Initiation for 5 min');
+      // the server still answers
+      expect(
+        await client.read(device, deviceObject, BacnetProperties.objectName),
+        'DemoServer',
+      );
+      await client.deviceCommunicationControl(
+        device,
+        BacnetCommunicationState.enable,
+        password: 'demo-password',
+      );
+      await serverLine('DCC', '(Enable)');
+    });
+
+    test('rejects services the server does not offer', () async {
+      await expectLater(
+        client.createObject(device, type: BacnetObjectType.analogValue),
+        throwsA(isA<BacnetRejectException>()),
+      );
+      await expectLater(
+        client.readFile(device, 1),
+        throwsA(isA<BacnetProtocolException>()),
+      );
+    });
+  });
 }

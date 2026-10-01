@@ -193,6 +193,7 @@ class ServerEnableCommand extends WorkerCommand {
     required this.deviceName,
     this.strings = const {},
     this.vendorId,
+    this.password,
   });
 
   final int deviceId;
@@ -201,6 +202,17 @@ class ServerEnableCommand extends WorkerCommand {
   /// Device string properties (property id -> value).
   final Map<int, String> strings;
   final int? vendorId;
+
+  /// Password of DeviceCommunicationControl and ReinitializeDevice; null
+  /// refuses both (a random password).
+  final String? password;
+}
+
+/// Sets the password of DeviceCommunicationControl and ReinitializeDevice
+/// (null refuses both).
+class SetPasswordCommand extends WorkerCommand {
+  const SetPasswordCommand(super.id, this.password);
+  final String? password;
 }
 
 /// Broadcasts an I-Am of the local device.

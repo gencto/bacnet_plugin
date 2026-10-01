@@ -611,3 +611,39 @@ int decodeAtomicWriteFileAck(Uint8List data) {
       : r.readContextSigned(1);
   return start;
 }
+
+/// Decoded DeviceCommunicationControl request.
+typedef DeviceCommunicationControlData = ({
+  BacnetCommunicationState state,
+  Duration? duration,
+  String? password,
+});
+
+/// Decodes a DeviceCommunicationControl request (ASHRAE 135 clause 16.1).
+DeviceCommunicationControlData decodeDeviceCommunicationControl(
+  Uint8List data,
+) {
+  final r = BacnetReader(data);
+  final minutes = r.readOptionalContextUnsigned(0);
+  final state = BacnetCommunicationState(r.readContextUnsigned(1));
+  final password = r.nextIsContext(2) ? r.readContextCharacterString(2) : null;
+  return (
+    state: state,
+    duration: minutes == null ? null : Duration(minutes: minutes),
+    password: password,
+  );
+}
+
+/// Decoded ReinitializeDevice request.
+typedef ReinitializeDeviceData = ({
+  BacnetReinitializedState state,
+  String? password,
+});
+
+/// Decodes a ReinitializeDevice request (ASHRAE 135 clause 16.4).
+ReinitializeDeviceData decodeReinitializeDevice(Uint8List data) {
+  final r = BacnetReader(data);
+  final state = BacnetReinitializedState(r.readContextUnsigned(0));
+  final password = r.nextIsContext(1) ? r.readContextCharacterString(1) : null;
+  return (state: state, password: password);
+}

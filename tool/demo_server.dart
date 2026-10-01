@@ -22,7 +22,12 @@ Future<void> main(List<String> args) async {
     ),
   );
   await server.start();
-  await server.init(deviceId, 'DemoServer', vendorName: 'bacnet_plugin');
+  await server.init(
+    deviceId,
+    'DemoServer',
+    vendorName: 'bacnet_plugin',
+    password: 'demo-password',
+  );
   for (var i = 0; i < objects; i++) {
     await server.addObject(
       BacnetObjectType.analogValue,
@@ -67,6 +72,8 @@ Future<void> main(List<String> args) async {
   server.writeEvents.listen((e) => print('WRITE $e'));
   server.alarmAcknowledgements.listen((e) => print('ACK $e'));
   server.listElementEvents.listen((e) => print('LIST $e'));
+  server.communicationControls.listen((e) => print('DCC $e'));
+  server.reinitializeRequests.listen((e) => print('REINIT $e'));
   print('READY ${server.config.port} device $deviceId objects $objects');
   final random = Random(1);
   // keep values moving to exercise COV

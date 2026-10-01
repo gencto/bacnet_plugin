@@ -437,6 +437,68 @@ class AlarmAcknowledgedEvent extends BacnetEvent {
       'AlarmAcknowledgedEvent($object ${eventState.label} by "$source")';
 }
 
+/// A remote client changed the communication of the local server with
+/// DeviceCommunicationControl (only accepted requests, i.e. with the
+/// password of `BacnetServer.init`).
+///
+/// The native stack applies the state itself: while disabled the server
+/// answers only DeviceCommunicationControl and ReinitializeDevice, and
+/// requests of clients in the same process fail with "communication
+/// disabled".
+class CommunicationControlEvent extends BacnetEvent {
+  /// Creates the event.
+  const CommunicationControlEvent({
+    required this.state,
+    this.duration,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// The new communication state.
+  final BacnetCommunicationState state;
+
+  /// How long the state lasts (null: until changed).
+  final Duration? duration;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  @override
+  String toString() =>
+      'CommunicationControlEvent(${state.label}'
+      '${duration == null ? '' : ' for ${duration!.inMinutes} min'})';
+}
+
+/// A remote client asked the local server to reinitialize
+/// (ReinitializeDevice; only accepted requests, i.e. with the password of
+/// `BacnetServer.init`).
+///
+/// The server acknowledged the request; restarting (cold or warm start) or
+/// running the backup or restore procedure is up to the application.
+class ReinitializeDeviceEvent extends BacnetEvent {
+  /// Creates the event.
+  const ReinitializeDeviceEvent({
+    required this.state,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// The requested state.
+  final BacnetReinitializedState state;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  @override
+  String toString() => 'ReinitializeDeviceEvent(${state.label})';
+}
+
 /// A remote client added elements to or removed elements from a list
 /// property of the local server (AddListElement/RemoveListElement), e.g.
 /// the Recipient_List of a Notification Class.

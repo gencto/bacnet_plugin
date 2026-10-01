@@ -95,6 +95,43 @@ class BacnetServer {
       .where((e) => e is PropertyWriteEvent)
       .cast<PropertyWriteEvent>();
 
+  /// Accepted DeviceCommunicationControl requests of remote clients.
+  Stream<CommunicationControlEvent> get communicationControls => _system.events
+      .where((e) => e is CommunicationControlEvent)
+      .cast<CommunicationControlEvent>();
+
+  /// Accepted ReinitializeDevice requests of remote clients: restart or
+  /// run the backup or restore procedure when they arrive.
+  ///
+  /// ```dart
+  /// server.reinitializeRequests.listen((request) async {
+  ///   if (request.state == BacnetReinitializedState.warmStart) {
+  ///     await restartApplication();
+  ///   }
+  /// });
+  /// ```
+  Stream<ReinitializeDeviceEvent> get reinitializeRequests => _system.events
+      .where((e) => e is ReinitializeDeviceEvent)
+      .cast<ReinitializeDeviceEvent>();
+
+  /// Sets the password remote DeviceCommunicationControl and
+  /// ReinitializeDevice requests must carry (up to 20 characters); null
+  /// refuses both.
+  Future<void> setPassword(String? password) {
+    _checkPassword(password);
+    return _system.call<void>((id) => SetPasswordCommand(id, password));
+  }
+
+  static void _checkPassword(String? password) {
+    if (password != null && (password.isEmpty || password.runes.length > 20)) {
+      throw ArgumentError.value(
+        password,
+        'password',
+        'must have 1 to 20 characters',
+      );
+    }
+  }
+
   /// Alarm acknowledgements of remote clients (AcknowledgeAlarm).
   Stream<AlarmAcknowledgedEvent> get alarmAcknowledgements => _system.events
       .where((e) => e is AlarmAcknowledgedEvent)
@@ -119,6 +156,11 @@ class BacnetServer {
   /// GetEventInformation, GetAlarmSummary, DeviceCommunicationControl,
   /// ReinitializeDevice and time synchronization). Sends an I-Am.
   ///
+  /// DeviceCommunicationControl and ReinitializeDevice require [password]
+  /// (up to 20 characters); without one the server refuses them with a
+  /// password failure. See [communicationControls] and
+  /// [reinitializeRequests].
+  ///
   /// ```dart
   /// await server.init(4194300, 'Building Controller', vendorName: 'ACME');
   /// ```
@@ -132,13 +174,16 @@ class BacnetServer {
     String? location,
     String? firmwareRevision,
     String? applicationSoftwareVersion,
+    String? password,
   }) {
+    _checkPassword(password);
     return _system.call<void>(
       (id) => ServerEnableCommand(
         id,
         deviceId: deviceId,
         deviceName: deviceName,
         vendorId: vendorId,
+        password: password,
         strings: {
           BacnetPropertyId.vendorName: ?vendorName,
           BacnetPropertyId.modelName: ?modelName,

@@ -101,6 +101,25 @@ void main() {
       );
     });
 
+    test('decode requests the server reports', () {
+      final dcc = decodeDeviceCommunicationControl(
+        hexBytes(_dccDisableInitiation),
+      );
+      expect(dcc.state, BacnetCommunicationState.disableInitiation);
+      expect(dcc.duration, const Duration(hours: 1));
+      expect(dcc.password, 'filister');
+      final enable = decodeDeviceCommunicationControl(hexBytes(_dccEnable));
+      expect(enable.duration, isNull);
+      expect(enable.password, isNull);
+      final reinit = decodeReinitializeDevice(hexBytes(_reinitWarmStart));
+      expect(reinit.state, BacnetReinitializedState.warmStart);
+      expect(reinit.password, 'filister');
+      expect(
+        decodeReinitializeDevice(hexBytes(_reinitActivateChanges)).password,
+        isNull,
+      );
+    });
+
     test('CreateObject', () {
       expect(
         _hex(

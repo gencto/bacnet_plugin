@@ -53,6 +53,12 @@ external int bacnet_plugin_device_binding(
   ffi.Pointer<ffi.Uint16> max_apdu,
 );
 
+/// Sets the password DeviceCommunicationControl and ReinitializeDevice
+/// requests must carry (up to 20 characters). NULL or "" accepts requests
+/// without a password.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Char>)>()
+external int bacnet_plugin_device_set_password(ffi.Pointer<ffi.Char> password);
+
 /// Sets a string property of the local Device object
 /// (vendor name, model name, description, location, firmware, version).
 @ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Char>)>()
