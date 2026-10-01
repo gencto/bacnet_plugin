@@ -268,8 +268,8 @@ int bip_send_pdu(
     return bvlc_send_pdu(dest, npdu_data, pdu, pdu_len);
 }
 
-static int bip_recv_from(
-    int sock, uint8_t *buf, uint16_t max, struct sockaddr_in *sin)
+static int
+bip_recv_from(int sock, uint8_t *buf, uint16_t max, struct sockaddr_in *sin)
 {
     socklen_t sin_len = sizeof(*sin);
     ssize_t n;
@@ -456,10 +456,8 @@ static int bip_create_socket(const struct sockaddr_in *sin)
         return -1;
     }
     (void)fcntl(sock, F_SETFD, FD_CLOEXEC);
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &value, sizeof(value)) <
-            0 ||
-        setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &value, sizeof(value)) <
-            0) {
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &value, sizeof(value)) < 0 ||
+        setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &value, sizeof(value)) < 0) {
         close(sock);
         return -1;
     }

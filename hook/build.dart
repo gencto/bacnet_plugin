@@ -36,6 +36,9 @@ const _stackFiles = <String>[
 /// Files excluded from the directories above (BACnet/SC needs OpenSSL).
 const _excluded = <String>{'sc_netport.c'};
 
+/// BACnet/IP port of the engine for POSIX systems.
+const _posixPort = 'bp_port_posix.c';
+
 /// Platform files of the bacnet-stack Windows port.
 const _win32PortFiles = <String>[
   'ports/win32/bip-init.c',
@@ -68,6 +71,8 @@ void main(List<String> args) async {
       );
     }
 
+    final engineDir = Directory.fromUri(packageRoot.resolve('native/src/'));
+    final pubspec = File.fromUri(packageRoot.resolve('pubspec.yaml'));
     final targetOS = input.config.code.targetOS;
     final isWindows = targetOS == OS.windows;
     final isApple = targetOS == OS.macOS || targetOS == OS.iOS;
@@ -77,10 +82,11 @@ void main(List<String> args) async {
         ..._cFiles(Directory.fromUri(stackRoot.resolve(dir))),
       for (final file in _stackFiles) stackRoot.resolve(file).toFilePath(),
       if (isWindows)
-        for (final file in _win32PortFiles) stackRoot.resolve(file).toFilePath()
-      else
-        packageRoot.resolve('native/src/bp_port_posix.c').toFilePath(),
-      packageRoot.resolve('native/src/bacnet_plugin.c').toFilePath(),
+        for (final file in _win32PortFiles)
+          stackRoot.resolve(file).toFilePath(),
+      // the engine; bp_port_posix.c replaces the stack port on POSIX systems
+      for (final file in _cFiles(engineDir))
+        if (!isWindows || !file.endsWith(_posixPort)) file,
     ];
 
     final builder = CBuilder.library(
@@ -94,6 +100,7 @@ void main(List<String> args) async {
       ],
       defines: {
         ..._stackDefines,
+        'BP_ENGINE_VERSION': _packageVersion(pubspec),
         if (isWindows) ...{
           'BACNET_IP_BROADCAST_USE_INADDR_ANY': null,
           '_CRT_SECURE_NO_WARNINGS': null,
@@ -128,10 +135,11 @@ void main(List<String> args) async {
         ..onRecord.listen((record) => stderr.writeln(record.message)),
     );
 
-    // Sources are tracked by the builder; headers are not.
+    // Sources are tracked by the builder; headers and the version are not.
     output.dependencies.addAll([
-      packageRoot.resolve('native/src/bacnet_plugin.h'),
-      packageRoot.resolve('native/src/bp_port.h'),
+      pubspec.uri,
+      for (final header in engineDir.listSync().whereType<File>())
+        if (header.path.endsWith('.h')) header.uri,
     ]);
   });
 }
@@ -147,4 +155,16 @@ List<String> _cFiles(Directory directory) {
           .toList()
         ..sort();
   return files;
+}
+
+/// Version of this package, compiled into `bacnet_plugin_version()`.
+String _packageVersion(File pubspec) {
+  final match = RegExp(
+    r'^version:\s*([0-9A-Za-z.+-]+)',
+    multiLine: true,
+  ).firstMatch(pubspec.readAsStringSync());
+  if (match == null) {
+    throw StateError('no version in ${pubspec.path}');
+  }
+  return match.group(1)!;
 }

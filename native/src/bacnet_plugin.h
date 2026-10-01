@@ -256,8 +256,8 @@ BP_API int32_t bacnet_plugin_register_foreign_device(
  * service handlers (Who-Is, Read/WriteProperty(Multiple), SubscribeCOV,
  * ReadRange, DCC, ...) and sends an I-Am.
  */
-BP_API int32_t bacnet_plugin_server_enable(
-    uint32_t device_instance, const char *device_name);
+BP_API int32_t
+bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name);
 
 /** Sets a string property of the local Device object
  *  (vendor name, model name, description, location, firmware, version). */
@@ -272,7 +272,9 @@ BP_API int32_t bacnet_plugin_send_i_am(void);
 
 /** Creates a server object. Returns the instance or a negative error. */
 BP_API int64_t bacnet_plugin_object_create(
-    uint16_t object_type, uint32_t instance, uint32_t *error_class,
+    uint16_t object_type,
+    uint32_t instance,
+    uint32_t *error_class,
     uint32_t *error_code);
 
 /** Deletes a server object. */
