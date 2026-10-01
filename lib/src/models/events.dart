@@ -6,7 +6,9 @@ import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/types.dart';
+import 'alarms.dart';
 import 'bacnet_value.dart';
+import 'complex_values.dart';
 
 /// Base class of the unsolicited events delivered by the BACnet stack.
 ///
@@ -302,8 +304,97 @@ class PrivateTransferEvent extends BacnetEvent {
       '$parameters)';
 }
 
-/// Any other unconfirmed service request or confirmed notification
-/// (event notifications) and requests that could not be decoded.
+/// An alarm or event notification: an object changed its event state, or
+/// a transition was acknowledged ([isAckNotification]).
+///
+/// Devices send notifications to the recipients of the Notification Class
+/// of the object (see `BacnetClient.addListElements` and
+/// `BacnetProperties.recipientList`). Alarms with [ackRequired] wait for
+/// `BacnetClient.acknowledgeEvent`.
+class EventNotificationEvent extends BacnetEvent {
+  /// Creates an event notification.
+  const EventNotificationEvent({
+    required this.processId,
+    required this.deviceId,
+    required this.object,
+    required this.timeStamp,
+    required this.notificationClass,
+    required this.priority,
+    required this.eventType,
+    required this.notifyType,
+    required this.toState,
+    this.messageText,
+    this.ackRequired = false,
+    this.fromState,
+    this.eventValues,
+    this.confirmed = false,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// Process identifier of the recipient (from its BACnetDestination).
+  final int processId;
+
+  /// Device that sent the notification.
+  final int deviceId;
+
+  /// The object whose event state changed.
+  final BacnetObject object;
+
+  /// When the transition happened.
+  final BacnetTimeStamp timeStamp;
+
+  /// Notification Class of the object.
+  final int notificationClass;
+
+  /// Priority of the transition (0 highest .. 255 lowest).
+  final int priority;
+
+  /// Event algorithm that detected the transition.
+  final BacnetEventType eventType;
+
+  /// Optional text describing the event.
+  final String? messageText;
+
+  /// Alarm, event or acknowledgement notification.
+  final BacnetNotifyType notifyType;
+
+  /// True when the transition must be acknowledged.
+  final bool ackRequired;
+
+  /// The previous event state (null for acknowledgement notifications).
+  final BacnetEventState? fromState;
+
+  /// The new event state (the acknowledged state for acknowledgement
+  /// notifications).
+  final BacnetEventState toState;
+
+  /// The values the event algorithm reports (null for acknowledgement
+  /// notifications).
+  final BacnetEventValues? eventValues;
+
+  /// True for a ConfirmedEventNotification (already acknowledged at the
+  /// protocol level, which does not acknowledge the alarm).
+  final bool confirmed;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  /// True for the notification that a transition was acknowledged.
+  bool get isAckNotification => notifyType == BacnetNotifyType.ackNotification;
+
+  @override
+  String toString() =>
+      'EventNotificationEvent(device: $deviceId, $object '
+      '${fromState?.label ?? ''} -> ${toState.label}, ${notifyType.label}'
+      '${ackRequired ? ', ack required' : ''}, $eventValues)';
+}
+
+/// Any other unconfirmed service request, and requests that could not be
+/// decoded.
 class UnconfirmedServiceEvent extends BacnetEvent {
   /// Creates an unconfirmed service event.
   const UnconfirmedServiceEvent({

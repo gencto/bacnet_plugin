@@ -152,7 +152,7 @@ void main() {
       deviceObject,
       BacnetProperties.objectList,
     );
-    expect(objects, hasLength(104));
+    expect(objects, hasLength(107));
     expect(
       await client.read(device, deviceObject, BacnetProperties.vendorName),
       'bacnet_plugin',
@@ -161,8 +161,8 @@ void main() {
 
   test('scans the object list', () async {
     final objects = await client.scanDevice(device);
-    // device, network port, 100 AV, BV, MSV
-    expect(objects, hasLength(104));
+    // device, network port, 100 AV, BV, MSV, alarms: NC, AV, BV
+    expect(objects, hasLength(107));
     final scanner = DeviceScanner(client);
     final details = await scanner.getDeviceDetails(device);
     expect(details.deviceName, 'DemoServer');
@@ -552,5 +552,204 @@ void main() {
         .timeout(const Duration(seconds: 10));
     expect(updates.first.source, UpdateSource.manual);
     expect(updates.last.source, UpdateSource.cov);
+  });
+
+  group('alarms and events', () {
+    const notificationClass = BacnetObject(
+      type: BacnetObjectType.notificationClass,
+      instance: 1,
+    );
+    const alarmAv = BacnetObject(
+      type: BacnetObjectType.analogValue,
+      instance: 100,
+    );
+    const alarmBv = BacnetObject(
+      type: BacnetObjectType.binaryValue,
+      instance: 1,
+    );
+    final unconfirmed = BacnetDestination(
+      recipient: BacnetRecipient.ip('127.0.0.1', 47862),
+      processId: 42,
+    );
+    final confirmed = BacnetDestination(
+      recipient: BacnetRecipient.ip('127.0.0.1', 47862),
+      processId: 43,
+      issueConfirmedNotifications: true,
+    );
+
+    Future<EventNotificationEvent> next(
+      bool Function(EventNotificationEvent) test,
+    ) => client.eventNotifications
+        .firstWhere(test)
+        .timeout(const Duration(seconds: 10));
+
+    Future<List<BacnetDestination>> recipients() =>
+        client.read(device, notificationClass, BacnetProperties.recipientList);
+
+    test('reports alarms to recipients and takes acknowledgements', () async {
+      expect(
+        await client.read(
+          device,
+          notificationClass,
+          BacnetProperties.objectName,
+        ),
+        'Alarms',
+      );
+      await client.addListElements(
+        device,
+        notificationClass,
+        BacnetProperties.recipientList,
+        [unconfirmed],
+      );
+      expect(await recipients(), [unconfirmed]);
+
+      // the value exceeds the high limit
+      final alarmReceived = next(
+        (e) => e.object == alarmAv && e.toState == BacnetEventState.highLimit,
+      );
+      await client.write(
+        device,
+        alarmAv,
+        BacnetProperties.analogPresentValue,
+        35,
+        priority: 8,
+      );
+      final alarm = await alarmReceived;
+      expect(alarm.processId, 42);
+      expect(alarm.confirmed, isFalse);
+      expect(alarm.deviceId, device);
+      expect(alarm.notificationClass, 1);
+      expect(alarm.priority, 100);
+      expect(alarm.eventType, BacnetEventType.outOfRange);
+      expect(alarm.notifyType, BacnetNotifyType.alarm);
+      expect(alarm.ackRequired, isTrue);
+      expect(alarm.fromState, BacnetEventState.normal);
+      expect(alarm.timeStamp, isA<BacnetTimeStampDateTime>());
+      switch (alarm.eventValues) {
+        case BacnetOutOfRangeValues(
+          :final exceedingValue,
+          :final exceededLimit,
+          :final deadband,
+          :final statusFlags,
+        ):
+          expect(exceedingValue, 35);
+          expect(exceededLimit, 30);
+          expect(deadband, 1);
+          expect(statusFlags.inAlarm, isTrue);
+        default:
+          fail('unexpected values ${alarm.eventValues}');
+      }
+
+      final summary = (await client.getEventInformation(
+        device,
+      )).firstWhere((s) => s.object == alarmAv);
+      expect(summary.eventState, BacnetEventState.highLimit);
+      expect(summary.isUnacknowledged, isTrue);
+      expect(summary.stateTimeStamp, alarm.timeStamp);
+      expect(
+        (await client.getAlarmSummary(device)).map((s) => s.object),
+        contains(alarmAv),
+      );
+      expect(
+        await client.read(device, alarmAv, BacnetProperties.eventState),
+        BacnetEventState.highLimit,
+      );
+
+      // acknowledging sends an acknowledgement notification
+      final ackReceived = next(
+        (e) => e.object == alarmAv && e.isAckNotification,
+      );
+      await client.acknowledgeEvent(alarm, source: 'integration test');
+      expect((await ackReceived).toState, BacnetEventState.highLimit);
+      expect(
+        (await client.getEventInformation(
+          device,
+        )).firstWhere((s) => s.object == alarmAv).isUnacknowledged,
+        isFalse,
+      );
+      await expectLater(
+        client.acknowledgeAlarm(
+          device,
+          alarmAv,
+          BacnetEventState.lowLimit,
+          alarm.timeStamp,
+          source: 'integration test',
+        ),
+        throwsA(isA<BacnetProtocolException>()),
+      );
+
+      // back inside the limits
+      final normalReceived = next(
+        (e) => e.object == alarmAv && e.toState == BacnetEventState.normal,
+      );
+      await client.write(
+        device,
+        alarmAv,
+        BacnetProperties.analogPresentValue,
+        20,
+        priority: 8,
+      );
+      final normal = await normalReceived;
+      expect(normal.fromState, BacnetEventState.highLimit);
+      expect(normal.ackRequired, isFalse);
+      expect(normal.priority, 200);
+      expect(
+        (await client.getAlarmSummary(device)).map((s) => s.object),
+        isNot(contains(alarmAv)),
+      );
+    });
+
+    test('sends confirmed notifications of binary objects', () async {
+      // bacnet-stack keeps one destination per recipient: this one
+      // replaces the unconfirmed destination
+      await client.addListElements(
+        device,
+        notificationClass,
+        BacnetProperties.recipientList,
+        [confirmed],
+      );
+      expect(await recipients(), [confirmed]);
+
+      final eventReceived = next(
+        (e) => e.object == alarmBv && e.toState == BacnetEventState.offNormal,
+      );
+      await client.write(
+        device,
+        alarmBv,
+        BacnetProperties.binaryPresentValue,
+        BacnetBinaryPV.active,
+      );
+      final event = await eventReceived;
+      expect(event.confirmed, isTrue);
+      expect(event.processId, 43);
+      expect(event.eventType, BacnetEventType.changeOfState);
+      expect(event.notifyType, BacnetNotifyType.event);
+      switch (event.eventValues) {
+        case BacnetChangeOfStateValues(:final newState):
+          expect(newState.asBinaryPV, BacnetBinaryPV.active);
+        default:
+          fail('unexpected values ${event.eventValues}');
+      }
+      final normalReceived = next(
+        (e) => e.object == alarmBv && e.toState == BacnetEventState.normal,
+      );
+      await client.write(
+        device,
+        alarmBv,
+        BacnetProperties.binaryPresentValue,
+        BacnetBinaryPV.inactive,
+      );
+      await normalReceived;
+    });
+
+    test('removes recipients', () async {
+      await client.removeListElements(
+        device,
+        notificationClass,
+        BacnetProperties.recipientList,
+        [confirmed],
+      );
+      expect(await recipients(), isEmpty);
+    });
   });
 }

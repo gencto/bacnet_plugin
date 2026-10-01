@@ -54,6 +54,12 @@ const _stackDefines = <String, String?>{
   'MAX_TSM_TRANSACTIONS': '255',
   'MAX_COV_SUBSCRIPTIONS': '1024',
   'MAX_COV_ADDRESSES': '128',
+  // alarms and events of the server: event algorithms of analog and binary
+  // objects, 64 Notification Class instances (0..63)
+  'INTRINSIC_REPORTING': null,
+  'BINARY_INPUT_INTRINSIC_REPORTING': '1',
+  'BINARY_VALUE_INTRINSIC_REPORTING': '1',
+  'MAX_NOTIFICATION_CLASSES': '64',
 };
 
 void main(List<String> args) async {

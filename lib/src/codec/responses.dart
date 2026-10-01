@@ -2,10 +2,14 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../constants/enumerations.dart';
 import '../constants/errors.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
+import '../models/alarms.dart';
 import '../models/bacnet_value.dart';
+import '../models/complex_values.dart';
+import '../models/events.dart';
 import 'reader.dart';
 import 'value_encoding.dart';
 
@@ -315,4 +319,155 @@ PrivateTransferData decodePrivateTransfer(Uint8List data) {
     serviceNumber: serviceNumber,
     parameters: parameters,
   );
+}
+
+/// Decodes a (Un)ConfirmedEventNotification request (ASHRAE 135 clause
+/// 13.8).
+///
+/// Event values that do not match their algorithm are returned as
+/// [BacnetOtherEventValues] rather than dropping the notification.
+EventNotificationEvent decodeEventNotification(
+  Uint8List data, {
+  bool confirmed = false,
+  List<int> mac = const [],
+  int net = 0,
+}) {
+  final r = BacnetReader(data);
+  final processId = r.readContextUnsigned(0);
+  final device = r.readContextObjectId(1);
+  final object = r.readContextObjectId(2);
+  final timeStamp = _readTimeStamp(r, 3);
+  final notificationClass = r.readContextUnsigned(4);
+  final priority = r.readContextUnsigned(5);
+  final eventType = BacnetEventType(r.readContextUnsigned(6));
+  final messageText = r.nextIsContext(7)
+      ? r.readContextCharacterString(7)
+      : null;
+  final notifyType = BacnetNotifyType(r.readContextUnsigned(8));
+  final ackRequired = r.nextIsContext(9) && r.readContextBoolean(9);
+  final fromState = r.readOptionalContextUnsigned(10);
+  final toState = BacnetEventState(r.readContextUnsigned(11));
+  BacnetEventValues? eventValues;
+  if (r.nextIsOpening(12)) {
+    r.expectOpening(12);
+    final choice = r.readValuesUntilClosing(12);
+    if (choice case [final BacnetConstructedValue values]) {
+      try {
+        eventValues = BacnetEventValues.fromValue(values);
+      } on BacnetDecodeException {
+        eventValues = BacnetOtherEventValues(
+          BacnetEventType(values.tag),
+          values.values,
+        );
+      }
+    } else {
+      throw BacnetDecodeException('malformed event values: $choice');
+    }
+  }
+  return EventNotificationEvent(
+    processId: processId,
+    deviceId: device.instance,
+    object: object,
+    timeStamp: timeStamp,
+    notificationClass: notificationClass,
+    priority: priority,
+    eventType: eventType,
+    messageText: messageText,
+    notifyType: notifyType,
+    ackRequired: ackRequired,
+    fromState: fromState == null ? null : BacnetEventState(fromState),
+    toState: toState,
+    eventValues: eventValues,
+    confirmed: confirmed,
+    mac: mac,
+    net: net,
+  );
+}
+
+BacnetTimeStamp _readTimeStamp(BacnetReader r, int tag) {
+  r.expectOpening(tag);
+  return switch (r.readValuesUntilClosing(tag)) {
+    [final choice] => BacnetTimeStamp.fromValue(choice),
+    final other => throw BacnetDecodeException('malformed time stamp: $other'),
+  };
+}
+
+/// Decoded GetEventInformation-ACK.
+typedef EventInformation = ({
+  List<BacnetEventSummary> summaries,
+  bool moreEvents,
+});
+
+/// Decodes a GetEventInformation-ACK (ASHRAE 135 clause 13.12).
+EventInformation decodeGetEventInformationAck(Uint8List data) {
+  final r = BacnetReader(data);
+  final summaries = <BacnetEventSummary>[];
+  r.expectOpening(0);
+  while (!r.nextIsClosing(0)) {
+    final object = r.readContextObjectId(0);
+    final state = BacnetEventState(r.readContextUnsigned(1));
+    final acked = BacnetEventTransitionBits.fromValue(
+      r.readContextBitString(2),
+    );
+    r.expectOpening(3);
+    final stamps = r
+        .readValuesUntilClosing(3)
+        .map(BacnetTimeStamp.fromValue)
+        .toList();
+    final notifyType = BacnetNotifyType(r.readContextUnsigned(4));
+    final enable = BacnetEventTransitionBits.fromValue(
+      r.readContextBitString(5),
+    );
+    r.expectOpening(6);
+    final priorities = [
+      for (final value in r.readValuesUntilClosing(6))
+        switch (value) {
+          BacnetUnsigned(:final value) => value,
+          _ => throw BacnetDecodeException('malformed priority: $value'),
+        },
+    ];
+    summaries.add(
+      BacnetEventSummary(
+        object: object,
+        eventState: state,
+        acknowledgedTransitions: acked,
+        eventTimeStamps: List.unmodifiable(stamps),
+        notifyType: notifyType,
+        eventEnable: enable,
+        eventPriorities: List.unmodifiable(priorities),
+      ),
+    );
+  }
+  r.expectClosing(0);
+  final more = r.readContextBoolean(1);
+  return (summaries: List.unmodifiable(summaries), moreEvents: more);
+}
+
+/// Decodes a GetAlarmSummary-ACK (ASHRAE 135 clause 13.10).
+List<BacnetAlarmSummary> decodeGetAlarmSummaryAck(Uint8List data) {
+  final r = BacnetReader(data);
+  final result = <BacnetAlarmSummary>[];
+  while (!r.isAtEnd) {
+    final object = r.readApplicationValue();
+    final state = r.readApplicationValue();
+    final acked = r.readApplicationValue();
+    if ((object, state, acked) case (
+      final BacnetObject object,
+      BacnetEnumerated(value: final state),
+      final BacnetBitString acked,
+    )) {
+      result.add(
+        BacnetAlarmSummary(
+          object: object,
+          alarmState: BacnetEventState(state),
+          acknowledgedTransitions: BacnetEventTransitionBits.fromValue(acked),
+        ),
+      );
+    } else {
+      throw BacnetDecodeException(
+        'malformed alarm summary: $object $state $acked',
+      );
+    }
+  }
+  return List.unmodifiable(result);
 }

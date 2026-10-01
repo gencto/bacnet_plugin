@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import '../codec/log_records.dart';
 import '../codec/requests.dart';
 import '../codec/responses.dart';
+import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../constants/services.dart';
@@ -16,9 +17,11 @@ import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
+import '../models/alarms.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
+import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
@@ -95,6 +98,11 @@ class BacnetClient {
   /// Change-of-Value notifications.
   Stream<CovNotificationEvent> get covEvents =>
       events.whereType<CovNotificationEvent>();
+
+  /// Alarm and event notifications sent to this client (see
+  /// [addListElements] to become a recipient).
+  Stream<EventNotificationEvent> get eventNotifications =>
+      events.whereType<EventNotificationEvent>();
 
   /// Version of the native engine and bacnet-stack, once started.
   String? get nativeVersion => _system.nativeVersion;
@@ -283,7 +291,7 @@ class BacnetClient {
       object.type,
       object.instance,
       property.id,
-      property.encode(value),
+      property.encodeValue(value),
       priority: priority,
       timeout: timeout,
       background: background,
@@ -720,6 +728,212 @@ class BacnetClient {
       ),
     );
   }
+
+  // ---- lists ----------------------------------------------------------------
+
+  /// Adds [elements] (the elements one after another) to a list property
+  /// with AddListElement; elements already in the list are not added
+  /// twice.
+  Future<void> addListElement(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance,
+    BacnetPropertyId propertyId,
+    BacnetValue elements, {
+    int arrayIndex = -1,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.addListElement,
+      payload: encodeListElements(
+        objectType,
+        instance,
+        propertyId,
+        elements,
+        arrayIndex: arrayIndex,
+      ),
+      timeout: timeout,
+    ),
+  );
+
+  /// Removes [elements] (the elements one after another) from a list
+  /// property with RemoveListElement.
+  Future<void> removeListElement(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance,
+    BacnetPropertyId propertyId,
+    BacnetValue elements, {
+    int arrayIndex = -1,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.removeListElement,
+      payload: encodeListElements(
+        objectType,
+        instance,
+        propertyId,
+        elements,
+        arrayIndex: arrayIndex,
+      ),
+      timeout: timeout,
+    ),
+  );
+
+  /// Adds [elements] to the list [property] of [object].
+  ///
+  /// ```dart
+  /// // receive the alarms of notification class 1 of device 1234
+  /// await client.addListElements(
+  ///   1234,
+  ///   const BacnetObject(type: BacnetObjectType.notificationClass, instance: 1),
+  ///   BacnetProperties.recipientList,
+  ///   [BacnetDestination(recipient: BacnetRecipient.ip('192.168.1.10', 47808))],
+  /// );
+  /// client.eventNotifications.listen(print);
+  /// ```
+  Future<void> addListElements<E>(
+    int deviceId,
+    BacnetObject object,
+    BacnetWritableProperty<List<E>> property,
+    List<E> elements, {
+    Duration? timeout,
+  }) => Future.sync(
+    () => addListElement(
+      deviceId,
+      object.type,
+      object.instance,
+      property.id,
+      property.encodeValue(elements),
+      timeout: timeout,
+    ),
+  );
+
+  /// Removes [elements] from the list [property] of [object]; an element
+  /// must match an entry of the list exactly.
+  Future<void> removeListElements<E>(
+    int deviceId,
+    BacnetObject object,
+    BacnetWritableProperty<List<E>> property,
+    List<E> elements, {
+    Duration? timeout,
+  }) => Future.sync(
+    () => removeListElement(
+      deviceId,
+      object.type,
+      object.instance,
+      property.id,
+      property.encodeValue(elements),
+      timeout: timeout,
+    ),
+  );
+
+  // ---- alarms and events ----------------------------------------------------
+
+  /// Acknowledges the transition of [object] into [eventState] that
+  /// happened at [timeStamp] (AcknowledgeAlarm).
+  ///
+  /// [source] names who acknowledges, e.g. the operator; [time] is the time
+  /// of the acknowledgement (now by default). The device answers with an
+  /// error if [eventState] or [timeStamp] is not the current transition.
+  Future<void> acknowledgeAlarm(
+    int deviceId,
+    BacnetObject object,
+    BacnetEventState eventState,
+    BacnetTimeStamp timeStamp, {
+    required String source,
+    int processId = 0,
+    DateTime? time,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.acknowledgeAlarm,
+      payload: encodeAcknowledgeAlarm(
+        processId: processId,
+        object: object,
+        eventState: eventState,
+        timeStamp: timeStamp,
+        source: source,
+        timeOfAcknowledgment: BacnetTimeStampDateTime(
+          BacnetDateTime.fromDateTime(time ?? DateTime.now()),
+        ),
+      ),
+      timeout: timeout,
+    ),
+  );
+
+  /// Acknowledges the transition [notification] reported.
+  ///
+  /// ```dart
+  /// client.eventNotifications
+  ///     .where((alarm) => alarm.ackRequired)
+  ///     .listen((alarm) => client.acknowledgeEvent(alarm, source: 'operator'));
+  /// ```
+  Future<void> acknowledgeEvent(
+    EventNotificationEvent notification, {
+    required String source,
+    DateTime? time,
+    Duration? timeout,
+  }) => acknowledgeAlarm(
+    notification.deviceId,
+    notification.object,
+    notification.toState,
+    notification.timeStamp,
+    source: source,
+    processId: notification.processId,
+    time: time,
+    timeout: timeout,
+  );
+
+  /// Returns the objects of [deviceId] that are in an event state other
+  /// than normal or have unacknowledged transitions (GetEventInformation,
+  /// repeated while the device reports more).
+  Future<List<BacnetEventSummary>> getEventInformation(
+    int deviceId, {
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) async {
+    final summaries = <BacnetEventSummary>[];
+    BacnetObject? last;
+    while (true) {
+      final EventInformation page = await _system.confirmed(
+        deviceId: deviceId,
+        service: BacnetConfirmedService.getEventInformation,
+        payload: encodeGetEventInformation(lastReceived: last),
+        decoding: AckDecoding.getEventInformation,
+        timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
+      );
+      summaries.addAll(page.summaries);
+      if (!page.moreEvents || page.summaries.isEmpty) {
+        return List.unmodifiable(summaries);
+      }
+      last = page.summaries.last.object;
+    }
+  }
+
+  /// Returns the objects of [deviceId] in alarm (GetAlarmSummary).
+  ///
+  /// Newer devices may support only [getEventInformation].
+  Future<List<BacnetAlarmSummary>> getAlarmSummary(
+    int deviceId, {
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => _system.confirmed(
+    deviceId: deviceId,
+    service: BacnetConfirmedService.getAlarmSummary,
+    payload: Uint8List(0),
+    decoding: AckDecoding.getAlarmSummary,
+    timeout: timeout,
+    background: background,
+    cancelToken: cancelToken,
+  );
 
   /// Reads the items of a list property selected by [range] with
   /// ReadRange (the whole list by default).

@@ -15,9 +15,11 @@ import '../core/bacnet_config.dart';
 import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/types.dart';
+import '../models/alarms.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
+import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
@@ -36,9 +38,11 @@ final class FakeBacnetRequest {
     this.time,
     this.address,
     this.objectName,
+    this.source,
   });
 
-  /// Client method, e.g. `readProperty`, `writeProperty`, `subscribeCOV`.
+  /// Client method, e.g. `readProperty`, `writeProperty`, `subscribeCOV`,
+  /// `acknowledgeAlarm`.
   final String service;
 
   /// Target device.
@@ -64,6 +68,9 @@ final class FakeBacnetRequest {
 
   /// Object name searched by `sendWhoHas`.
   final String? objectName;
+
+  /// Acknowledgement source of `acknowledgeAlarm`.
+  final String? source;
 
   @override
   String toString() =>
@@ -124,6 +131,239 @@ final class FakeBacnetObject {
     }
     device._changed(this, property);
   }
+
+  /// Enables event reporting: transitions reported with [reportEvent] go
+  /// to the recipients of Notification Class [notificationClass] (add it
+  /// with [FakeBacnetDevice.addNotificationClass]).
+  void enableEventReporting({
+    required int notificationClass,
+    BacnetNotifyType notifyType = BacnetNotifyType.alarm,
+    BacnetEventTransitionBits eventEnable = _allTransitions,
+  }) {
+    properties.addAll({
+      BacnetPropertyId.notificationClass: BacnetUnsigned(notificationClass),
+      BacnetPropertyId.notifyType: BacnetEnumerated(notifyType),
+      BacnetPropertyId.eventEnable: eventEnable.toValue(),
+      BacnetPropertyId.eventState: BacnetEnumerated(_eventState),
+      BacnetPropertyId.ackedTransitions: _acked.toValue(),
+      BacnetPropertyId.eventTimeStamps: BacnetList([
+        for (final stamp in _stamps) stamp.toValue(),
+      ]),
+    });
+  }
+
+  BacnetEventState _eventState = BacnetEventState.normal;
+  BacnetEventTransitionBits _acked = _allTransitions;
+  final List<BacnetTimeStamp> _stamps = List.filled(
+    3,
+    const BacnetTimeStampDateTime(BacnetDateTime(BacnetDate(), BacnetTime())),
+  );
+
+  /// Current event state.
+  BacnetEventState get eventState => _eventState;
+
+  /// Reports that the object entered [toState], like an event algorithm of
+  /// the device: updates Event_State, Event_Time_Stamps and
+  /// Acked_Transitions, and sends an [EventNotificationEvent] to every
+  /// recipient of the Notification Class that wants the transition.
+  /// Returns the notification (with process identifier 0).
+  ///
+  /// [eventType] defaults to the type of [eventValues]. Call
+  /// [enableEventReporting] first.
+  EventNotificationEvent reportEvent(
+    BacnetEventState toState, {
+    BacnetEventValues? eventValues,
+    BacnetEventType? eventType,
+    String? messageText,
+    DateTime? time,
+  }) {
+    final classNumber = properties[BacnetPropertyId.notificationClass]?.asInt;
+    if (classNumber == null) {
+      throw StateError('event reporting of $identifier is not enabled');
+    }
+    final transition = BacnetEventTransition.into(toState);
+    final notificationClass = device.object(
+      BacnetObjectType.notificationClass,
+      classNumber,
+    );
+    final ackRequired = _transitionBit(
+      _decodeOr(
+        notificationClass?[BacnetPropertyId.ackRequired],
+        BacnetEventTransitionBits.fromValue,
+        const BacnetEventTransitionBits(),
+      ),
+      transition,
+    );
+    final priorities = _decodeOr(
+      notificationClass?[BacnetPropertyId.priority],
+      BacnetEventPriorities.fromValue,
+      const BacnetEventPriorities(
+        toOffNormal: 255,
+        toFault: 255,
+        toNormal: 255,
+      ),
+    );
+    final enabled = _transitionBit(
+      _decodeOr(
+        properties[BacnetPropertyId.eventEnable],
+        BacnetEventTransitionBits.fromValue,
+        _allTransitions,
+      ),
+      transition,
+    );
+    final timeStamp = BacnetTimeStampDateTime(
+      BacnetDateTime.fromDateTime(time ?? DateTime.now()),
+    );
+    final notification = EventNotificationEvent(
+      processId: 0,
+      deviceId: device.deviceId,
+      object: identifier,
+      timeStamp: timeStamp,
+      notificationClass: classNumber,
+      priority: priorities[transition],
+      eventType:
+          eventType ?? eventValues?.eventType ?? BacnetEventType.changeOfState,
+      messageText: messageText,
+      notifyType: BacnetNotifyType(
+        properties[BacnetPropertyId.notifyType]?.asInt ??
+            BacnetNotifyType.alarm,
+      ),
+      ackRequired: enabled && ackRequired,
+      fromState: _eventState,
+      toState: toState,
+      eventValues: eventValues,
+    );
+    _eventState = toState;
+    _stamps[transition.index] = timeStamp;
+    _acked = _withTransition(_acked, transition, !(enabled && ackRequired));
+    _publishEventState();
+    if (enabled) device._notifyRecipients(notification, transition);
+    return notification;
+  }
+
+  void _acknowledge(BacnetEventState state, BacnetTimeStamp timeStamp) {
+    final transition = BacnetEventTransition.into(state);
+    if (_transitionBit(_acked, transition)) {
+      if (state != _eventState) {
+        throw device._error(
+          BacnetErrorClass.services,
+          BacnetErrorCode.invalidEventState,
+        );
+      }
+    } else {
+      if (timeStamp != _stamps[transition.index]) {
+        throw device._error(
+          BacnetErrorClass.services,
+          BacnetErrorCode.invalidTimeStamp,
+        );
+      }
+      _acked = _withTransition(_acked, transition, true);
+      _publishEventState();
+    }
+    final classNumber =
+        properties[BacnetPropertyId.notificationClass]?.asInt ?? 0;
+    device._notifyRecipients(
+      EventNotificationEvent(
+        processId: 0,
+        deviceId: device.deviceId,
+        object: identifier,
+        timeStamp: timeStamp,
+        notificationClass: classNumber,
+        priority: 0,
+        eventType: BacnetEventType.none,
+        notifyType: BacnetNotifyType.ackNotification,
+        toState: state,
+      ),
+      transition,
+    );
+  }
+
+  BacnetEventSummary? get _eventSummary {
+    final enable = _decodeOr(
+      properties[BacnetPropertyId.eventEnable],
+      BacnetEventTransitionBits.fromValue,
+      _allTransitions,
+    );
+    final unacked = !_acked.toOffNormal || !_acked.toFault || !_acked.toNormal;
+    if (_eventState == BacnetEventState.normal && !unacked) return null;
+    final classNumber = properties[BacnetPropertyId.notificationClass]?.asInt;
+    final notificationClass = classNumber == null
+        ? null
+        : device.object(BacnetObjectType.notificationClass, classNumber);
+    final priorities = _decodeOr(
+      notificationClass?[BacnetPropertyId.priority],
+      BacnetEventPriorities.fromValue,
+      const BacnetEventPriorities(
+        toOffNormal: 255,
+        toFault: 255,
+        toNormal: 255,
+      ),
+    );
+    return BacnetEventSummary(
+      object: identifier,
+      eventState: _eventState,
+      acknowledgedTransitions: _acked,
+      eventTimeStamps: List.unmodifiable(_stamps),
+      notifyType: BacnetNotifyType(
+        properties[BacnetPropertyId.notifyType]?.asInt ??
+            BacnetNotifyType.alarm,
+      ),
+      eventEnable: enable,
+      eventPriorities: [
+        priorities.toOffNormal,
+        priorities.toFault,
+        priorities.toNormal,
+      ],
+    );
+  }
+
+  void _publishEventState() {
+    properties[BacnetPropertyId.eventState] = BacnetEnumerated(_eventState);
+    properties[BacnetPropertyId.ackedTransitions] = _acked.toValue();
+    properties[BacnetPropertyId.eventTimeStamps] = BacnetList([
+      for (final stamp in _stamps) stamp.toValue(),
+    ]);
+    properties[BacnetPropertyId.statusFlags] = BacnetStatusFlags(
+      inAlarm: _eventState != BacnetEventState.normal,
+      fault: _eventState == BacnetEventState.fault,
+    ).toBitString();
+  }
+
+  static T _decodeOr<T>(
+    BacnetValue? value,
+    T Function(BacnetValue) decode,
+    T fallback,
+  ) {
+    if (value == null) return fallback;
+    try {
+      return decode(value);
+    } on BacnetDecodeException {
+      return fallback;
+    }
+  }
+
+  static bool _transitionBit(
+    BacnetEventTransitionBits bits,
+    BacnetEventTransition transition,
+  ) => switch (transition) {
+    BacnetEventTransition.toOffNormal => bits.toOffNormal,
+    BacnetEventTransition.toFault => bits.toFault,
+    BacnetEventTransition.toNormal => bits.toNormal,
+  };
+
+  static BacnetEventTransitionBits _withTransition(
+    BacnetEventTransitionBits bits,
+    BacnetEventTransition transition,
+    bool value,
+  ) => BacnetEventTransitionBits(
+    toOffNormal: transition == BacnetEventTransition.toOffNormal
+        ? value
+        : bits.toOffNormal,
+    toFault: transition == BacnetEventTransition.toFault ? value : bits.toFault,
+    toNormal: transition == BacnetEventTransition.toNormal
+        ? value
+        : bits.toNormal,
+  );
 
   void _publishPriorityArray() {
     properties[BacnetPropertyId.priorityArray] = BacnetList(
@@ -214,6 +454,7 @@ final class FakeBacnetDevice {
 
   final Map<(BacnetObjectType, int), FakeBacnetObject> _objects = {};
   final List<void Function(FakeBacnetObject, BacnetPropertyId)> _listeners = [];
+  final List<void Function(EventNotificationEvent)> _eventListeners = [];
 
   /// Objects of the device, the Device object first.
   Iterable<FakeBacnetObject> get objects => _objects.values;
@@ -264,6 +505,80 @@ final class FakeBacnetDevice {
   FakeBacnetObject? object(BacnetObjectType type, int instance) =>
       _objects[(type, instance)];
 
+  /// Adds a Notification Class object. Clients receive the notifications
+  /// of its objects after adding themselves to its Recipient_List
+  /// ([FakeBacnetClient.addListElements]); every destination delivers one
+  /// notification to the client.
+  FakeBacnetObject addNotificationClass(
+    int instance, {
+    String? name,
+    BacnetEventPriorities priorities = const BacnetEventPriorities(
+      toOffNormal: 100,
+      toFault: 100,
+      toNormal: 200,
+    ),
+    BacnetEventTransitionBits ackRequired = const BacnetEventTransitionBits(
+      toOffNormal: true,
+      toFault: true,
+    ),
+    List<BacnetDestination> recipients = const [],
+  }) => addObject(
+    BacnetObjectType.notificationClass,
+    instance,
+    name: name,
+    properties: {
+      BacnetPropertyId.notificationClass: BacnetUnsigned(instance),
+      BacnetPropertyId.priority: priorities.toValue(),
+      BacnetPropertyId.ackRequired: ackRequired.toValue(),
+      BacnetPropertyId.recipientList: BacnetDestination.listToValue(recipients),
+    },
+  );
+
+  void _notifyRecipients(
+    EventNotificationEvent notification,
+    BacnetEventTransition transition,
+  ) {
+    final recipients =
+        _objects[(
+          BacnetObjectType.notificationClass,
+          notification.notificationClass,
+        )]?[BacnetPropertyId.recipientList];
+    if (recipients == null) return;
+    final List<BacnetDestination> destinations;
+    try {
+      destinations = BacnetDestination.listFromValue(recipients);
+    } on BacnetDecodeException {
+      return;
+    }
+    for (final destination in destinations) {
+      if (!FakeBacnetObject._transitionBit(
+        destination.transitions,
+        transition,
+      )) {
+        continue;
+      }
+      final delivered = EventNotificationEvent(
+        processId: destination.processId,
+        deviceId: notification.deviceId,
+        object: notification.object,
+        timeStamp: notification.timeStamp,
+        notificationClass: notification.notificationClass,
+        priority: notification.priority,
+        eventType: notification.eventType,
+        messageText: notification.messageText,
+        notifyType: notification.notifyType,
+        ackRequired: notification.ackRequired,
+        fromState: notification.fromState,
+        toState: notification.toState,
+        eventValues: notification.eventValues,
+        confirmed: destination.issueConfirmedNotifications,
+      );
+      for (final listener in List.of(_eventListeners)) {
+        listener(delivered);
+      }
+    }
+  }
+
   void _changed(FakeBacnetObject object, BacnetPropertyId property) {
     for (final listener in List.of(_listeners)) {
       listener(object, property);
@@ -292,6 +607,12 @@ final class FakeBacnetDevice {
         errorCode: e,
       );
 }
+
+const BacnetEventTransitionBits _allTransitions = BacnetEventTransitionBits(
+  toOffNormal: true,
+  toFault: true,
+  toNormal: true,
+);
 
 typedef _Subscription = ({
   int deviceId,
@@ -362,6 +683,13 @@ class FakeBacnetClient implements BacnetClient {
     device._listeners.add(
       (object, property) => _notify(device, object, property),
     );
+    device._eventListeners.add((notification) {
+      unawaited(
+        Future<void>.delayed(latency + device.latency, () {
+          if (!_events.isClosed) _events.add(notification);
+        }),
+      );
+    });
   }
 
   @override
@@ -378,6 +706,11 @@ class FakeBacnetClient implements BacnetClient {
   Stream<CovNotificationEvent> get covEvents => events
       .where((e) => e is CovNotificationEvent)
       .cast<CovNotificationEvent>();
+
+  @override
+  Stream<EventNotificationEvent> get eventNotifications => events
+      .where((e) => e is EventNotificationEvent)
+      .cast<EventNotificationEvent>();
 
   @override
   String? get nativeVersion => _started ? 'fake' : null;
@@ -560,7 +893,7 @@ class FakeBacnetClient implements BacnetClient {
       object.type,
       object.instance,
       property.id,
-      property.encode(value),
+      property.encodeValue(value),
       priority: priority,
       cancelToken: cancelToken,
     ),
@@ -851,6 +1184,243 @@ class FakeBacnetClient implements BacnetClient {
         entries: entries,
       );
     });
+  }
+
+  @override
+  Future<void> addListElement(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance,
+    BacnetPropertyId propertyId,
+    BacnetValue elements, {
+    int arrayIndex = -1,
+    Duration? timeout,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'addListElement',
+        deviceId: deviceId,
+        object: BacnetObject(type: objectType, instance: instance),
+        propertyId: propertyId,
+        value: elements,
+      ),
+    );
+    return _request(deviceId, null, (device) {
+      final object = _listObject(device, objectType, instance, propertyId);
+      final current = _listElements(object, propertyId, object[propertyId]!);
+      final added = _listElements(object, propertyId, elements);
+      object[propertyId] = _listValue(propertyId, [
+        ...current,
+        ...added.where((e) => !current.contains(e)),
+      ]);
+    });
+  }
+
+  @override
+  Future<void> removeListElement(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance,
+    BacnetPropertyId propertyId,
+    BacnetValue elements, {
+    int arrayIndex = -1,
+    Duration? timeout,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'removeListElement',
+        deviceId: deviceId,
+        object: BacnetObject(type: objectType, instance: instance),
+        propertyId: propertyId,
+        value: elements,
+      ),
+    );
+    return _request(deviceId, null, (device) {
+      final object = _listObject(device, objectType, instance, propertyId);
+      final current = _listElements(object, propertyId, object[propertyId]!);
+      final removed = _listElements(object, propertyId, elements);
+      if (removed.any((e) => !current.contains(e))) {
+        throw device._error(
+          BacnetErrorClass.services,
+          BacnetErrorCode.listElementNotFound,
+        );
+      }
+      object[propertyId] = _listValue(propertyId, [
+        ...current.where((e) => !removed.contains(e)),
+      ]);
+    });
+  }
+
+  @override
+  Future<void> addListElements<E>(
+    int deviceId,
+    BacnetObject object,
+    BacnetWritableProperty<List<E>> property,
+    List<E> elements, {
+    Duration? timeout,
+  }) => Future.sync(
+    () => addListElement(
+      deviceId,
+      object.type,
+      object.instance,
+      property.id,
+      property.encodeValue(elements),
+    ),
+  );
+
+  @override
+  Future<void> removeListElements<E>(
+    int deviceId,
+    BacnetObject object,
+    BacnetWritableProperty<List<E>> property,
+    List<E> elements, {
+    Duration? timeout,
+  }) => Future.sync(
+    () => removeListElement(
+      deviceId,
+      object.type,
+      object.instance,
+      property.id,
+      property.encodeValue(elements),
+    ),
+  );
+
+  static FakeBacnetObject _listObject(
+    FakeBacnetDevice device,
+    BacnetObjectType type,
+    int instance,
+    BacnetPropertyId property,
+  ) {
+    final object = device.object(type, instance);
+    if (object == null) {
+      throw device._error(
+        BacnetErrorClass.object,
+        BacnetErrorCode.unknownObject,
+      );
+    }
+    if (object[property] == null) {
+      throw device._error(
+        BacnetErrorClass.property,
+        BacnetErrorCode.unknownProperty,
+      );
+    }
+    return object;
+  }
+
+  /// The elements of a list: destinations of a Recipient_List, the values
+  /// of any other list.
+  static List<Object> _listElements(
+    FakeBacnetObject object,
+    BacnetPropertyId property,
+    BacnetValue value,
+  ) {
+    if (property != BacnetPropertyId.recipientList) return value.asList;
+    try {
+      return BacnetDestination.listFromValue(value);
+    } on BacnetDecodeException {
+      throw object.device._error(
+        BacnetErrorClass.property,
+        BacnetErrorCode.invalidDataType,
+      );
+    }
+  }
+
+  static BacnetValue _listValue(
+    BacnetPropertyId property,
+    List<Object> elements,
+  ) => property == BacnetPropertyId.recipientList
+      ? BacnetDestination.listToValue(elements.cast<BacnetDestination>())
+      : BacnetList(List.unmodifiable(elements.cast<BacnetValue>()));
+
+  @override
+  Future<void> acknowledgeAlarm(
+    int deviceId,
+    BacnetObject object,
+    BacnetEventState eventState,
+    BacnetTimeStamp timeStamp, {
+    required String source,
+    int processId = 0,
+    DateTime? time,
+    Duration? timeout,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'acknowledgeAlarm',
+        deviceId: deviceId,
+        object: object,
+        value: BacnetEnumerated(eventState),
+        time: time,
+        source: source,
+      ),
+    );
+    return _request(deviceId, null, (device) {
+      final target = device.object(object.type, object.instance);
+      if (target == null) {
+        throw device._error(
+          BacnetErrorClass.object,
+          BacnetErrorCode.unknownObject,
+        );
+      }
+      target._acknowledge(eventState, timeStamp);
+    });
+  }
+
+  @override
+  Future<void> acknowledgeEvent(
+    EventNotificationEvent notification, {
+    required String source,
+    DateTime? time,
+    Duration? timeout,
+  }) => acknowledgeAlarm(
+    notification.deviceId,
+    notification.object,
+    notification.toState,
+    notification.timeStamp,
+    source: source,
+    processId: notification.processId,
+    time: time,
+  );
+
+  @override
+  Future<List<BacnetEventSummary>> getEventInformation(
+    int deviceId, {
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    requests.add(FakeBacnetRequest('getEventInformation', deviceId: deviceId));
+    return _request(
+      deviceId,
+      cancelToken,
+      (device) => List.unmodifiable(
+        device.objects.map((o) => o._eventSummary).nonNulls,
+      ),
+    );
+  }
+
+  @override
+  Future<List<BacnetAlarmSummary>> getAlarmSummary(
+    int deviceId, {
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    requests.add(FakeBacnetRequest('getAlarmSummary', deviceId: deviceId));
+    return _request(
+      deviceId,
+      cancelToken,
+      (device) => List.unmodifiable([
+        for (final summary in device.objects.map((o) => o._eventSummary))
+          if (summary != null &&
+              summary.eventState != BacnetEventState.normal &&
+              summary.notifyType == BacnetNotifyType.alarm)
+            BacnetAlarmSummary(
+              object: summary.object,
+              alarmState: summary.eventState,
+              acknowledgedTransitions: summary.acknowledgedTransitions,
+            ),
+      ]),
+    );
   }
 
   @override

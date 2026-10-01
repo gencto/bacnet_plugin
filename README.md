@@ -16,13 +16,18 @@ Dart programs such as headless gateways and supervisory services.
   segmented answers (large object lists, schedules, RPM results) reassembled
   transparently,
   WriteProperty(Multiple) with datatype inference, SubscribeCOV(Property)
-  with decoded notifications, ReadRange/Trend Logs, time synchronization,
-  foreign device registration and raw confirmed services.
+  with decoded notifications, ReadRange/Trend Logs, alarms and events
+  (typed event notifications, AcknowledgeAlarm, GetEventInformation,
+  GetAlarmSummary, Add/RemoveListElement), time synchronization, foreign
+  device registration and raw confirmed services.
 - **Server**: hosts Analog/Binary/Multi-state Input/Output/Value, Integer,
-  Positive Integer and CharacterString Value objects; answers Who-Is,
-  Read/WriteProperty(Multiple), SubscribeCOV(Property), ReadRange,
-  DeviceCommunicationControl and ReinitializeDevice natively; batch updates
-  of present values; write notifications.
+  Positive Integer, CharacterString Value and Notification Class objects;
+  answers Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property),
+  ReadRange, Add/RemoveListElement, DeviceCommunicationControl and
+  ReinitializeDevice natively; reports alarms of analog and binary objects
+  (intrinsic reporting) and answers AcknowledgeAlarm, GetEventInformation
+  and GetAlarmSummary; batch updates of present values; write
+  notifications.
 - **Built for load**: request scheduler with global and per-device
   concurrency limits, back pressure, automatic address binding, concurrent
   reads merged into ReadPropertyMultiple, batched isolate messaging and
@@ -38,7 +43,7 @@ Dart programs such as headless gateways and supervisory services.
 
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.2.0
+  bacnet_plugin: ^0.3.0
 ```
 
 Requirements:
@@ -448,6 +453,67 @@ and the other helpers.
 Unconfirmed services arrive as typed events too: `IHaveEvent` (the answer
 to `sendWhoHas`), `TextMessageEvent` and `PrivateTransferEvent`.
 
+## Alarms and events
+
+Devices report alarms and events to the recipients of a Notification
+Class. A client becomes a recipient by adding a destination to its
+Recipient_List, then receives `EventNotificationEvent`s:
+
+```dart
+const alarms = BacnetObject(type: BacnetObjectType.notificationClass, instance: 1);
+await client.addListElements(1234, alarms, BacnetProperties.recipientList, [
+  BacnetDestination(
+    recipient: BacnetRecipient.ip('192.168.1.10', 47808), // this client
+    processId: 7,
+  ),
+]);
+
+client.eventNotifications.listen((event) async {
+  print('${event.object}: ${event.fromState?.label} -> ${event.toState.label}');
+  switch (event.eventValues) {
+    case BacnetOutOfRangeValues(:final exceedingValue, :final exceededLimit):
+      print('$exceedingValue is beyond $exceededLimit');
+    case BacnetChangeOfStateValues(:final newState):
+      print('new state ${newState.asBinaryPV?.label}');
+    case final other:
+      print(other);
+  }
+  if (event.ackRequired) {
+    await client.acknowledgeEvent(event, source: 'operator');
+  }
+});
+```
+
+The values of every event algorithm are a subclass of the sealed
+`BacnetEventValues` (out of range, change of state, change of value,
+buffer ready, change of reliability, ...). `getEventInformation` lists the
+objects in alarm or with unacknowledged transitions, `getAlarmSummary` the
+objects in alarm; `acknowledgeAlarm` acknowledges a transition of such a
+summary (`summary.stateTimeStamp`). `addListElement`/`removeListElement`
+change any list property.
+
+The server reports alarms of Analog and Binary Inputs and Values itself
+(the event algorithms of bacnet-stack run every second):
+
+```dart
+await server.addNotificationClass(1, name: 'Alarms');
+await server.addObject(BacnetObjectType.analogInput, 1, name: 'Room Temp');
+await server.enableEventReporting(
+  const BacnetObject(type: BacnetObjectType.analogInput, instance: 1),
+  notificationClass: 1,
+  highLimit: 26,
+  lowLimit: 18,
+  deadband: 0.5,
+  timeDelay: const Duration(seconds: 30),
+);
+// clients add themselves to Recipient_List; values beyond the limits are
+// reported to them and acknowledged with AcknowledgeAlarm
+```
+
+Notification Class instances 0..63 are available, with up to 10
+recipients each. bacnet-stack keeps one destination per recipient: adding
+a destination for a recipient that is already in the list replaces it.
+
 ## Testing your application
 
 `package:bacnet_plugin/testing.dart` provides `FakeBacnetClient`, a
@@ -484,6 +550,34 @@ client.latency = const Duration(milliseconds: 200);
 // assert what the application sent
 expect(client.requests.where((r) => r.service == 'writeProperty'), isEmpty);
 ```
+
+Fake devices report alarms to the clients in the Recipient_List of a
+Notification Class, keep the event state for `getEventInformation` and
+`getAlarmSummary` and check acknowledgements like a device:
+
+```dart
+ahu.addNotificationClass(1);
+final sensor = ahu.object(BacnetObjectType.analogInput, 1)!
+  ..enableEventReporting(notificationClass: 1);
+// after the application added itself to Recipient_List:
+sensor.reportEvent(
+  BacnetEventState.highLimit,
+  eventValues: const BacnetOutOfRangeValues(
+    exceedingValue: 31,
+    statusFlags: BacnetStatusFlags(inAlarm: true),
+    deadband: 1,
+    exceededLimit: 30,
+  ),
+);
+```
+
+## Migrating from 0.2.x
+
+- Event notifications arrive as `EventNotificationEvent` instead of
+  `UnconfirmedServiceEvent`. A `switch` over `BacnetEvent` needs a case
+  for it.
+- `FakeBacnetClient` implements the new client methods; classes that
+  implement `BacnetClient` themselves need them too.
 
 ## Migrating from 0.1.x
 

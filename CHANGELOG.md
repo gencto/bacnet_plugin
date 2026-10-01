@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - Unreleased
+
+Alarms and events. See *Migrating from 0.2.x* in the README.
+
+### Added
+
+- **Client — alarms and events**: `eventNotifications` delivers
+  `EventNotificationEvent`s (confirmed and unconfirmed) with the values of
+  the event algorithm as the sealed `BacnetEventValues`
+  (`BacnetOutOfRangeValues`, `BacnetChangeOfStateValues`,
+  `BacnetChangeOfValueValues`, `BacnetBufferReadyValues`,
+  `BacnetChangeOfReliabilityValues` and the other algorithms;
+  `BacnetOtherEventValues` for the rest). `acknowledgeAlarm` and
+  `acknowledgeEvent` (AcknowledgeAlarm), `getEventInformation` (follows
+  More_Events) with `BacnetEventSummary`, `getAlarmSummary` with
+  `BacnetAlarmSummary`.
+- **Client — lists**: `addListElement`/`removeListElement` and the typed
+  `addListElements`/`removeListElements`, e.g. to add this client to the
+  Recipient_List of a Notification Class.
+- **Types**: `BacnetDestination`, the sealed `BacnetRecipient`
+  (`BacnetRecipient.device`, `BacnetRecipient.ip`), `BacnetDaysOfWeek`,
+  `BacnetEventPriorities`, `BacnetEventTransition`, `BacnetPropertyState`,
+  and the enumerations `BacnetEventType`, `BacnetNotifyType` and
+  `BacnetPropertyStateKind`. Typed properties `recipientList`, `priority`,
+  `ackRequired`, `notifyType`, `eventDetectionEnable`,
+  `eventMessageTexts` and `binaryAlarmValue`.
+- **Server — intrinsic reporting**: Notification Class objects
+  (`addNotificationClass`, instances 0..63) and `enableEventReporting`
+  for Analog and Binary Inputs and Values (OUT_OF_RANGE and
+  CHANGE_OF_STATE, faults from Reliability). The server sends event and
+  acknowledgement notifications to the recipients (unconfirmed and
+  confirmed, device recipients resolved with Who-Is) and answers
+  AcknowledgeAlarm, GetEventInformation, GetAlarmSummary and
+  Add/RemoveListElement.
+- **Testing**: fake devices simulate event reporting
+  (`FakeBacnetDevice.addNotificationClass`,
+  `FakeBacnetObject.enableEventReporting`, `reportEvent`), acknowledgements,
+  event information, alarm summaries and list services.
+
+### Changed
+
+- **Breaking**: event notifications are `EventNotificationEvent`s instead
+  of `UnconfirmedServiceEvent`s; `BacnetEvent` has a new subclass.
+
+### Fixed
+
+- `write` and `addListElements` (client, server and fake) accept an `int`
+  for a `double` property: `client.write(id, output,
+  BacnetProperties.analogPresentValue, 35)` inferred `num` and failed with
+  a `TypeError`. `BacnetWritableProperty.encodeValue` converts and checks
+  values.
+- Invoke ids of confirmed notifications of the server that timed out are
+  released.
+
 ## [0.2.0] - 2026-10-01
 
 Typed identifiers and values, read coalescing, segmentation and request

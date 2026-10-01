@@ -1,4 +1,5 @@
-// Starts a BACnet server with N analog values; used by tests and benchmarks.
+// Starts a BACnet server with N analog values and alarm objects; used by
+// tests and benchmarks.
 // Usage: dart run tool/demo_server.dart [port] [deviceId] [objects]
 // ignore_for_file: avoid_print
 import 'dart:async';
@@ -39,6 +40,29 @@ Future<void> main(List<String> args) async {
     name: 'MSV-0',
     stateTexts: ['Off', 'On', 'Auto'],
     presentValue: const BacnetUnsigned(1),
+  );
+  // alarms: Notification Class 1 with an analog value that leaves 10..30
+  // and a binary value that alarms when active
+  await server.addNotificationClass(1, name: 'Alarms');
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    objects,
+    name: 'Alarm-AV',
+    presentValue: const BacnetReal(20),
+  );
+  await server.enableEventReporting(
+    BacnetObject(type: BacnetObjectType.analogValue, instance: objects),
+    notificationClass: 1,
+    highLimit: 30,
+    lowLimit: 10,
+    deadband: 1,
+  );
+  await server.addObject(BacnetObjectType.binaryValue, 1, name: 'Alarm-BV');
+  await server.enableEventReporting(
+    const BacnetObject(type: BacnetObjectType.binaryValue, instance: 1),
+    notificationClass: 1,
+    alarmValue: BacnetBinaryPV.active,
+    notifyType: BacnetNotifyType.event,
   );
   server.writeEvents.listen((e) => print('WRITE $e'));
   print('READY ${server.config.port} device $deviceId objects $objects');

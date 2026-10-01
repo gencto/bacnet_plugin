@@ -88,4 +88,28 @@ void main() {
     expect(results.get(BacnetProperties.description), isNull);
     expect(results.get(BacnetProperties.location), isNull);
   });
+
+  test('encodeValue accepts what generic writes infer', () {
+    // write<T>(property, value) infers T = num for a double property and
+    // an int literal; encode cannot be read through that view
+    BacnetValue write<T>(BacnetWritableProperty<T> property, T value) =>
+        property.encodeValue(value);
+
+    expect(
+      write(BacnetProperties.analogPresentValue, 35),
+      const BacnetReal(35),
+    );
+    expect(
+      write(BacnetProperties.analogPresentValue, 21.5),
+      const BacnetReal(21.5),
+    );
+    expect(
+      () => write(BacnetProperties.notificationClass, 1.5),
+      throwsArgumentError,
+    );
+    expect(
+      () => write<Object>(BacnetProperties.objectName, 3),
+      throwsArgumentError,
+    );
+  });
 }

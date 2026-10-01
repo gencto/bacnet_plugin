@@ -31,6 +31,39 @@ EXCLUDED = {
 }
 
 
+# functions replaced in the entries of the table (object type -> {old: new})
+REPLACED = {
+    # bacnet-stack implements change-of-state reporting for binary inputs
+    # and values but leaves it out of the default table
+    "OBJECT_BINARY_INPUT": {
+        "NULL /* Intrinsic Reporting */": "Binary_Input_Intrinsic_Reporting",
+    },
+    "OBJECT_BINARY_VALUE": {
+        "NULL /* Intrinsic Reporting */": "Binary_Value_Intrinsic_Reporting",
+    },
+    # only the Notification Classes the application created exist
+    # (native/src/bp_nc.c)
+    "OBJECT_NOTIFICATION_CLASS": {
+        "Notification_Class_Init,": "bp_nc_init,",
+        "Notification_Class_Count,": "bp_nc_count,",
+        "Notification_Class_Index_To_Instance,": "bp_nc_index_to_instance,",
+        "Notification_Class_Valid_Instance,": "bp_nc_valid_instance,",
+        "Notification_Class_Object_Name,": "bp_nc_object_name,",
+        "Notification_Class_Read_Property,": "bp_nc_read_property,",
+        "NULL /* Create */": "bp_nc_create",
+        "NULL /* Delete */": "bp_nc_delete",
+    },
+}
+
+
+def replace(object_type: str, text: str) -> str:
+    for old, new in REPLACED.get(object_type, {}).items():
+        if old not in text:
+            raise SystemExit(f"{object_type}: '{old}' not found in device.c")
+        text = text.replace(old, new)
+    return text
+
+
 def main() -> None:
     source = DEVICE_C.read_text()
     includes = re.findall(r'^#include "bacnet/basic/object/[^"]+"$', source, re.M)
@@ -54,7 +87,7 @@ def main() -> None:
             text = "\n".join(entry)
             match = re.search(r"\{\s*(\w+)", text)
             if match is None or match.group(1) not in EXCLUDED:
-                out_lines.append(text)
+                out_lines.append(replace(match.group(1) if match else "", text))
             entry = []
 
     header = [
@@ -64,6 +97,7 @@ def main() -> None:
         "#define BP_OBJECT_TABLE_H",
         "",
         *includes,
+        '#include "bp_internal.h"',
         "",
         "static object_functions_t BP_Object_Table[] = {",
         *out_lines,

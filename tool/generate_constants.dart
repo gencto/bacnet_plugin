@@ -178,6 +178,35 @@ const List<_File> _files = [
       unknown: r'Segmentation $value',
     ),
     _Enum(
+      'BacnetEventType',
+      cEnum: 'BACNET_EVENT_TYPE',
+      prefix: 'EVENT_',
+      doc: 'Event algorithms of event reporting (BACnetEventType).',
+      unknown: r'Event Type $value',
+      names: {'CHANGE_OF_CHARACTERSTRING': 'changeOfCharacterString'},
+      skip: {'PROPRIETARY_MIN', 'PROPRIETARY_MAX'},
+      maxValue: 63,
+    ),
+    _Enum(
+      'BacnetNotifyType',
+      cEnum: 'BACNET_NOTIFY_TYPE',
+      prefix: 'NOTIFY_',
+      doc: 'Kinds of event notifications (BACnetNotifyType).',
+      unknown: r'Notify Type $value',
+      maxValue: 2,
+    ),
+    _Enum(
+      'BacnetPropertyStateKind',
+      cEnum: 'BACNET_PROPERTY_STATES',
+      prefix: 'PROP_STATE_',
+      doc:
+          'Kinds of states a change-of-state event reports (the choices '
+          'of BACnetPropertyStates).',
+      unknown: r'Property State $value',
+      skip: {'PROPRIETARY_MIN', 'PROPRIETARY_MAX'},
+      maxValue: 63,
+    ),
+    _Enum(
       'BacnetBinaryPV',
       cEnum: 'BACNET_BINARY_PV',
       prefix: 'BINARY_',

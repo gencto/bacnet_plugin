@@ -375,10 +375,13 @@ final class _Worker implements RequestTransport {
       case BP_EVENT_UNCONFIRMED:
         _handleUnconfirmed(event);
       case BP_EVENT_CONFIRMED_NOTIFICATION:
-        if (event.service == BacnetConfirmedService.covNotification) {
-          _emitCov(event.data, confirmed: true);
-        } else {
-          _emit(_serviceEvent(event, confirmed: true));
+        switch (event.service) {
+          case BacnetConfirmedService.covNotification:
+            _emitCov(event.data, confirmed: true);
+          case BacnetConfirmedService.eventNotification:
+            _emit(_eventNotification(event, confirmed: true));
+          default:
+            _emit(_serviceEvent(event, confirmed: true));
         }
       case BP_EVENT_WRITE:
         _emit(_writeEvent(event));
@@ -436,6 +439,8 @@ final class _Worker implements RequestTransport {
         AckDecoding.readProperty => decodeReadPropertyAck(data).value,
         AckDecoding.readPropertyMultiple => decodeReadPropertyMultipleAck(data),
         AckDecoding.readRange => decodeReadRangeAck(data),
+        AckDecoding.getEventInformation => decodeGetEventInformationAck(data),
+        AckDecoding.getAlarmSummary => decodeGetAlarmSummaryAck(data),
       };
       _requestSucceeded(command, value);
     } on BacnetDecodeException catch (e) {
@@ -461,6 +466,8 @@ final class _Worker implements RequestTransport {
         _scheduler.deviceBound(event.deviceId);
       case BacnetUnconfirmedService.covNotification:
         _emitCov(event.data, confirmed: false);
+      case BacnetUnconfirmedService.eventNotification:
+        _emit(_eventNotification(event, confirmed: false));
       default:
         _emit(_unconfirmedEvent(event));
     }
@@ -503,6 +510,22 @@ final class _Worker implements RequestTransport {
       _log(BacnetLogLevel.warning, 'malformed service ${event.service}: $e');
     }
     return _serviceEvent(event, confirmed: false);
+  }
+
+  /// The typed event notification, or the raw request when it is
+  /// malformed.
+  BacnetEvent _eventNotification(NativeEvent event, {required bool confirmed}) {
+    try {
+      return decodeEventNotification(
+        event.data,
+        confirmed: confirmed,
+        mac: event.sourceMac,
+        net: event.sourceNetwork,
+      );
+    } on BacnetDecodeException catch (e) {
+      _log(BacnetLogLevel.warning, 'malformed event notification: $e');
+      return _serviceEvent(event, confirmed: confirmed);
+    }
   }
 
   UnconfirmedServiceEvent _serviceEvent(

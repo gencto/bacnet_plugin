@@ -6,11 +6,11 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
-import '../codec/reader.dart';
 import '../codec/value_encoding.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
 import 'bacnet_value.dart';
+import 'construct_support.dart';
 
 // Typed forms of the constructed datatypes of ASHRAE 135 clause 21 that
 // schedules, calendars, trend logs and event reporting use. A read returns
@@ -41,7 +41,7 @@ final class BacnetDateTime {
     if (items case [final BacnetDate date, final BacnetTime time]) {
       return BacnetDateTime(date, time);
     }
-    throw _malformed('BACnetDateTime', source);
+    throw malformedConstruct('BACnetDateTime', source);
   }
 
   /// The date.
@@ -77,10 +77,10 @@ sealed class BacnetTimeStamp {
   /// anything else.
   factory BacnetTimeStamp.fromValue(BacnetValue value) => switch (value) {
     BacnetContextValue(tag: 0, :final data) => BacnetTimeStampTime(
-      _primitive<BacnetTime>(data, BacnetApplicationTag.time, value),
+      constructPrimitive<BacnetTime>(data, BacnetApplicationTag.time, value),
     ),
     BacnetContextValue(tag: 1, :final data) => BacnetTimeStampSequence(
-      _primitive<BacnetUnsigned>(
+      constructPrimitive<BacnetUnsigned>(
         data,
         BacnetApplicationTag.unsignedInt,
         value,
@@ -89,7 +89,7 @@ sealed class BacnetTimeStamp {
     BacnetConstructedValue(tag: 2, :final values) => BacnetTimeStampDateTime(
       BacnetDateTime._fromItems(values, value),
     ),
-    _ => throw _malformed('BACnetTimeStamp', value),
+    _ => throw malformedConstruct('BACnetTimeStamp', value),
   };
 
   /// Interprets a list of time stamps (Event_Time_Stamps).
@@ -181,12 +181,14 @@ final class BacnetTimeValue {
   final BacnetValue value;
 
   static List<BacnetTimeValue> _pairs(List<BacnetValue> items, Object source) {
-    if (items.length.isOdd) throw _malformed('BACnetTimeValue list', source);
+    if (items.length.isOdd) {
+      throw malformedConstruct('BACnetTimeValue list', source);
+    }
     return List.unmodifiable([
       for (var i = 0; i < items.length; i += 2)
         switch (items[i]) {
           final BacnetTime time => BacnetTimeValue(time, items[i + 1]),
-          _ => throw _malformed('BACnetTimeValue', source),
+          _ => throw malformedConstruct('BACnetTimeValue', source),
         },
     ]);
   }
@@ -222,13 +224,13 @@ final class BacnetWeeklySchedule {
   /// an array of seven BACnetDailySchedules.
   factory BacnetWeeklySchedule.fromValue(BacnetValue value) {
     final days = _items(value);
-    if (days.length != 7) throw _malformed('Weekly_Schedule', value);
+    if (days.length != 7) throw malformedConstruct('Weekly_Schedule', value);
     return BacnetWeeklySchedule([
       for (final day in days)
         switch (day) {
           BacnetConstructedValue(tag: 0, :final values) =>
             BacnetTimeValue._pairs(values, value),
-          _ => throw _malformed('BACnetDailySchedule', value),
+          _ => throw malformedConstruct('BACnetDailySchedule', value),
         },
     ]);
   }
@@ -249,7 +251,7 @@ final class BacnetWeeklySchedule {
   bool operator ==(Object other) {
     if (other is! BacnetWeeklySchedule) return false;
     for (var i = 0; i < 7; i++) {
-      if (!_listEquals(other.days[i], days[i])) return false;
+      if (!listEquals(other.days[i], days[i])) return false;
     }
     return true;
   }
@@ -277,7 +279,7 @@ final class BacnetDateRange {
     if (items case [final BacnetDate start, final BacnetDate end]) {
       return BacnetDateRange(start, end);
     }
-    throw _malformed('BACnetDateRange', source);
+    throw malformedConstruct('BACnetDateRange', source);
   }
 
   /// First day.
@@ -317,7 +319,7 @@ final class BacnetWeekNDay {
   final int? dayOfWeek;
 
   static BacnetWeekNDay _fromOctets(Uint8List octets, Object source) {
-    if (octets.length != 3) throw _malformed('BACnetWeekNDay', source);
+    if (octets.length != 3) throw malformedConstruct('BACnetWeekNDay', source);
     int? any(int v) => v == 0xFF ? null : v;
     return BacnetWeekNDay(
       month: any(octets[0]),
@@ -383,7 +385,7 @@ sealed class BacnetCalendarEntry extends BacnetSpecialEventPeriod {
   /// anything else.
   factory BacnetCalendarEntry.fromValue(BacnetValue value) => switch (value) {
     BacnetContextValue(tag: 0, :final data) => BacnetCalendarDate(
-      _primitive<BacnetDate>(data, BacnetApplicationTag.date, value),
+      constructPrimitive<BacnetDate>(data, BacnetApplicationTag.date, value),
     ),
     BacnetConstructedValue(tag: 1, :final values) => BacnetCalendarDateRange(
       BacnetDateRange._fromItems(values, value),
@@ -391,7 +393,7 @@ sealed class BacnetCalendarEntry extends BacnetSpecialEventPeriod {
     BacnetContextValue(tag: 2, :final data) => BacnetCalendarWeekNDay(
       BacnetWeekNDay._fromOctets(data, value),
     ),
-    _ => throw _malformed('BACnetCalendarEntry', value),
+    _ => throw malformedConstruct('BACnetCalendarEntry', value),
   };
 
   /// Interprets a list of calendar entries (Date_List).
@@ -494,32 +496,35 @@ final class BacnetSpecialEvent {
         BacnetConstructedValue(tag: 0, values: [final entry]) =>
           BacnetCalendarEntry.fromValue(entry),
         BacnetContextValue(tag: 1, :final data) => BacnetCalendarReference(
-          _primitive<BacnetObject>(
+          constructPrimitive<BacnetObject>(
             data,
             BacnetApplicationTag.objectIdentifier,
             value,
           ),
         ),
-        _ => throw _malformed('BACnetSpecialEvent', value),
+        _ => throw malformedConstruct('BACnetSpecialEvent', value),
       };
-      if (i + 2 >= items.length) throw _malformed('BACnetSpecialEvent', value);
+      if (i + 2 >= items.length) {
+        throw malformedConstruct('BACnetSpecialEvent', value);
+      }
       final timeValues = switch (items[i + 1]) {
         BacnetConstructedValue(tag: 2, :final values) => BacnetTimeValue._pairs(
           values,
           value,
         ),
-        _ => throw _malformed('BACnetSpecialEvent', value),
+        _ => throw malformedConstruct('BACnetSpecialEvent', value),
       };
       final priority = switch (items[i + 2]) {
-        BacnetContextValue(tag: 3, :final data) => _primitive<BacnetUnsigned>(
-          data,
-          BacnetApplicationTag.unsignedInt,
-          value,
-        ).value,
-        _ => throw _malformed('BACnetSpecialEvent', value),
+        BacnetContextValue(tag: 3, :final data) =>
+          constructPrimitive<BacnetUnsigned>(
+            data,
+            BacnetApplicationTag.unsignedInt,
+            value,
+          ).value,
+        _ => throw malformedConstruct('BACnetSpecialEvent', value),
       };
       if (priority < 1 || priority > 16) {
-        throw _malformed('BACnetSpecialEvent priority', value);
+        throw malformedConstruct('BACnetSpecialEvent priority', value);
       }
       events.add(
         BacnetSpecialEvent(
@@ -562,7 +567,7 @@ final class BacnetSpecialEvent {
       other is BacnetSpecialEvent &&
       other.period == period &&
       other.priority == priority &&
-      _listEquals(other.timeValues, timeValues);
+      listEquals(other.timeValues, timeValues);
 
   @override
   int get hashCode => Object.hash(period, priority, Object.hashAll(timeValues));
@@ -590,7 +595,7 @@ final class BacnetDeviceObjectPropertyReference {
   factory BacnetDeviceObjectPropertyReference.fromValue(BacnetValue value) {
     final references = listFromValue(value);
     if (references.length != 1) {
-      throw _malformed('BACnetDeviceObjectPropertyReference', value);
+      throw malformedConstruct('BACnetDeviceObjectPropertyReference', value);
     }
     return references.single;
   }
@@ -607,7 +612,7 @@ final class BacnetDeviceObjectPropertyReference {
       final item = items[i];
       if (item is! BacnetContextValue || item.tag != tag) return null;
       i++;
-      return _primitive<T>(item.data, applicationTag, value);
+      return constructPrimitive<T>(item.data, applicationTag, value);
     }
 
     while (i < items.length) {
@@ -620,7 +625,7 @@ final class BacnetDeviceObjectPropertyReference {
         BacnetApplicationTag.enumerated,
       );
       if (object == null || property == null) {
-        throw _malformed('BACnetDeviceObjectPropertyReference', value);
+        throw malformedConstruct('BACnetDeviceObjectPropertyReference', value);
       }
       final index = optional<BacnetUnsigned>(
         2,
@@ -701,7 +706,9 @@ final class BacnetAddressBinding {
   /// [BacnetDecodeException] if it is malformed.
   static List<BacnetAddressBinding> listFromValue(BacnetValue value) {
     final items = _items(value);
-    if (items.length % 3 != 0) throw _malformed('BACnetAddressBinding', value);
+    if (items.length % 3 != 0) {
+      throw malformedConstruct('BACnetAddressBinding', value);
+    }
     return List.unmodifiable([
       for (var i = 0; i < items.length; i += 3)
         switch ((items[i], items[i + 1], items[i + 2])) {
@@ -711,7 +718,7 @@ final class BacnetAddressBinding {
             BacnetOctetString(value: final mac),
           ) =>
             BacnetAddressBinding(device: device, network: network, mac: mac),
-          _ => throw _malformed('BACnetAddressBinding', value),
+          _ => throw malformedConstruct('BACnetAddressBinding', value),
         },
     ]);
   }
@@ -737,7 +744,7 @@ final class BacnetAddressBinding {
       other is BacnetAddressBinding &&
       other.device == device &&
       other.network == network &&
-      _listEquals(other.mac, mac);
+      listEquals(other.mac, mac);
 
   @override
   int get hashCode => Object.hash(device, network, Object.hashAll(mac));
@@ -768,7 +775,7 @@ final class BacnetEventTransitionBits {
           toFault: bits[1],
           toNormal: bits[2],
         ),
-        _ => throw _malformed('BACnetEventTransitionBits', value),
+        _ => throw malformedConstruct('BACnetEventTransitionBits', value),
       };
 
   /// TO-OFFNORMAL.
@@ -812,7 +819,7 @@ final class BacnetLimitEnable {
       lowLimit: bits[0],
       highLimit: bits[1],
     ),
-    _ => throw _malformed('BACnetLimitEnable', value),
+    _ => throw malformedConstruct('BACnetLimitEnable', value),
   };
 
   /// Low_Limit reports events.
@@ -853,7 +860,7 @@ final class BacnetPriorityArray {
   /// an array of 16 values.
   factory BacnetPriorityArray.fromValue(BacnetValue value) {
     final slots = _items(value);
-    if (slots.length != 16) throw _malformed('Priority_Array', value);
+    if (slots.length != 16) throw malformedConstruct('Priority_Array', value);
     return BacnetPriorityArray(slots);
   }
 
@@ -878,7 +885,7 @@ final class BacnetPriorityArray {
 
   @override
   bool operator ==(Object other) =>
-      other is BacnetPriorityArray && _listEquals(other.slots, slots);
+      other is BacnetPriorityArray && listEquals(other.slots, slots);
 
   @override
   int get hashCode => Object.hashAll(slots);
@@ -893,29 +900,3 @@ final class BacnetPriorityArray {
 /// The items of a value: the elements of a list, the values of an untagged
 /// sequence, or the value itself.
 List<BacnetValue> _items(BacnetValue value) => value.asList;
-
-T _primitive<T extends BacnetValue>(
-  Uint8List content,
-  int applicationTag,
-  Object source,
-) {
-  try {
-    if (BacnetReader.primitiveFrom(content, applicationTag) case final T v) {
-      return v;
-    }
-  } on BacnetDecodeException {
-    // reported below with the construct
-  }
-  throw _malformed('field of application tag $applicationTag', source);
-}
-
-BacnetDecodeException _malformed(String what, Object value) =>
-    BacnetDecodeException('malformed $what: $value');
-
-bool _listEquals<T>(List<T> a, List<T> b) {
-  if (a.length != b.length) return false;
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
-  }
-  return true;
-}

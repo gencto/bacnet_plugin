@@ -241,6 +241,402 @@ extension type const BacnetSegmentation(int value) implements int {
   String get label => getName(value);
 }
 
+/// Event algorithms of event reporting (BACnetEventType).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetEventType(value)`.
+extension type const BacnetEventType(int value) implements int {
+  /// Change Of Bitstring.
+  static const changeOfBitstring = BacnetEventType(0);
+
+  /// Change Of State.
+  static const changeOfState = BacnetEventType(1);
+
+  /// Change Of Value.
+  static const changeOfValue = BacnetEventType(2);
+
+  /// Command Failure.
+  static const commandFailure = BacnetEventType(3);
+
+  /// Floating Limit.
+  static const floatingLimit = BacnetEventType(4);
+
+  /// Out Of Range.
+  static const outOfRange = BacnetEventType(5);
+
+  /// Complex Event Type.
+  static const complexEventType = BacnetEventType(6);
+
+  /// Change Of Life Safety.
+  static const changeOfLifeSafety = BacnetEventType(8);
+
+  /// Extended.
+  static const extended = BacnetEventType(9);
+
+  /// Buffer Ready.
+  static const bufferReady = BacnetEventType(10);
+
+  /// Unsigned Range.
+  static const unsignedRange = BacnetEventType(11);
+
+  /// Access Event.
+  static const accessEvent = BacnetEventType(13);
+
+  /// Double Out Of Range.
+  static const doubleOutOfRange = BacnetEventType(14);
+
+  /// Signed Out Of Range.
+  static const signedOutOfRange = BacnetEventType(15);
+
+  /// Unsigned Out Of Range.
+  static const unsignedOutOfRange = BacnetEventType(16);
+
+  /// Change Of Characterstring.
+  static const changeOfCharacterString = BacnetEventType(17);
+
+  /// Change Of Status Flags.
+  static const changeOfStatusFlags = BacnetEventType(18);
+
+  /// Change Of Reliability.
+  static const changeOfReliability = BacnetEventType(19);
+
+  /// None.
+  static const none = BacnetEventType(20);
+
+  /// Change Of Discrete Value.
+  static const changeOfDiscreteValue = BacnetEventType(21);
+
+  /// Change Of Timer.
+  static const changeOfTimer = BacnetEventType(22);
+
+  static const Map<BacnetEventType, String> _labels = {
+    changeOfBitstring: 'Change Of Bitstring',
+    changeOfState: 'Change Of State',
+    changeOfValue: 'Change Of Value',
+    commandFailure: 'Command Failure',
+    floatingLimit: 'Floating Limit',
+    outOfRange: 'Out Of Range',
+    complexEventType: 'Complex Event Type',
+    changeOfLifeSafety: 'Change Of Life Safety',
+    extended: 'Extended',
+    bufferReady: 'Buffer Ready',
+    unsignedRange: 'Unsigned Range',
+    accessEvent: 'Access Event',
+    doubleOutOfRange: 'Double Out Of Range',
+    signedOutOfRange: 'Signed Out Of Range',
+    unsignedOutOfRange: 'Unsigned Out Of Range',
+    changeOfCharacterString: 'Change Of Characterstring',
+    changeOfStatusFlags: 'Change Of Status Flags',
+    changeOfReliability: 'Change Of Reliability',
+    none: 'None',
+    changeOfDiscreteValue: 'Change Of Discrete Value',
+    changeOfTimer: 'Change Of Timer',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetEventType> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) => _labels[value] ?? 'Event Type $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
+/// Kinds of event notifications (BACnetNotifyType).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetNotifyType(value)`.
+extension type const BacnetNotifyType(int value) implements int {
+  /// Alarm.
+  static const alarm = BacnetNotifyType(0);
+
+  /// Event.
+  static const event = BacnetNotifyType(1);
+
+  /// Ack Notification.
+  static const ackNotification = BacnetNotifyType(2);
+
+  static const Map<BacnetNotifyType, String> _labels = {
+    alarm: 'Alarm',
+    event: 'Event',
+    ackNotification: 'Ack Notification',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetNotifyType> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) => _labels[value] ?? 'Notify Type $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
+/// Kinds of states a change-of-state event reports (the choices of BACnetPropertyStates).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetPropertyStateKind(value)`.
+extension type const BacnetPropertyStateKind(int value) implements int {
+  /// Boolean Value.
+  static const booleanValue = BacnetPropertyStateKind(0);
+
+  /// Binary Value.
+  static const binaryValue = BacnetPropertyStateKind(1);
+
+  /// Event Type.
+  static const eventType = BacnetPropertyStateKind(2);
+
+  /// Polarity.
+  static const polarity = BacnetPropertyStateKind(3);
+
+  /// Program Change.
+  static const programChange = BacnetPropertyStateKind(4);
+
+  /// Program State.
+  static const programState = BacnetPropertyStateKind(5);
+
+  /// Reason For Halt.
+  static const reasonForHalt = BacnetPropertyStateKind(6);
+
+  /// Reliability.
+  static const reliability = BacnetPropertyStateKind(7);
+
+  /// Event State.
+  static const eventState = BacnetPropertyStateKind(8);
+
+  /// System Status.
+  static const systemStatus = BacnetPropertyStateKind(9);
+
+  /// Units.
+  static const units = BacnetPropertyStateKind(10);
+
+  /// Unsigned Value.
+  static const unsignedValue = BacnetPropertyStateKind(11);
+
+  /// Life Safety Mode.
+  static const lifeSafetyMode = BacnetPropertyStateKind(12);
+
+  /// Life Safety State.
+  static const lifeSafetyState = BacnetPropertyStateKind(13);
+
+  /// Restart Reason.
+  static const restartReason = BacnetPropertyStateKind(14);
+
+  /// Door Alarm State.
+  static const doorAlarmState = BacnetPropertyStateKind(15);
+
+  /// Action.
+  static const action = BacnetPropertyStateKind(16);
+
+  /// Door Secured Status.
+  static const doorSecuredStatus = BacnetPropertyStateKind(17);
+
+  /// Door Status.
+  static const doorStatus = BacnetPropertyStateKind(18);
+
+  /// Door Value.
+  static const doorValue = BacnetPropertyStateKind(19);
+
+  /// File Access Method.
+  static const fileAccessMethod = BacnetPropertyStateKind(20);
+
+  /// Lock Status.
+  static const lockStatus = BacnetPropertyStateKind(21);
+
+  /// Life Safety Operation.
+  static const lifeSafetyOperation = BacnetPropertyStateKind(22);
+
+  /// Maintenance.
+  static const maintenance = BacnetPropertyStateKind(23);
+
+  /// Node Type.
+  static const nodeType = BacnetPropertyStateKind(24);
+
+  /// Notify Type.
+  static const notifyType = BacnetPropertyStateKind(25);
+
+  /// Security Level.
+  static const securityLevel = BacnetPropertyStateKind(26);
+
+  /// Shed State.
+  static const shedState = BacnetPropertyStateKind(27);
+
+  /// Silenced State.
+  static const silencedState = BacnetPropertyStateKind(28);
+
+  /// Access Event.
+  static const accessEvent = BacnetPropertyStateKind(30);
+
+  /// Zone Occupancy State.
+  static const zoneOccupancyState = BacnetPropertyStateKind(31);
+
+  /// Access Cred Disable Reason.
+  static const accessCredDisableReason = BacnetPropertyStateKind(32);
+
+  /// Access Cred Disable.
+  static const accessCredDisable = BacnetPropertyStateKind(33);
+
+  /// Authentication Status.
+  static const authenticationStatus = BacnetPropertyStateKind(34);
+
+  /// Backup State.
+  static const backupState = BacnetPropertyStateKind(36);
+
+  /// Write Status.
+  static const writeStatus = BacnetPropertyStateKind(37);
+
+  /// Lighting In Progress.
+  static const lightingInProgress = BacnetPropertyStateKind(38);
+
+  /// Lighting Operation.
+  static const lightingOperation = BacnetPropertyStateKind(39);
+
+  /// Lighting Transition.
+  static const lightingTransition = BacnetPropertyStateKind(40);
+
+  /// Integer Value.
+  static const integerValue = BacnetPropertyStateKind(41);
+
+  /// Binary Lighting Value.
+  static const binaryLightingValue = BacnetPropertyStateKind(42);
+
+  /// Timer State.
+  static const timerState = BacnetPropertyStateKind(43);
+
+  /// Timer Transition.
+  static const timerTransition = BacnetPropertyStateKind(44);
+
+  /// BACnet IP Mode.
+  static const bacnetIpMode = BacnetPropertyStateKind(45);
+
+  /// Network Port Command.
+  static const networkPortCommand = BacnetPropertyStateKind(46);
+
+  /// Network Type.
+  static const networkType = BacnetPropertyStateKind(47);
+
+  /// Network Number Quality.
+  static const networkNumberQuality = BacnetPropertyStateKind(48);
+
+  /// Escalator Operation Direction.
+  static const escalatorOperationDirection = BacnetPropertyStateKind(49);
+
+  /// Escalator Fault.
+  static const escalatorFault = BacnetPropertyStateKind(50);
+
+  /// Escalator Mode.
+  static const escalatorMode = BacnetPropertyStateKind(51);
+
+  /// Lift Car Direction.
+  static const liftCarDirection = BacnetPropertyStateKind(52);
+
+  /// Lift Car Door Command.
+  static const liftCarDoorCommand = BacnetPropertyStateKind(53);
+
+  /// Lift Car Drive Status.
+  static const liftCarDriveStatus = BacnetPropertyStateKind(54);
+
+  /// Lift Car Mode.
+  static const liftCarMode = BacnetPropertyStateKind(55);
+
+  /// Lift Group Mode.
+  static const liftGroupMode = BacnetPropertyStateKind(56);
+
+  /// Lift Fault.
+  static const liftFault = BacnetPropertyStateKind(57);
+
+  /// Protocol Level.
+  static const protocolLevel = BacnetPropertyStateKind(58);
+
+  /// Audit Level.
+  static const auditLevel = BacnetPropertyStateKind(59);
+
+  /// Audit Operation.
+  static const auditOperation = BacnetPropertyStateKind(60);
+
+  /// Extended Value.
+  static const extendedValue = BacnetPropertyStateKind(63);
+
+  static const Map<BacnetPropertyStateKind, String> _labels = {
+    booleanValue: 'Boolean Value',
+    binaryValue: 'Binary Value',
+    eventType: 'Event Type',
+    polarity: 'Polarity',
+    programChange: 'Program Change',
+    programState: 'Program State',
+    reasonForHalt: 'Reason For Halt',
+    reliability: 'Reliability',
+    eventState: 'Event State',
+    systemStatus: 'System Status',
+    units: 'Units',
+    unsignedValue: 'Unsigned Value',
+    lifeSafetyMode: 'Life Safety Mode',
+    lifeSafetyState: 'Life Safety State',
+    restartReason: 'Restart Reason',
+    doorAlarmState: 'Door Alarm State',
+    action: 'Action',
+    doorSecuredStatus: 'Door Secured Status',
+    doorStatus: 'Door Status',
+    doorValue: 'Door Value',
+    fileAccessMethod: 'File Access Method',
+    lockStatus: 'Lock Status',
+    lifeSafetyOperation: 'Life Safety Operation',
+    maintenance: 'Maintenance',
+    nodeType: 'Node Type',
+    notifyType: 'Notify Type',
+    securityLevel: 'Security Level',
+    shedState: 'Shed State',
+    silencedState: 'Silenced State',
+    accessEvent: 'Access Event',
+    zoneOccupancyState: 'Zone Occupancy State',
+    accessCredDisableReason: 'Access Cred Disable Reason',
+    accessCredDisable: 'Access Cred Disable',
+    authenticationStatus: 'Authentication Status',
+    backupState: 'Backup State',
+    writeStatus: 'Write Status',
+    lightingInProgress: 'Lighting In Progress',
+    lightingOperation: 'Lighting Operation',
+    lightingTransition: 'Lighting Transition',
+    integerValue: 'Integer Value',
+    binaryLightingValue: 'Binary Lighting Value',
+    timerState: 'Timer State',
+    timerTransition: 'Timer Transition',
+    bacnetIpMode: 'BACnet IP Mode',
+    networkPortCommand: 'Network Port Command',
+    networkType: 'Network Type',
+    networkNumberQuality: 'Network Number Quality',
+    escalatorOperationDirection: 'Escalator Operation Direction',
+    escalatorFault: 'Escalator Fault',
+    escalatorMode: 'Escalator Mode',
+    liftCarDirection: 'Lift Car Direction',
+    liftCarDoorCommand: 'Lift Car Door Command',
+    liftCarDriveStatus: 'Lift Car Drive Status',
+    liftCarMode: 'Lift Car Mode',
+    liftGroupMode: 'Lift Group Mode',
+    liftFault: 'Lift Fault',
+    protocolLevel: 'Protocol Level',
+    auditLevel: 'Audit Level',
+    auditOperation: 'Audit Operation',
+    extendedValue: 'Extended Value',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetPropertyStateKind> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) => _labels[value] ?? 'Property State $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
 /// Values of binary objects (BACnetBinaryPV).
 ///
 /// An extension type over the encoded value: it is an [int] at

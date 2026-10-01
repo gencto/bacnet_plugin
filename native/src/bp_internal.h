@@ -9,6 +9,7 @@
  *   bp_segments.c    reception of segmented answers
  *   bp_events.c      event buffer drained by Dart
  *   bp_tables.c      device address table and string storage
+ *   bp_nc.c          Notification Class objects created by the application
  *   bp_io.c          wakeup socket, waiting for traffic, socket options
  *
  * Not part of the public API (see bacnet_plugin.h).
@@ -108,6 +109,8 @@ typedef struct {
     uint32_t last_ms;
     uint32_t second_acc;
     uint32_t object_acc;
+    uint32_t nc_rescan_elapsed;
+    bool nc_rescan;
     uint32_t cov_scan_last;
     uint32_t cov_scan_interval_ms;
     uint32_t cov_scan_budget;
@@ -196,5 +199,23 @@ void bp_tx_end(bp_transaction_t *tx);
 
 /** Runs the COV detection when the scan interval elapsed. */
 void bp_cov_scan(uint32_t now);
+void bp_event_reporting(uint32_t seconds);
+
+/* ---- Notification Class objects of the application (bp_nc.c) ---------- */
+
+#if defined(INTRINSIC_REPORTING)
+#include "bacnet/bacstr.h"
+#include "bacnet/rp.h"
+void bp_nc_init(void);
+unsigned bp_nc_count(void);
+uint32_t bp_nc_index_to_instance(unsigned index);
+bool bp_nc_valid_instance(uint32_t instance);
+bool bp_nc_object_name(uint32_t instance, BACNET_CHARACTER_STRING *name);
+bool bp_nc_name_set(uint32_t instance, const char *name);
+bool bp_nc_description_set(uint32_t instance, const char *description);
+int bp_nc_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
+uint32_t bp_nc_create(uint32_t instance);
+bool bp_nc_delete(uint32_t instance);
+#endif
 
 #endif
