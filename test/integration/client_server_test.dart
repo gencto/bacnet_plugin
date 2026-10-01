@@ -277,6 +277,47 @@ void main() {
     expect(stats.repliesDropped, 0);
   });
 
+  test('merges concurrent reads into ReadPropertyMultiple', () async {
+    final before = await client.stats();
+    final reads = [
+      for (var i = 0; i < 48; i++)
+        client.readProperty(
+          device,
+          BacnetObjectType.analogValue,
+          i,
+          BacnetPropertyId.presentValue,
+        ),
+      client.readProperty(
+        device,
+        BacnetObjectType.analogValue,
+        1,
+        BacnetPropertyId.objectName,
+      ),
+      client.readProperty(
+        device,
+        BacnetObjectType.analogValue,
+        1,
+        const BacnetPropertyId(9999),
+      ),
+    ];
+    final settled = await Future.wait([
+      for (final read in reads)
+        read.then<Object?>((value) => value, onError: (Object e) => e),
+    ]);
+    expect(settled[48], 'AV-1');
+    expect(
+      settled[49],
+      isA<BacnetProtocolException>().having(
+        (e) => e.errorCode,
+        'errorCode',
+        BacnetErrorCode.unknownProperty,
+      ),
+    );
+    final after = await client.stats();
+    // 50 reads in batches of 24 properties
+    expect(after.requestsSent - before.requestsSent, 3);
+  });
+
   test('receives COV notifications with values', () async {
     final notifications = <CovNotificationEvent>[];
     final subscription = client.covEvents.listen(notifications.add);

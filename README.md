@@ -22,8 +22,9 @@ Dart programs such as headless gateways and supervisory services.
   DeviceCommunicationControl and ReinitializeDevice natively; batch updates
   of present values; write notifications.
 - **Built for load**: request scheduler with global and per-device
-  concurrency limits, back pressure, automatic address binding, batched
-  isolate messaging and zero-copy event processing.
+  concurrency limits, back pressure, automatic address binding, concurrent
+  reads merged into ReadPropertyMultiple, batched isolate messaging and
+  zero-copy event processing.
 - **Robust**: bounds-checked decoder (fuzz tested), typed exceptions,
   protection against late replies with recycled invoke ids, no
   `exit()`/`longjmp` tricks in native code.
@@ -151,6 +152,8 @@ are free:
 | `maxConcurrentRequests` | 200 | Outstanding confirmed requests (≤ 250 invoke ids). |
 | `maxConcurrentRequestsPerDevice` | 4 | Protects small controllers and MS/TP routers. |
 | `maxQueuedRequests` | 10 000 | Back pressure: excess calls fail fast with `BacnetQueueFullException`. |
+| `coalesceReads` | true | Merges concurrent `readProperty` calls per device into ReadPropertyMultiple. |
+| `maxCoalescedReads` | 24 | Properties per merged request (lower it for MS/TP devices). |
 | `requestTimeout` | 30 s | Deadline including queueing and retries. |
 | `apduTimeout` / `maxRetries` | 3 s / 3 | Per transmission timeout and retries. |
 | `bindTimeout` | 5 s | Time to resolve an unknown device with Who-Is. |
@@ -161,7 +164,8 @@ are free:
 Recommendations:
 
 - Fire requests concurrently (`Future.wait`, streams); the scheduler keeps
-  the network load within the limits.
+  the network load within the limits and concurrent reads of a device
+  travel together in ReadPropertyMultiple requests.
 - Prefer `readMultiple` for many properties of one device; oversized
   requests are split automatically.
 - Prefer COV (`PropertyMonitor`) over polling; subscriptions are renewed
@@ -172,12 +176,13 @@ Recommendations:
 
 ### Benchmarks
 
-Measured on a 4 vCPU Linux VM over the loopback interface (servers are
-separate processes built with `dart build cli`):
+Measured on a 4 vCPU Linux VM over the loopback interface (servers and the
+load generator are separate processes built with `dart build cli`):
 
 | Scenario | Result |
 | --- | --- |
-| Client, 50 000 ReadProperty to 8 devices | 52 500 requests/s, 0 errors |
+| Client, 50 000 concurrent `readProperty` to 4 devices (merged into 2 084 RPM) | 140 000 reads/s, 0 errors |
+| Same with `coalesceReads: false` (50 000 ReadProperty) | 58 000–68 000 requests/s |
 | Client, 10 000 ReadPropertyMultiple (20 values each) to 8 devices | 258 600 values/s |
 | One server, 4 clients × 40 000 ReadProperty | ~128 000 requests/s, 0 errors, 10 MB RSS |
 | Server, batch update of 10 000 present values | 2.5–3 ms (≈ 3.5 M values/s) |

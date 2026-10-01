@@ -134,17 +134,33 @@ Future<void> main(List<String> args) async {
   } on BacnetException catch (e) {
     print('expected: $e');
   }
-  final sw = Stopwatch()..start();
-  await Future.wait([
-    for (var i = 0; i < 1000; i++)
-      client.readProperty(
-        device,
-        av.type,
-        av.instance,
-        BacnetPropertyId.presentValue,
-      ),
-  ]);
-  print('1000 reads against bacserv: ${sw.elapsedMilliseconds} ms');
+  // object names and status flags of every object, merged into
+  // ReadPropertyMultiple and one by one
+  final single = BacnetClient(
+    config: client.config.copyWith(coalesceReads: false),
+  );
+  await single.start();
+  for (final reader in [client, single]) {
+    final before = (await client.stats()).requestsSent;
+    final sw = Stopwatch()..start();
+    final results = await Future.wait([
+      for (final object in objects)
+        for (final property in const [
+          BacnetPropertyId.objectName,
+          BacnetPropertyId.statusFlags,
+        ])
+          reader
+              .readProperty(device, object.type, object.instance, property)
+              .then<Object?>((v) => v, onError: (Object e) => e),
+    ]);
+    final requests = (await client.stats()).requestsSent - before;
+    print(
+      '${results.length} reads (coalesce: ${reader.config.coalesceReads}): '
+      '${sw.elapsedMilliseconds} ms, $requests requests, '
+      '${results.whereType<BacnetException>().length} errors',
+    );
+  }
+  await single.close();
   print(await client.stats());
   await client.close();
   exit(0);

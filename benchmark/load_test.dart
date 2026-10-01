@@ -1,5 +1,7 @@
 // Client load test: issues many concurrent ReadProperty / ReadPropertyMultiple
 // requests against one or more devices and reports throughput and latency.
+// Concurrent ReadProperty calls are merged into ReadPropertyMultiple unless
+// `--coalesce false` is given.
 //
 // Start servers first (e.g. `dart run tool/demo_server.dart 47811 1001 100`)
 // then run:
@@ -30,6 +32,7 @@ Future<void> main(List<String> args) async {
       maxConcurrentRequests: int.parse(options['concurrency'] ?? '200'),
       maxConcurrentRequestsPerDevice: int.parse(options['per-device'] ?? '8'),
       maxQueuedRequests: total + 1000,
+      coalesceReads: options['coalesce'] != 'false',
       logLevel: BacnetLogLevel.warning,
       logger: const ConsoleBacnetLogger(),
     ),
@@ -111,7 +114,7 @@ Map<String, String> _parse(List<String> args) {
     stderr.writeln(
       'usage: load_test.dart --targets host:port:device[,...] '
       '[--requests N] [--mode rp|rpm] [--interface lo] [--concurrency 200] '
-      '[--per-device 8] [--objects 100]',
+      '[--per-device 8] [--objects 100] [--coalesce true|false]',
     );
     exit(64);
   }

@@ -36,6 +36,9 @@ class BacnetConfig {
     this.maxConcurrentRequests = 200,
     this.maxConcurrentRequestsPerDevice = 4,
     this.maxQueuedRequests = 10000,
+    this.coalesceReads = true,
+    this.maxCoalescedReads = 24,
+    this.coalescingWindow = Duration.zero,
     this.bindTimeout = const Duration(seconds: 5),
     this.socketBufferSize = 4 * 1024 * 1024,
     this.strictSourceCheck = true,
@@ -45,7 +48,8 @@ class BacnetConfig {
     this.logger = const DeveloperBacnetLogger(),
   }) : assert(maxConcurrentRequests > 0 && maxConcurrentRequests <= 250),
        assert(maxConcurrentRequestsPerDevice > 0),
-       assert(maxQueuedRequests > 0);
+       assert(maxQueuedRequests > 0),
+       assert(maxCoalescedReads > 0);
 
   /// Default BACnet/IP port number (0xBAC0).
   static const int defaultPort = 47808;
@@ -97,6 +101,26 @@ class BacnetConfig {
   /// [BacnetQueueFullException] (back pressure).
   final int maxQueuedRequests;
 
+  /// Merge concurrent [BacnetClient.readProperty] calls to the same device
+  /// into ReadPropertyMultiple requests.
+  ///
+  /// Reads issued together (e.g. with `Future.wait`) then cost one request
+  /// per device instead of one per property. Results and errors are the
+  /// same as with single reads; devices without ReadPropertyMultiple
+  /// support are detected and read one property at a time.
+  final bool coalesceReads;
+
+  /// Maximum number of properties per merged ReadPropertyMultiple request.
+  ///
+  /// Answers that do not fit into the device's APDU are split
+  /// automatically, but each split costs a round trip: keep this low for
+  /// devices with small APDUs (MS/TP: 480 bytes).
+  final int maxCoalescedReads;
+
+  /// Time to collect reads before a merged request is sent. Zero merges
+  /// the reads issued in the same event loop turn.
+  final Duration coalescingWindow;
+
   /// Time to wait for an I-Am when a request targets a device whose address
   /// is unknown. The client sends targeted Who-Is requests in the meantime.
   final Duration bindTimeout;
@@ -138,6 +162,9 @@ class BacnetConfig {
     int? maxConcurrentRequests,
     int? maxConcurrentRequestsPerDevice,
     int? maxQueuedRequests,
+    bool? coalesceReads,
+    int? maxCoalescedReads,
+    Duration? coalescingWindow,
     Duration? bindTimeout,
     int? socketBufferSize,
     bool? strictSourceCheck,
@@ -158,6 +185,9 @@ class BacnetConfig {
       maxConcurrentRequestsPerDevice:
           maxConcurrentRequestsPerDevice ?? this.maxConcurrentRequestsPerDevice,
       maxQueuedRequests: maxQueuedRequests ?? this.maxQueuedRequests,
+      coalesceReads: coalesceReads ?? this.coalesceReads,
+      maxCoalescedReads: maxCoalescedReads ?? this.maxCoalescedReads,
+      coalescingWindow: coalescingWindow ?? this.coalescingWindow,
       bindTimeout: bindTimeout ?? this.bindTimeout,
       socketBufferSize: socketBufferSize ?? this.socketBufferSize,
       strictSourceCheck: strictSourceCheck ?? this.strictSourceCheck,

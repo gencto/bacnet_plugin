@@ -24,6 +24,7 @@ import '../models/trend_log_data.dart';
 import '../models/wpm_models.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
+import 'read_coalescer.dart';
 
 /// BACnet client for communication with BACnet devices.
 ///
@@ -63,6 +64,13 @@ class BacnetClient {
 
   final BacnetConfig _config;
   final BacnetSystem _system = BacnetSystem.instance;
+  late final ReadCoalescer _reads = ReadCoalescer(
+    readProperty: _readSingle,
+    readMultiple: (deviceId, specs, timeout) =>
+        readMultiple(deviceId, specs, timeout: timeout),
+    maxBatchSize: _config.maxCoalescedReads,
+    window: _config.coalescingWindow,
+  );
   bool _started = false;
   int _nextProcessId = 1;
 
@@ -133,6 +141,10 @@ class BacnetClient {
   /// [BacnetBitString], [BacnetDate], [BacnetTime], [Uint8List] (octet
   /// strings), `null`, or a [List] for arrays and lists.
   ///
+  /// Concurrent reads of one device are merged into ReadPropertyMultiple
+  /// requests unless [BacnetConfig.coalesceReads] is off; reads of an
+  /// [arrayIndex] are always sent alone.
+  ///
   /// ```dart
   /// final value = await client.readProperty(
   ///   1234,
@@ -148,6 +160,33 @@ class BacnetClient {
     BacnetPropertyId propertyId, {
     int arrayIndex = -1,
     Duration? timeout,
+  }) {
+    if (_config.coalesceReads && arrayIndex == -1) {
+      return _reads.read(
+        deviceId,
+        objectType,
+        instance,
+        propertyId,
+        timeout: timeout,
+      );
+    }
+    return _readSingle(
+      deviceId,
+      objectType,
+      instance,
+      propertyId,
+      timeout,
+      arrayIndex: arrayIndex,
+    );
+  }
+
+  Future<Object?> _readSingle(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance,
+    BacnetPropertyId propertyId,
+    Duration? timeout, {
+    int arrayIndex = -1,
   }) {
     return _system.confirmed(
       deviceId: deviceId,
