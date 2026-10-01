@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2026-10-01
+
+Reworked for high-load client and server deployments. See the migration
+notes in the README.
+
+### Changed
+
+- **Dependencies**: bacnet-stack 1.6.1 pinned as git submodule (previously
+  an unpinned clone of `master`); Dart SDK `^3.11.0`; `ffi` 2.2,
+  `json_annotation` 4.12, `meta` 1.16+, `hooks` 2.2, `code_assets` 2.1,
+  `native_toolchain_c` 0.19, `ffigen` 22, `build_runner` 2.16,
+  `json_serializable` 6.14, `mocktail` 1.0.5, `test` 1.30+, `lints` 6.1;
+  example: `go_router` 18, `provider` 6.1.5, `cupertino_icons` 2;
+  CI actions `checkout@v7`, `setup-dart@v1`, `flutter-action@v2`,
+  `setup-java@v6`.
+- **Build**: the native library is compiled by `hook/build.dart` for all
+  platforms (`@Native` bindings). The package no longer depends on Flutter
+  and runs in plain Dart programs. Removed the per-platform CMake, Gradle
+  and CocoaPods files, which were broken (Android CMake path, iOS/macOS
+  sources, Linux bundling, Windows-only native code).
+- **Native engine** rewritten (`native/src`): portable C (no `windows.h`,
+  SEH or `setjmp`), event buffer instead of FFI callbacks, wake-up socket,
+  generic confirmed request sender, own BACnet/IP port for POSIX systems
+  based on `getifaddrs` (accepts interface names and IPv4 addresses).
+- **Worker isolate**: blocks on the sockets instead of a 10 ms timer that
+  processed one packet per tick (~100 packets/s); processes up to 256
+  packets per iteration and batches messages to the main isolate.
+- **Client**: request scheduler with `maxConcurrentRequests`,
+  `maxConcurrentRequestsPerDevice`, `maxQueuedRequests` and deadlines;
+  automatic address binding via targeted Who-Is; ReadPropertyMultiple is
+  split automatically when the answer exceeds the APDU size; datatype
+  inference for writes (`BacnetValue` to force a type).
+- **Server**: answers Who-Is, Read/WriteProperty(Multiple),
+  SubscribeCOV(Property), ReadRange, DCC, ReinitializeDevice and time
+  synchronization; COV notifications are detected and sent (full scan every
+  `covScanInterval`); objects with names, descriptions, units, COV
+  increments and state texts; `setPresentValue`, `updatePresentValues`,
+  `setProperty`, `readProperty`, `removeObject`, `sendIAm`.
+- `DeviceScanner` and `PropertyMonitor` run requests in parallel;
+  COV subscriptions are renewed and cancelled, notifications carry values.
+- `BacnetClient` and `BacnetServer` share one reference counted stack.
+
+### Fixed
+
+- TSM timer was fed with wall clock timestamps instead of elapsed time,
+  so requests timed out and were retransmitted almost immediately.
+- Failed transactions never released their invoke id; after 255 failures
+  no request could be sent anymore.
+- Errors, rejects and aborts were not reported (requests waited for the
+  15 s timeout); requests to unknown devices never completed.
+- I-Am did not add address bindings (`address_add_binding` only updates
+  existing entries) and routed devices lost their network address.
+- Confirmed COV notifications were never acknowledged; COV notifications
+  had no device id, so `PropertyMonitor` never matched them.
+- WriteProperty sent the priority as array index; WPM forced REAL values.
+- Server object names/vendor name pointed to freed memory; value objects
+  rejected writes; demo objects of bacnet-stack were exposed.
+- RPM/ReadRange decoders could read past the received data; ReadRange
+  item data used the wrong context tag; malformed UCS-4 strings threw.
+- JSON serialization of nested models.
+
+### Added
+
+- Typed exceptions: `BacnetRejectException`, `BacnetAbortException`,
+  `BacnetDeviceNotFoundException`, `BacnetQueueFullException`,
+  `BacnetDecodeException`, `BacnetEncodeException`.
+- `BacnetStats`, `client.stats()`, `iAmStream`, `covNotifications`,
+  `readRange`, `getTrendLog` (decoded log records), `timeSynchronization`,
+  `sendConfirmedRaw`, `removeDeviceBinding`, `isDeviceBound`,
+  `unsubscribeCOV`, `CallbackLogger`.
+- Value types `BacnetBitString`, `BacnetStatusFlags`, `BacnetDate`,
+  `BacnetTime`, `BacnetValue` and constants for abort/reject reasons,
+  services, more object types and properties.
+- Unit tests (codec vectors from ASHRAE 135 Annex F, fuzzing), loopback
+  client/server integration tests, load and server benchmarks, interop
+  checks against the bacnet-stack demo tools.
+
 ## [0.0.3] - 2026-01-09
 
 ### Changed

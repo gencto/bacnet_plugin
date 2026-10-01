@@ -66,23 +66,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _client.start(interface: _interfaceController.text, port: port);
     _log('BACnet Stack Started on ${_interfaceController.text}:$port');
 
-    _client.events.listen((event) {
-      if (event is IAmResponse) {
-        final devId = event.deviceId;
-        if (devId != -1) {
-          if (!_devices.contains(devId)) {
-            setState(() => _devices.add(devId));
-            _log('Discovered Device $devId');
-          }
-        } else {
-          _log('Received I-Am but could not decode Device ID');
-        }
-      } else if (event is Map) {
-        // Fallback for any legacy maps
-        final type = event['type'] ?? event['event'];
-        if (type == 'I_AM') {
-          // Legacy handling
-        }
+    _client.iAmStream.listen((event) {
+      final devId = event.deviceId;
+      if (!_devices.contains(devId)) {
+        setState(() => _devices.add(devId));
+        _log('Discovered Device $devId (${event.ipAddress}:${event.port})');
       }
     });
   }

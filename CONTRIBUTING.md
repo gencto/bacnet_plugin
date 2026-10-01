@@ -61,9 +61,16 @@ We love pull requests! Here's the process:
 1. **Fork and Clone**
 
    ```bash
-   git clone https://github.com/YOUR_USERNAME/bacnet_plugin.git
+   git clone --recurse-submodules https://github.com/YOUR_USERNAME/bacnet_plugin.git
    cd bacnet_plugin
+   # existing clone: git submodule update --init
    ```
+
+   `native/bacnet-stack` is a git submodule pinned to a bacnet-stack
+   release. The native library is compiled by `hook/build.dart` the first
+   time a test, app or benchmark runs; a C compiler is required (clang/gcc
+   on Linux, Xcode on macOS/iOS, Visual Studio with the C++ workload on
+   Windows, the Android NDK installed by Flutter for Android).
 
 2. **Create a Branch**
 
@@ -83,18 +90,20 @@ We love pull requests! Here's the process:
 4. **Test Your Changes**
 
    ```bash
-   # Run static analysis
-   flutter analyze
+   # Static analysis and formatting
+   dart analyze --fatal-infos lib test hook benchmark tool
+   dart format lib test hook benchmark tool
 
-   # Format code
-   dart format .
+   # Unit tests
+   dart test --exclude-tags integration
 
-   # Run tests
-   flutter test
+   # Client/server integration tests over the loopback interface
+   dart test --tags integration
 
-   # Run integration tests
+   # Example app
    cd example
-   flutter test integration_test/
+   flutter analyze
+   flutter test integration_test/app_test.dart -d flutter-tester
    ```
 
 5. **Generate Code** (if you modified models with @JsonSerializable)
@@ -169,7 +178,7 @@ This project follows the Flutter/Dart style guide from [.agent/rules/rules.md](f
 
 **Imports:**
 
-- Organize imports: dart, flutter, package, relative
+- Organize imports: dart, package, relative
 - Use `show` or `hide` to limit imports when appropriate
 
 **Example:**
@@ -235,7 +244,7 @@ Place unit tests in `test/` directory:
 
 ```dart
 import 'package:bacnet_plugin/bacnet_plugin.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('BacnetObject', () {
@@ -262,27 +271,27 @@ void main() {
 
 ### Integration Tests
 
-Place integration tests in `example/integration_test/`:
+The native stack is process global, so client/server tests start the
+server in a second process (`tool/demo_server.dart`) and talk to it over
+the loopback interface. See `test/integration/client_server_test.dart` and
+tag new tests with `@Tags(['integration'])`.
 
-```dart
-import 'package:bacnet_plugin/bacnet_plugin.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
+Interoperability with the reference implementation can be checked with the
+bacnet-stack demo applications (`bacserv`, `bacrp`, `bacwp`, ...):
 
-void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+```bash
+make -C native/bacnet-stack BACDL=bip server readprop   # in a copy of the stack
+BACNET_IFACE=lo BACNET_IP_PORT=47830 bin/bacserv 2002 &
+dart run tool/interop_client.dart 47830 2002
+```
 
-  testWidgets('Client can start and stop', (tester) async {
-    final client = BacnetClient();
+Load tests live in `benchmark/`:
 
-    await client.start();
-    await Future.delayed(Duration(seconds: 1));
-
-    client.dispose();
-
-    expect(true, isTrue); // Test passed
-  });
-}
+```bash
+dart run tool/demo_server.dart 47811 1001 200 &
+dart run benchmark/load_test.dart --targets 127.0.0.1:47811:1001 \
+    --requests 50000 --interface lo
+dart run benchmark/server_benchmark.dart 10000 lo
 ```
 
 ### Test Coverage
@@ -354,16 +363,26 @@ Models use `json_serializable` for JSON support:
 
 ## Native Code Changes
 
-If modifying native BACnet stack code:
+The Dart code only talks to the small engine API in
+`native/src/bacnet_plugin.h`; bacnet-stack internals stay private to the
+native library.
 
-1. Update header files in `native/include/`
-2. Update bindings configuration in `ffigen.yaml`
-3. Regenerate FFI bindings:
+1. Change `native/src/bacnet_plugin.{h,c}` (engine) or
+   `native/src/bp_port_posix.c` (BACnet/IP datalink for Linux, Android,
+   macOS and iOS). Windows uses the bacnet-stack `ports/win32` sources.
+2. Regenerate the FFI bindings (`@Native` functions, needs libclang):
    ```bash
    dart run ffigen --config ffigen.yaml
    ```
-4. Test on all supported platforms
-5. Document any platform-specific behavior
+3. After updating the bacnet-stack submodule, regenerate the server object
+   table and re-run all tests:
+   ```bash
+   git -C native/bacnet-stack checkout bacnet-stack-X.Y.Z
+   python3 tool/gen_object_table.py
+   ```
+4. Compiler flags, defines and the source list are in `hook/build.dart`.
+5. Keep every engine call except `bacnet_plugin_wakeup` on the worker
+   isolate: the stack is not thread safe.
 
 ## Release Process
 
@@ -372,10 +391,10 @@ For maintainers:
 1. Update version in `pubspec.yaml`
 2. Update `CHANGELOG.md` with changes
 3. Run all tests and checks
-4. Create git tag: `git tag v0.0.2`
-5. Push tag: `git push origin v0.0.2`
-6. Create GitHub release with notes
-7. Publish to pub.dev: `flutter pub publish`
+4. Check the package contents: `dart pub publish --dry-run`
+5. Create git tag: `git tag v0.1.0`
+6. Push tag: `git push origin v0.1.0` (CI publishes to pub.dev via OIDC)
+7. Create GitHub release with notes
 
 ## Questions?
 

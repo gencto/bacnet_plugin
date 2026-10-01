@@ -1,0 +1,4 @@
+tags:
+  integration:
+    timeout: 3x
+    # needs UDP sockets on the loopback interface and a second process

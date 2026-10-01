@@ -1,23 +1,29 @@
-# Pub.dev ignore file
-# This file determines which files are included in the published package.
+# Files excluded from the published package (gitignore syntax).
+# Note: when this file exists pub ignores .gitignore at the package root.
 
-# 1. Include the native library core which is ignored in Git
-!native/bacnet-stack/
-
-# 2. Exclude internal development and CI files
-.github/
-scripts/
-.agent/
-.metadata
-ffigen.yaml
-
-# 3. Exclude IDE and temp files
-.idea/
-*.iml
-.vscode/
+# Build outputs and tooling state
 .dart_tool/
 build/
 coverage/
+/pubspec.lock
+.idea/
+*.iml
+.vscode/
 
-# 4. Exclude documentation source if you don't want it (optional)
-# doc/
+# Development only
+.github/
+.agent/
+tool/
+ffigen.yaml
+dart_test.yaml
+
+# bacnet-stack: ship the sources compiled by hook/build.dart and the licenses
+native/bacnet-stack/*
+!native/bacnet-stack/src/
+!native/bacnet-stack/license/
+!native/bacnet-stack/README.md
+!native/bacnet-stack/ports/
+native/bacnet-stack/ports/*
+!native/bacnet-stack/ports/win32/
+native/bacnet-stack/ports/win32/Microsoft Visual Studio*/
+native/bacnet-stack/src/bacnet/datalink/bsc/

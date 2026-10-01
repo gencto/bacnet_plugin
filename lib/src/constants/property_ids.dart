@@ -325,6 +325,78 @@ class BacnetPropertyId {
   /// Weekly Schedule property (123).
   static const int weeklySchedule = 123;
 
+  /// Controlled Variable Reference property (19).
+  static const int controlledVariableReference = 19;
+
+  /// Controlled Variable Units property (20).
+  static const int controlledVariableUnits = 20;
+
+  /// Controlled Variable Value property (21).
+  static const int controlledVariableValue = 21;
+
+  /// COV Increment property (22).
+  static const int covIncrement = 22;
+
+  /// Date List property (23).
+  static const int dateList = 23;
+
+  /// Daylight Savings Status property (24).
+  static const int daylightSavingsStatus = 24;
+
+  /// Deadband property (25).
+  static const int deadband = 25;
+
+  /// Derivative Constant property (26).
+  static const int derivativeConstant = 26;
+
+  /// Derivative Constant Units property (27).
+  static const int derivativeConstantUnits = 27;
+
+  /// Buffer Size property (126).
+  static const int bufferSize = 126;
+
+  /// Log Buffer property (131).
+  static const int logBuffer = 131;
+
+  /// Log Device Object Property property (132).
+  static const int logDeviceObjectProperty = 132;
+
+  /// Enable property (133).
+  static const int enable = 133;
+
+  /// Log Interval property (134).
+  static const int logInterval = 134;
+
+  /// Record Count property (141).
+  static const int recordCount = 141;
+
+  /// Start Time property (142).
+  static const int startTime = 142;
+
+  /// Stop Time property (143).
+  static const int stopTime = 143;
+
+  /// Stop When Full property (144).
+  static const int stopWhenFull = 144;
+
+  /// Total Record Count property (145).
+  static const int totalRecordCount = 145;
+
+  /// Active COV Subscriptions property (152).
+  static const int activeCovSubscriptions = 152;
+
+  /// Database Revision property (155).
+  static const int databaseRevision = 155;
+
+  /// Max Segments Accepted property (167).
+  static const int maxSegmentsAccepted = 167;
+
+  /// Structured Object List property (209).
+  static const int structuredObjectList = 209;
+
+  /// Property List property (371).
+  static const int propertyList = 371;
+
   /// Returns a human-readable name for the given property identifier.
   static String getName(int propertyId) {
     switch (propertyId) {
@@ -380,6 +452,54 @@ class BacnetPropertyId {
         return 'Protocol Object Types Supported';
       case systemStatus:
         return 'System Status';
+      case controlledVariableReference:
+        return 'Controlled Variable Reference';
+      case controlledVariableUnits:
+        return 'Controlled Variable Units';
+      case controlledVariableValue:
+        return 'Controlled Variable Value';
+      case covIncrement:
+        return 'COV Increment';
+      case dateList:
+        return 'Date List';
+      case daylightSavingsStatus:
+        return 'Daylight Savings Status';
+      case deadband:
+        return 'Deadband';
+      case derivativeConstant:
+        return 'Derivative Constant';
+      case derivativeConstantUnits:
+        return 'Derivative Constant Units';
+      case bufferSize:
+        return 'Buffer Size';
+      case logBuffer:
+        return 'Log Buffer';
+      case logDeviceObjectProperty:
+        return 'Log Device Object Property';
+      case enable:
+        return 'Enable';
+      case logInterval:
+        return 'Log Interval';
+      case recordCount:
+        return 'Record Count';
+      case startTime:
+        return 'Start Time';
+      case stopTime:
+        return 'Stop Time';
+      case stopWhenFull:
+        return 'Stop When Full';
+      case totalRecordCount:
+        return 'Total Record Count';
+      case activeCovSubscriptions:
+        return 'Active COV Subscriptions';
+      case databaseRevision:
+        return 'Database Revision';
+      case maxSegmentsAccepted:
+        return 'Max Segments Accepted';
+      case structuredObjectList:
+        return 'Structured Object List';
+      case propertyList:
+        return 'Property List';
       default:
         return 'Property $propertyId';
     }

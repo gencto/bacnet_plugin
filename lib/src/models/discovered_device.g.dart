@@ -21,6 +21,9 @@ DiscoveredDevice _$DiscoveredDeviceFromJson(Map<String, dynamic> json) =>
       applicationSoftwareVersion: json['applicationSoftwareVersion'] as String?,
       protocolVersion: (json['protocolVersion'] as num?)?.toInt(),
       protocolRevision: (json['protocolRevision'] as num?)?.toInt(),
+      ipAddress: json['ipAddress'] as String?,
+      port: (json['port'] as num?)?.toInt(),
+      networkNumber: (json['networkNumber'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$DiscoveredDeviceToJson(DiscoveredDevice instance) =>
@@ -38,4 +41,7 @@ Map<String, dynamic> _$DiscoveredDeviceToJson(DiscoveredDevice instance) =>
       'applicationSoftwareVersion': instance.applicationSoftwareVersion,
       'protocolVersion': instance.protocolVersion,
       'protocolRevision': instance.protocolRevision,
+      'ipAddress': instance.ipAddress,
+      'port': instance.port,
+      'networkNumber': instance.networkNumber,
     };

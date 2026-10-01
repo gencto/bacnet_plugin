@@ -20,7 +20,7 @@ Map<String, dynamic> _$TrendLogDataToJson(TrendLogData instance) =>
     <String, dynamic>{
       'itemCount': instance.itemCount,
       'totalRecords': instance.totalRecords,
-      'entries': instance.entries,
+      'entries': instance.entries.map((e) => e.toJson()).toList(),
     };
 
 TrendLogEntry _$TrendLogEntryFromJson(Map<String, dynamic> json) =>

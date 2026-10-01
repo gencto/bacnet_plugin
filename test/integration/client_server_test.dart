@@ -1,0 +1,220 @@
+@Tags(['integration'])
+library;
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:bacnet_plugin/bacnet_plugin.dart';
+import 'package:test/test.dart';
+
+/// Runs tool/demo_server.dart in a separate process (the native stack is
+/// process global, so client and server need separate processes).
+class ServerProcess {
+  ServerProcess._(this.process, this.lines);
+
+  final Process process;
+  final List<String> lines;
+
+  static Future<ServerProcess> start(int port, int device, int objects) async {
+    final process = await Process.start(
+      Platform.resolvedExecutable,
+      ['run', 'tool/demo_server.dart', '$port', '$device', '$objects'],
+      environment: {'BACNET_IFACE': '127.0.0.1'},
+    );
+    final lines = <String>[];
+    final ready = Completer<void>();
+    process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+          lines.add(line);
+          if (line.startsWith('READY') && !ready.isCompleted) ready.complete();
+        });
+    process.stderr.transform(utf8.decoder).listen(lines.add);
+    unawaited(
+      process.exitCode.then((code) {
+        if (!ready.isCompleted) {
+          ready.completeError(StateError('server exited ($code): $lines'));
+        }
+      }),
+    );
+    await ready.future.timeout(const Duration(minutes: 3));
+    return ServerProcess._(process, lines);
+  }
+
+  Future<void> stop() async {
+    process.kill();
+    await process.exitCode;
+  }
+}
+
+void main() {
+  const serverPort = 47861;
+  const device = 7001;
+  late ServerProcess server;
+  late BacnetClient client;
+
+  setUpAll(() async {
+    server = await ServerProcess.start(serverPort, device, 100);
+    client = BacnetClient(
+      config: const BacnetConfig(
+        interface: '127.0.0.1',
+        port: 47862,
+        requestTimeout: Duration(seconds: 10),
+        bindTimeout: Duration(seconds: 1),
+        logLevel: BacnetLogLevel.warning,
+      ),
+    );
+    await client.start();
+    await client.addDeviceBinding(device, '127.0.0.1', port: serverPort);
+  });
+
+  tearDownAll(() async {
+    await client.close();
+    await server.stop();
+  });
+
+  test('reads device and object properties', () async {
+    expect(client.nativeVersion, contains('bacnet-stack/'));
+    expect(
+      await client.readProperty(device, BacnetObjectType.device, device, 77),
+      'DemoServer',
+    );
+    final value = await client.readProperty(
+      device,
+      BacnetObjectType.analogValue,
+      50,
+      BacnetPropertyId.presentValue,
+    );
+    expect(value, 50.0);
+    expect(
+      await client.readProperty(device, 19, 0, BacnetPropertyId.stateText),
+      ['Off', 'On', 'Auto'],
+    );
+  });
+
+  test('scans the object list', () async {
+    final objects = await client.scanDevice(device);
+    // device, network port, 100 AV, BV, MSV
+    expect(objects, hasLength(104));
+    final scanner = DeviceScanner(client);
+    final details = await scanner.getDeviceDetails(device);
+    expect(details.deviceName, 'DemoServer');
+    expect(details.vendorName, 'bacnet_plugin');
+  });
+
+  test('ReadPropertyMultiple returns values and errors', () async {
+    final result = await client.readMultiple(device, const [
+      BacnetReadAccessSpecification(
+        objectIdentifier: BacnetObject(type: 2, instance: 60),
+        properties: [
+          BacnetPropertyReference(propertyIdentifier: 77),
+          BacnetPropertyReference(propertyIdentifier: 117),
+          BacnetPropertyReference(propertyIdentifier: 9999),
+        ],
+      ),
+    ]);
+    expect(result['2:60']![77], 'AV-60');
+    expect(result['2:60']![117], 62);
+    expect(result['2:60']![9999], isA<BacnetError>());
+  });
+
+  test('large ReadPropertyMultiple requests are split', () async {
+    final result = await client.readMultiple(device, [
+      for (var i = 0; i < 100; i++)
+        BacnetReadAccessSpecification(
+          objectIdentifier: BacnetObject(type: 2, instance: i),
+          properties: const [
+            BacnetPropertyReference(propertyIdentifier: 77),
+            BacnetPropertyReference(propertyIdentifier: 28),
+            BacnetPropertyReference(propertyIdentifier: 111),
+          ],
+        ),
+    ]);
+    expect(result, hasLength(100));
+    expect(result['2:99']![77], 'AV-99');
+  });
+
+  test('writes with inferred datatypes', () async {
+    await client.writeProperty(device, 2, 70, 85, 12.5, priority: 8);
+    expect(await client.readProperty(device, 2, 70, 85), 12.5);
+    await client.writeProperty(device, 5, 0, 85, true);
+    expect(await client.readProperty(device, 5, 0, 85), 1);
+    await client.writeMultiple(device, const [
+      BacnetWriteAccessSpecification(
+        objectIdentifier: BacnetObject(type: 19, instance: 0),
+        listOfProperties: [
+          BacnetPropertyValue(propertyIdentifier: 85, value: 3),
+        ],
+      ),
+    ]);
+    expect(await client.readProperty(device, 19, 0, 85), 3);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(server.lines.where((l) => l.startsWith('WRITE')), hasLength(3));
+  });
+
+  test('reports protocol errors with typed exceptions', () async {
+    await expectLater(
+      client.readProperty(device, 2, 4000, 85),
+      throwsA(
+        isA<BacnetProtocolException>().having(
+          (e) => e.errorCode,
+          'code',
+          BacnetErrorCode.unknownObject,
+        ),
+      ),
+    );
+    await expectLater(
+      client.writeProperty(device, 19, 0, 85, 9),
+      throwsA(isA<BacnetProtocolException>()),
+    );
+    await expectLater(
+      client.readProperty(4000000, 2, 1, 85),
+      throwsA(isA<BacnetDeviceNotFoundException>()),
+    );
+  });
+
+  test('handles thousands of concurrent requests', () async {
+    final results = await Future.wait([
+      for (var i = 0; i < 5000; i++)
+        client.readProperty(device, 2, i % 100, BacnetPropertyId.objectName),
+    ]);
+    for (var i = 0; i < results.length; i++) {
+      expect(results[i], 'AV-${i % 100}');
+    }
+    final stats = await client.stats();
+    expect(stats.inFlightRequests, 0);
+    expect(stats.queuedRequests, 0);
+    expect(stats.repliesDropped, 0);
+  });
+
+  test('receives COV notifications with values', () async {
+    final notifications = <COVNotificationResponse>[];
+    final subscription = client.covNotifications.listen(notifications.add);
+    await client.subscribeCOV(
+      device,
+      2,
+      1,
+      processId: 99,
+      lifetime: const Duration(seconds: 30),
+    );
+    await Future<void>.delayed(const Duration(seconds: 1));
+    await client.unsubscribeCOV(device, 2, 1, processId: 99);
+    await subscription.cancel();
+    expect(notifications, isNotEmpty);
+    expect(notifications.first.deviceId, device);
+    expect(notifications.first.values[85], isA<double>());
+  });
+
+  test('PropertyMonitor streams COV updates', () async {
+    final monitor = PropertyMonitor(client);
+    final updates = await monitor
+        .monitorPresentValue(device, const BacnetObject(type: 2, instance: 2))
+        .take(3)
+        .toList()
+        .timeout(const Duration(seconds: 10));
+    expect(updates.first.source, UpdateSource.manual);
+    expect(updates.last.source, UpdateSource.cov);
+  });
+}

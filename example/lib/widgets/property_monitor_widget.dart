@@ -83,21 +83,18 @@ class _PropertyMonitorWidgetState extends State<PropertyMonitorWidget> {
         );
         _covSubscribed = true;
 
-        // Listen for COV notifications
-        _eventSubscription = appState.client.events.listen((event) {
-          if (event is COVNotificationResponse) {
-            if (event.deviceId == widget.deviceId &&
-                event.objectType == widget.objectType &&
-                event.instance == widget.instance) {
-              if (mounted) {
-                setState(() {
-                  _lastUpdate = DateTime.now();
-                  _errorMessage = null;
-                });
-                // Trigger a manual read to get the latest value
-                _readValue();
-              }
-            }
+        // COV notifications carry the new value: no extra read needed
+        _eventSubscription = appState.client.covNotifications.listen((event) {
+          if (event.deviceId == widget.deviceId &&
+              event.objectType == widget.objectType &&
+              event.instance == widget.instance &&
+              event.values.containsKey(widget.propertyId) &&
+              mounted) {
+            setState(() {
+              _currentValue = event.values[widget.propertyId];
+              _lastUpdate = DateTime.now();
+              _errorMessage = null;
+            });
           }
         });
       } on Exception catch (e) {
@@ -156,12 +153,8 @@ class _PropertyMonitorWidgetState extends State<PropertyMonitorWidget> {
   String _formatValue(dynamic value) {
     if (value == null) return 'null';
     if (value is double) return value.toStringAsFixed(2);
-    if (value is Map) {
-      // Handle object identifiers
-      if (value.containsKey('type') && value.containsKey('instance')) {
-        return '${value['type']}:${value['instance']}';
-      }
-      return value.toString();
+    if (value is BacnetObject) {
+      return '${BacnetObjectType.getName(value.type)}:${value.instance}';
     }
     return value.toString();
   }

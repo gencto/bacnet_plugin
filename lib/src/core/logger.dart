@@ -124,3 +124,45 @@ class NoOpBacnetLogger implements BacnetLogger {
     // Do nothing - silent logger
   }
 }
+
+/// Signature of the callback used by [CallbackLogger].
+typedef BacnetLogCallback =
+    void Function(
+      BacnetLogLevel level,
+      String message,
+      Object? error,
+      StackTrace? stackTrace,
+    );
+
+/// Logger forwarding every message to a callback, e.g. into an app console.
+///
+/// Example usage:
+/// ```dart
+/// final server = BacnetServer(
+///   logger: CallbackLogger((level, message, error, stackTrace) {
+///     console.add('[$level] $message');
+///   }),
+/// );
+/// ```
+class CallbackLogger implements BacnetLogger {
+  /// Creates a logger calling [callback] for messages of at least [minLevel].
+  const CallbackLogger(this.callback, {this.minLevel = BacnetLogLevel.debug});
+
+  /// Receives the log messages.
+  final BacnetLogCallback callback;
+
+  /// Messages below this level are ignored.
+  final BacnetLogLevel minLevel;
+
+  @override
+  void log(
+    BacnetLogLevel level,
+    String message, [
+    Object? error,
+    StackTrace? stackTrace,
+  ]) {
+    if (level.index >= minLevel.index) {
+      callback(level, message, error, stackTrace);
+    }
+  }
+}
