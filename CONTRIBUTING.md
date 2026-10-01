@@ -31,13 +31,13 @@ lib/
     client/              BacnetClient
     server/              BacnetServer
     utilities/           DeviceScanner, PropertyMonitor
-    models/              value types and events
+    models/              values (sealed BacnetValue), models and events
     core/                configuration, exceptions, logging
     constants/           BACnet enumerations (generated)
     testing/             FakeBacnetClient and in-memory devices
     codec/               bounds checked BACnet encoder/decoder
       reader.dart, writer.dart       tags and primitive values
-      value_encoding.dart            application values, datatype inference
+      value_encoding.dart            BacnetValue encoding and decoding
       requests.dart, responses.dart  service encoders/decoders
     native/              worker isolate and FFI
       bacnet_system.dart  main isolate side, reference counted stack

@@ -249,11 +249,12 @@ class BacnetSystem {
     return future.then((value) => value as T);
   }
 
-  /// Sends a confirmed request and returns the decoded answer.
+  /// Sends a confirmed request and returns the answer decoded as
+  /// [decoding] says (`null` for [AckDecoding.none]); [T] must match it.
   ///
   /// [background] requests wait behind normal ones; [cancelToken] drops
   /// the request (see [BacnetCancelToken]).
-  Future<Object?> confirmed({
+  Future<T> confirmed<T>({
     required int deviceId,
     required int service,
     required Uint8List payload,
@@ -267,7 +268,7 @@ class BacnetSystem {
     }
     final effective = timeout ?? _config.requestTimeout;
     int? requestId;
-    final future = call<Object?>(
+    final future = call<T>(
       (id) => ConfirmedRequestCommand(
         requestId = id,
         deviceId: deviceId,

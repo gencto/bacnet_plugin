@@ -1,4 +1,3 @@
-/// @docImport '../codec/values.dart';
 /// @docImport '../constants/property_ids.dart';
 library;
 
@@ -6,7 +5,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
 
 import '../constants/property_ids.dart';
-import 'bacnet_object.dart';
+import 'bacnet_value.dart';
 
 part 'wpm_models.g.dart';
 
@@ -40,18 +39,9 @@ class BacnetWriteAccessSpecification {
   /// Converts this specification to JSON.
   Map<String, dynamic> toJson() => _$BacnetWriteAccessSpecificationToJson(this);
 
-  /// Converts this specification to a Map (legacy compatibility).
-  ///
-  /// Prefer using [toJson] for new code.
-  Map<String, dynamic> toMap() {
-    return {
-      'objectIdentifier': {
-        'type': objectIdentifier.type,
-        'instance': objectIdentifier.instance,
-      },
-      'listOfProperties': listOfProperties.map((p) => p.toMap()).toList(),
-    };
-  }
+  /// Former name of [toJson].
+  @Deprecated('Use toJson')
+  Map<String, dynamic> toMap() => toJson();
 
   /// Creates a copy of this specification with updated values.
   BacnetWriteAccessSpecification copyWith({
@@ -83,13 +73,21 @@ class BacnetWriteAccessSpecification {
 /// Represents a property value to write in a WritePropertyMultiple request.
 ///
 /// Specifies the property identifier, value, priority, and optional array index.
+///
+/// ```dart
+/// const BacnetPropertyValue(
+///   propertyIdentifier: BacnetPropertyId.presentValue,
+///   value: BacnetReal(21.5),
+///   priority: 8,
+/// );
+/// ```
 @immutable
-@JsonSerializable()
+@JsonSerializable(explicitToJson: true)
 class BacnetPropertyValue {
   /// Creates a property value for writing.
   ///
   /// [propertyIdentifier] is the property ID to write to.
-  /// [value] is the value to write.
+  /// [value] is the value to write; its class decides the datatype.
   /// [propertyArrayIndex] is the optional array index (-1 for non-array properties).
   /// [priority] is the write priority (1-16, where 1 is highest).
   const BacnetPropertyValue({
@@ -97,7 +95,6 @@ class BacnetPropertyValue {
     this.propertyArrayIndex = -1,
     required this.value,
     this.priority = 16,
-    this.tag,
   });
 
   /// The property identifier to write to.
@@ -111,21 +108,15 @@ class BacnetPropertyValue {
   /// Set to a specific index to write to one array element.
   final int propertyArrayIndex;
 
-  /// The value to write.
-  ///
-  /// Type should match the property's data type (e.g., double for Analog, bool for Binary).
-  final dynamic value;
+  /// The value to write, e.g. a [BacnetReal] for an analog present value
+  /// or a [BacnetNull] to relinquish [priority].
+  final BacnetValue value;
 
   /// Write priority (1-16).
   ///
   /// Lower numbers have higher priority. Priority 16 is the lowest (default).
   /// Used for commandable properties with priority arrays.
   final int priority;
-
-  /// BACnet application tag forcing the datatype (see
-  /// [BacnetApplicationTag]); `null` infers it from the object type, the
-  /// property and the value.
-  final int? tag;
 
   /// Creates a property value from JSON.
   factory BacnetPropertyValue.fromJson(Map<String, dynamic> json) =>
@@ -134,33 +125,22 @@ class BacnetPropertyValue {
   /// Converts this property value to JSON.
   Map<String, dynamic> toJson() => _$BacnetPropertyValueToJson(this);
 
-  /// Converts this property value to a Map (legacy compatibility).
-  ///
-  /// Prefer using [toJson] for new code.
-  Map<String, dynamic> toMap() {
-    return {
-      'propertyIdentifier': propertyIdentifier,
-      'propertyArrayIndex': propertyArrayIndex,
-      'value': value,
-      'priority': priority,
-      'tag': tag,
-    };
-  }
+  /// Former name of [toJson].
+  @Deprecated('Use toJson')
+  Map<String, dynamic> toMap() => toJson();
 
   /// Creates a copy of this property value with updated values.
   BacnetPropertyValue copyWith({
     BacnetPropertyId? propertyIdentifier,
     int? propertyArrayIndex,
-    dynamic value,
+    BacnetValue? value,
     int? priority,
-    int? tag,
   }) {
     return BacnetPropertyValue(
       propertyIdentifier: propertyIdentifier ?? this.propertyIdentifier,
       propertyArrayIndex: propertyArrayIndex ?? this.propertyArrayIndex,
       value: value ?? this.value,
       priority: priority ?? this.priority,
-      tag: tag ?? this.tag,
     );
   }
 
@@ -171,15 +151,14 @@ class BacnetPropertyValue {
         other.propertyIdentifier == propertyIdentifier &&
         other.propertyArrayIndex == propertyArrayIndex &&
         other.value == value &&
-        other.priority == priority &&
-        other.tag == tag;
+        other.priority == priority;
   }
 
   @override
   int get hashCode =>
-      Object.hash(propertyIdentifier, propertyArrayIndex, value, priority, tag);
+      Object.hash(propertyIdentifier, propertyArrayIndex, value, priority);
 
   @override
   String toString() =>
-      'PropertyValue($propertyIdentifier${propertyArrayIndex != -1 ? '[$propertyArrayIndex]' : ''} = $value @ priority $priority, tag $tag)';
+      'PropertyValue($propertyIdentifier${propertyArrayIndex != -1 ? '[$propertyArrayIndex]' : ''} = $value @ priority $priority)';
 }

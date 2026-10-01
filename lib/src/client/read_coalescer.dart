@@ -4,13 +4,12 @@ import '../constants/errors.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
-import '../core/types.dart';
-import '../models/bacnet_object.dart';
+import '../models/bacnet_value.dart';
 import '../models/rpm_models.dart';
 
 /// Sends one ReadProperty request.
 typedef ReadPropertyCall =
-    Future<Object?> Function(
+    Future<BacnetValue> Function(
       int deviceId,
       BacnetObjectType objectType,
       int instance,
@@ -21,7 +20,8 @@ typedef ReadPropertyCall =
 
 /// Sends one ReadPropertyMultiple request (see `BacnetClient.readMultiple`).
 typedef ReadMultipleCall =
-    Future<Map<String, Map<int, dynamic>>> Function(
+    Future<Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>>
+    Function(
       int deviceId,
       List<BacnetReadAccessSpecification> specs,
       Duration? timeout, {
@@ -70,7 +70,7 @@ final class ReadCoalescer {
 
   /// Reads a property; the request is sent together with other pending
   /// reads of the device.
-  Future<Object?> read(
+  Future<BacnetValue> read(
     int deviceId,
     BacnetObjectType objectType,
     int instance,
@@ -132,7 +132,7 @@ final class ReadCoalescer {
   }
 
   Future<void> _sendMultiple(_Batch batch, List<_Read> reads) async {
-    final Map<String, Map<int, dynamic>> result;
+    final Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>> result;
     try {
       result = await _readMultiple(
         batch.deviceId,
@@ -152,20 +152,24 @@ final class ReadCoalescer {
       return;
     }
     for (final read in reads) {
-      final properties = result['${read.objectType}:${read.instance}'];
-      if (properties == null || !properties.containsKey(read.propertyId)) {
-        // the device left the property out: ask for it alone
-        batch.readSingle(_readProperty)(read);
-      } else if (properties[read.propertyId] case final BacnetError error) {
-        read.completer.completeError(
-          BacnetProtocolException(
-            'device ${batch.deviceId} returned an error',
-            errorClass: error.errorClass,
-            errorCode: error.errorCode,
-          ),
-        );
-      } else {
-        read.completer.complete(properties[read.propertyId]);
+      final object = BacnetObject(
+        type: read.objectType,
+        instance: read.instance,
+      );
+      switch (result[object]?[read.propertyId]) {
+        case final BacnetValue value:
+          read.completer.complete(value);
+        case BacnetError(:final errorClass, :final errorCode):
+          read.completer.completeError(
+            BacnetProtocolException(
+              'device ${batch.deviceId} returned an error',
+              errorClass: errorClass,
+              errorCode: errorCode,
+            ),
+          );
+        case null:
+          // the device left the property out: ask for it alone
+          batch.readSingle(_readProperty)(read);
       }
     }
   }
@@ -228,5 +232,5 @@ final class _Read {
   final BacnetObjectType objectType;
   final int instance;
   final BacnetPropertyId propertyId;
-  final Completer<Object?> completer = Completer<Object?>();
+  final Completer<BacnetValue> completer = Completer<BacnetValue>();
 }

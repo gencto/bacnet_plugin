@@ -13,11 +13,11 @@ void main() {
         BacnetObjectType.analogInput,
         1,
         name: 'Supply Air Temperature',
-        presentValue: 21.5,
+        presentValue: const BacnetReal(21.5),
         units: BacnetEngineeringUnits.degreesCelsius,
       )
-      ..addObject(BacnetObjectType.analogOutput, 1, presentValue: 0)
-      ..addObject(BacnetObjectType.binaryValue, 1, presentValue: false);
+      ..addObject(BacnetObjectType.analogOutput, 1)
+      ..addObject(BacnetObjectType.binaryValue, 1);
     boiler = FakeBacnetDevice(42, name: 'Boiler');
     client = FakeBacnetClient(devices: [ahu, boiler]);
     await client.start();
@@ -42,7 +42,7 @@ void main() {
         1,
         BacnetPropertyId.presentValue,
       ),
-      21.5,
+      const BacnetReal(21.5),
     );
     final objects = await client.scanDevice(1234);
     expect(objects, hasLength(4));
@@ -54,7 +54,7 @@ void main() {
         BacnetPropertyId.objectList,
         arrayIndex: 0,
       ),
-      4,
+      const BacnetUnsigned(4),
     );
     final result = await client.readMultiple(1234, const [
       BacnetReadAccessSpecification(
@@ -70,14 +70,30 @@ void main() {
         ],
       ),
     ]);
-    expect(result['0:1']![BacnetPropertyId.units], 62);
+    final properties = result[objects[1]]!;
     expect(
-      result['0:1']![BacnetPropertyId.description],
-      isA<BacnetError>().having(
-        (e) => e.errorCode,
-        'errorCode',
-        BacnetErrorCode.unknownProperty,
+      properties[BacnetPropertyId.units],
+      const BacnetEnumerated(BacnetEngineeringUnits.degreesCelsius),
+    );
+    expect(
+      properties.errorOf(BacnetPropertyId.description)?.errorCode,
+      BacnetErrorCode.unknownProperty,
+    );
+  });
+
+  test('rejects properties requested twice like the real client', () {
+    const spec = BacnetReadAccessSpecification(
+      objectIdentifier: BacnetObject(
+        type: BacnetObjectType.analogInput,
+        instance: 1,
       ),
+      properties: [
+        BacnetPropertyReference(propertyIdentifier: BacnetPropertyId.units),
+      ],
+    );
+    expect(
+      () => client.readMultiple(1234, const [spec, spec]),
+      throwsArgumentError,
     );
   });
 
@@ -119,13 +135,13 @@ void main() {
   });
 
   test('commands outputs through the priority array', () async {
-    Future<Object?> value() => client.readProperty(
+    Future<BacnetValue> value() => client.readProperty(
       1234,
       BacnetObjectType.analogOutput,
       1,
       BacnetPropertyId.presentValue,
     );
-    Future<void> write(Object? value, int priority) => client.writeProperty(
+    Future<void> write(BacnetValue value, int priority) => client.writeProperty(
       1234,
       BacnetObjectType.analogOutput,
       1,
@@ -134,21 +150,30 @@ void main() {
       priority: priority,
     );
 
-    await write(50, 8);
-    expect(await value(), 50.0);
-    await write(30, 5);
-    expect(await value(), 30.0);
-    await write(null, 5);
-    expect(await value(), 50.0);
-    await write(null, 8);
-    expect(await value(), 0.0, reason: 'relinquish default');
+    await write(const BacnetReal(50), 8);
+    expect(await value(), const BacnetReal(50));
+    await write(const BacnetReal(30), 5);
+    expect(await value(), const BacnetReal(30));
+    final priorities = await client.readProperty(
+      1234,
+      BacnetObjectType.analogOutput,
+      1,
+      BacnetPropertyId.priorityArray,
+    );
+    expect(priorities.asList[4], const BacnetReal(30));
+    expect(priorities.asList[7], const BacnetReal(50));
+    expect(priorities.asList[15], const BacnetNull());
+    await write(const BacnetNull(), 5);
+    expect(await value(), const BacnetReal(50));
+    await write(const BacnetNull(), 8);
+    expect(await value(), const BacnetReal(0), reason: 'relinquish default');
 
     await client.writeProperty(
       1234,
       BacnetObjectType.binaryValue,
       1,
       BacnetPropertyId.presentValue,
-      true,
+      const BacnetEnumerated(BacnetBinaryPV.active),
     );
     expect(
       await client.readProperty(
@@ -157,23 +182,27 @@ void main() {
         1,
         BacnetPropertyId.presentValue,
       ),
-      1,
+      const BacnetEnumerated(1),
     );
-    expect(
-      client.requests.where((r) => r.service == 'writeProperty'),
-      hasLength(5),
-    );
+    final writes = client.requests.where((r) => r.service == 'writeProperty');
+    expect(writes, hasLength(5));
+    expect(writes.first.value, const BacnetReal(50));
+    expect(writes.first.priority, 8);
   });
 
   test('streams COV updates to PropertyMonitor', () async {
     final monitor = PropertyMonitor(client);
-    final updates = <Object?>[];
+    final updates = <BacnetValue>[];
     final subscription = monitor
         .monitorPresentValue(
           1234,
           const BacnetObject(type: BacnetObjectType.analogInput, instance: 1),
         )
-        .listen((update) => updates.add(update.value));
+        .listen((update) {
+          if (update case PropertyValueUpdate(:final value)) {
+            updates.add(value);
+          }
+        });
     // wait until the monitor subscribed
     while (!client.requests.any((r) => r.service == 'subscribeCOV')) {
       await Future<void>.delayed(const Duration(milliseconds: 1));
@@ -183,9 +212,11 @@ void main() {
     ahu.object(
       BacnetObjectType.analogInput,
       1,
-    )![BacnetPropertyId.presentValue] = 22.0;
+    )![BacnetPropertyId.presentValue] = const BacnetReal(
+      22,
+    );
     await Future<void>.delayed(const Duration(milliseconds: 10));
-    expect(updates, contains(22.0));
+    expect(updates, contains(const BacnetReal(22)));
     await subscription.cancel();
   });
 
@@ -209,13 +240,12 @@ void main() {
       log.records.add(
         TrendLogEntry(
           timestamp: DateTime(2026, 1, 1, 0, i),
-          value: i.toDouble(),
-          status: 'OK',
+          datum: TrendLogValue(BacnetReal(i.toDouble())),
         ),
       );
     }
     final data = await client.getTrendLog(1234, 1, count: 3);
-    expect(data.entries.map((e) => e.value), [7.0, 8.0, 9.0]);
+    expect(data.entries.map((e) => e.value?.asDouble), [7.0, 8.0, 9.0]);
     expect(data.totalRecords, 10);
   });
 }

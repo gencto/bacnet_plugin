@@ -2,16 +2,28 @@ import 'package:bacnet_plugin/bacnet_plugin.dart';
 import 'package:bacnet_plugin/src/client/read_coalescer.dart';
 import 'package:test/test.dart';
 
-/// Records requests and answers them from [values] (`'type:instance'` →
-/// property → value) or with scripted failures.
+/// Analog Value [instance].
+BacnetObject av(int instance) =>
+    BacnetObject(type: BacnetObjectType.analogValue, instance: instance);
+
+/// Records requests and answers them from [values] or with scripted
+/// failures.
 final class FakeDevice {
-  final Map<String, Map<int, Object?>> values = {};
+  final Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>> values =
+      {};
   final List<(int, BacnetObjectType, int, BacnetPropertyId)> singles = [];
   final List<List<BacnetReadAccessSpecification>> multiples = [];
   BacnetException? multipleError;
   int backgroundRequests = 0;
 
-  Future<Object?> readProperty(
+  BacnetPropertyResult _result(BacnetObject object, BacnetPropertyId id) =>
+      values[object]?[id] ??
+      const BacnetError(
+        BacnetErrorClass.property,
+        BacnetErrorCode.unknownProperty,
+      );
+
+  Future<BacnetValue> readProperty(
     int deviceId,
     BacnetObjectType type,
     int instance,
@@ -20,18 +32,20 @@ final class FakeDevice {
     bool background = false,
   }) async {
     singles.add((deviceId, type, instance, property));
-    final value = values['$type:$instance']?[property];
-    if (value is BacnetError) {
-      throw BacnetProtocolException(
-        'device $deviceId returned an error',
-        errorClass: value.errorClass,
-        errorCode: value.errorCode,
-      );
+    switch (_result(BacnetObject(type: type, instance: instance), property)) {
+      case final BacnetValue value:
+        return value;
+      case BacnetError(:final errorClass, :final errorCode):
+        throw BacnetProtocolException(
+          'device $deviceId returned an error',
+          errorClass: errorClass,
+          errorCode: errorCode,
+        );
     }
-    return value;
   }
 
-  Future<Map<String, Map<int, dynamic>>> readMultiple(
+  Future<Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>>
+  readMultiple(
     int deviceId,
     List<BacnetReadAccessSpecification> specs,
     Duration? timeout, {
@@ -42,15 +56,18 @@ final class FakeDevice {
     if (multipleError case final error?) throw error;
     return {
       for (final spec in specs)
-        '${spec.objectIdentifier.type}:${spec.objectIdentifier.instance}': {
+        spec.objectIdentifier: {
           for (final p in spec.properties)
-            p.propertyIdentifier:
-                values['${spec.objectIdentifier.type}:'
-                    '${spec.objectIdentifier.instance}']?[p.propertyIdentifier],
+            p.propertyIdentifier: _result(
+              spec.objectIdentifier,
+              p.propertyIdentifier,
+            ),
         },
     };
   }
 }
+
+BacnetReal real(num value) => BacnetReal(value.toDouble());
 
 void main() {
   late FakeDevice device;
@@ -62,15 +79,15 @@ void main() {
     maxBatchSize: maxBatchSize,
   );
 
-  Future<Object?> read(int instance, BacnetPropertyId property) =>
+  Future<BacnetValue> read(int instance, BacnetPropertyId property) =>
       coalescer.read(1, BacnetObjectType.analogValue, instance, property);
 
   setUp(() {
     device = FakeDevice();
     for (var i = 0; i < 100; i++) {
-      device.values['2:$i'] = {
-        BacnetPropertyId.presentValue: i.toDouble(),
-        BacnetPropertyId.objectName: 'AV-$i',
+      device.values[av(i)] = {
+        BacnetPropertyId.presentValue: real(i),
+        BacnetPropertyId.objectName: BacnetCharacterString('AV-$i'),
       };
     }
     coalescer = create();
@@ -82,14 +99,14 @@ void main() {
       read(1, BacnetPropertyId.objectName),
       read(2, BacnetPropertyId.presentValue),
     ]);
-    expect(values, [1.0, 'AV-1', 2.0]);
+    expect(values, [real(1), const BacnetCharacterString('AV-1'), real(2)]);
     expect(device.singles, isEmpty);
     expect(device.multiples, hasLength(1));
     expect(device.multiples.single, hasLength(2), reason: 'grouped by object');
   });
 
   test('sends a lone read as ReadProperty', () async {
-    expect(await read(5, BacnetPropertyId.presentValue), 5.0);
+    expect(await read(5, BacnetPropertyId.presentValue), real(5));
     expect(device.multiples, isEmpty);
     expect(device.singles, hasLength(1));
   });
@@ -100,7 +117,7 @@ void main() {
       read(3, BacnetPropertyId.presentValue),
       read(4, BacnetPropertyId.presentValue),
     ]);
-    expect(values, [3.0, 3.0, 4.0]);
+    expect(values, [real(3), real(3), real(4)]);
     final properties = device.multiples.single.expand((s) => s.properties);
     expect(properties, hasLength(2));
   });
@@ -110,7 +127,7 @@ void main() {
     final values = await Future.wait([
       for (var i = 0; i < 25; i++) read(i, BacnetPropertyId.presentValue),
     ]);
-    expect(values, [for (var i = 0; i < 25; i++) i.toDouble()]);
+    expect(values, [for (var i = 0; i < 25; i++) real(i)]);
     expect(device.multiples.map((m) => m.length), [10, 10, 5]);
   });
 
@@ -133,13 +150,13 @@ void main() {
   });
 
   test('fails only reads with property access errors', () async {
-    device.values['2:7']![BacnetPropertyId.description] = const BacnetError(
+    device.values[av(7)]![BacnetPropertyId.description] = const BacnetError(
       BacnetErrorClass.property,
       BacnetErrorCode.unknownProperty,
     );
     final ok = read(7, BacnetPropertyId.presentValue);
     final failing = read(7, BacnetPropertyId.description);
-    expect(await ok, 7.0);
+    expect(await ok, real(7));
     await expectLater(
       failing,
       throwsA(
@@ -162,7 +179,7 @@ void main() {
       read(1, BacnetPropertyId.presentValue),
       read(2, BacnetPropertyId.presentValue),
     ]);
-    expect(values, [1.0, 2.0]);
+    expect(values, [real(1), real(2)]);
     expect(device.singles, hasLength(2));
     expect(coalescer.devicesWithoutMultiple, [1]);
 
@@ -182,7 +199,7 @@ void main() {
       read(1, BacnetPropertyId.presentValue),
       read(2, BacnetPropertyId.presentValue),
     ]);
-    expect(values, [1.0, 2.0]);
+    expect(values, [real(1), real(2)]);
     expect(coalescer.devicesWithoutMultiple, isEmpty);
   });
 
@@ -204,7 +221,7 @@ void main() {
       readProperty: device.readProperty,
       readMultiple: (id, specs, timeout, {background = false}) async {
         final result = await original(id, specs, timeout);
-        result['2:9']!.remove(BacnetPropertyId.objectName);
+        result[av(9)]!.remove(BacnetPropertyId.objectName);
         return result;
       },
     );
@@ -212,7 +229,7 @@ void main() {
       read(9, BacnetPropertyId.presentValue),
       read(9, BacnetPropertyId.objectName),
     ]);
-    expect(values, [9.0, 'AV-9']);
+    expect(values, [real(9), const BacnetCharacterString('AV-9')]);
     expect(device.singles, hasLength(1));
   });
 
@@ -248,7 +265,7 @@ void main() {
     final first = read(1, BacnetPropertyId.presentValue);
     await Future<void>.delayed(const Duration(milliseconds: 5));
     final second = read(2, BacnetPropertyId.presentValue);
-    expect(await Future.wait([first, second]), [1.0, 2.0]);
+    expect(await Future.wait([first, second]), [real(1), real(2)]);
     expect(device.multiples, hasLength(1));
   });
 }

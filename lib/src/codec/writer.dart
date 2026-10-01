@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../core/exceptions.dart';
-import 'values.dart';
+import '../models/bacnet_value.dart';
 
 /// Growable writer for BACnet encoded data.
 class BacnetWriter {
@@ -261,6 +261,12 @@ class BacnetWriter {
   void ctxObjectId(int number, int type, int instance) {
     _tag(number, true, 4);
     _objectIdContent(type, instance);
+  }
+
+  /// Context tag [number] with raw content octets.
+  void ctxRaw(int number, List<int> content) {
+    _tag(number, true, content.length);
+    bytes(content);
   }
 
   /// Context tagged character string.

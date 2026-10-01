@@ -240,3 +240,59 @@ extension type const BacnetSegmentation(int value) implements int {
   /// Human readable name of this value.
   String get label => getName(value);
 }
+
+/// Values of binary objects (BACnetBinaryPV).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetBinaryPV(value)`.
+extension type const BacnetBinaryPV(int value) implements int {
+  /// Inactive.
+  static const inactive = BacnetBinaryPV(0);
+
+  /// Active.
+  static const active = BacnetBinaryPV(1);
+
+  static const Map<BacnetBinaryPV, String> _labels = {
+    inactive: 'Inactive',
+    active: 'Active',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetBinaryPV> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) => _labels[value] ?? 'Binary PV $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
+/// Polarity of binary objects (BACnetPolarity).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetPolarity(value)`.
+extension type const BacnetPolarity(int value) implements int {
+  /// Normal.
+  static const normal = BacnetPolarity(0);
+
+  /// Reverse.
+  static const reverse = BacnetPolarity(1);
+
+  static const Map<BacnetPolarity, String> _labels = {
+    normal: 'Normal',
+    reverse: 'Reverse',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetPolarity> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) => _labels[value] ?? 'Polarity $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}

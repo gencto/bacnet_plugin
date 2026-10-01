@@ -87,14 +87,15 @@ Future<void> main() async {
     1,
     BacnetPropertyId.presentValue,
   );
+  print(temperature.asDouble); // null if the device sent another datatype
 
-  // REAL is inferred for analog present values; null relinquishes.
+  // The value class is the BACnet datatype; BacnetNull() relinquishes.
   await client.writeProperty(
     1234,
     BacnetObjectType.analogOutput,
     1,
     BacnetPropertyId.presentValue,
-    21.5,
+    const BacnetReal(21.5),
     priority: 8,
   );
 
@@ -121,7 +122,7 @@ await server.addObject(
   1,
   name: 'Mode',
   stateTexts: ['Off', 'Heat', 'Cool'],
-  presentValue: 1,
+  presentValue: const BacnetUnsigned(1),
 );
 
 // Push many values at once (one isolate message, one native call).
@@ -130,7 +131,7 @@ await server.updatePresentValues([
     BacnetPresentValueUpdate(
       objectType: BacnetObjectType.analogInput,
       instance: point.instance,
-      value: point.value,
+      value: BacnetReal(point.value),
     ),
 ]);
 
@@ -276,19 +277,117 @@ print(BacnetObjectType.multiStateValue.label); // Multi-state Value
 
 ## Values
 
-`readProperty` returns `double` (REAL), `int` (Unsigned, Signed,
-Enumerated), `bool`, `String`, `BacnetObject` (object identifiers),
-`BacnetBitString`, `BacnetDate`, `BacnetTime`, `Uint8List` (octet strings),
-`null`, or a `List` for arrays and lists.
+Property values are a sealed class, `BacnetValue`, with one subclass per
+BACnet datatype. Nothing in the API is `dynamic` or `Object?`: reads say
+what they return, writes say which datatype goes on the wire, and the
+compiler checks that a `switch` handles every case.
 
-Writes infer the datatype from the object type, the property and the Dart
-value. Force it with `tag:` or a `BacnetValue`:
+| BACnet datatype | Class | Dart value |
+| --- | --- | --- |
+| Null | `BacnetNull` | |
+| Boolean | `BacnetBoolean` | `bool` |
+| Unsigned / Signed | `BacnetUnsigned` / `BacnetSigned` | `int` |
+| Real / Double | `BacnetReal` / `BacnetDouble` | `double` |
+| OctetString | `BacnetOctetString` | `Uint8List` |
+| CharacterString | `BacnetCharacterString` | `String` |
+| BitString | `BacnetBitString` | `List<bool>` |
+| Enumerated | `BacnetEnumerated` | `int` |
+| Date / Time | `BacnetDate` / `BacnetTime` | fields, `null` = unspecified |
+| ObjectIdentifier | `BacnetObject` | `type`, `instance` |
+| array or list | `BacnetList` | `List<BacnetValue>` |
+| other constructed data | `BacnetConstructedValue`, `BacnetContextValue` | raw |
+
+```dart
+final value = await client.readProperty(1234,
+    BacnetObjectType.analogInput, 1, BacnetPropertyId.presentValue);
+switch (value) {
+  case BacnetReal(:final value):
+    print('$value °C');
+  case BacnetNull():
+    print('no value');
+  default:
+    print('unexpected $value');
+}
+
+// Accessors return null for any other datatype.
+value.asDouble; // Real, Double, Unsigned, Signed
+value.asInt; // Unsigned, Signed, Enumerated
+value.asString; // CharacterString
+value.asStatusFlags; // BitString as BacnetStatusFlags
+value.asList; // elements of a BacnetList, or [value]
+```
+
+A device sends an array with one element exactly like a single value, so
+use `asList` for arrays and lists (Object_List, Priority_Array, ...).
+
+`readMultiple` returns, per object and property, a `BacnetPropertyResult`:
+a `BacnetValue` or a `BacnetError` for a property the device could not
+return.
+
+```dart
+const sensor =
+    BacnetObject(type: BacnetObjectType.analogInput, instance: 1);
+final results = await client.readMultiple(1234, [
+  const BacnetReadAccessSpecification(
+    objectIdentifier: sensor,
+    properties: [
+      BacnetPropertyReference(
+          propertyIdentifier: BacnetPropertyId.objectName),
+      BacnetPropertyReference(
+          propertyIdentifier: BacnetPropertyId.presentValue),
+    ],
+  ),
+]);
+final properties = results[sensor] ?? const {};
+print(properties.valueOf(BacnetPropertyId.objectName)?.asString);
+switch (properties[BacnetPropertyId.presentValue]) {
+  case BacnetReal(:final value):
+    print('$value °C');
+  case BacnetError(:final errorCode):
+    print('not readable: ${errorCode.label}');
+  case _:
+    print('missing or unexpected');
+}
+```
+
+Writes encode the datatype of the value class:
 
 ```dart
 await client.writeProperty(1234, BacnetObjectType.binaryOutput, 1,
-    BacnetPropertyId.presentValue, const BacnetValue.enumerated(1),
-    priority: 8);
+    BacnetPropertyId.presentValue,
+    const BacnetEnumerated(BacnetBinaryPV.active), priority: 8);
+await client.writeProperty(1234, BacnetObjectType.binaryOutput, 1,
+    BacnetPropertyId.presentValue, const BacnetNull(),
+    priority: 8); // relinquish
 ```
+
+For values whose type is only known at run time (user input,
+configuration files) `BacnetValue.infer` picks the datatype from the object
+type, the property and the Dart value, and throws an `ArgumentError` when
+it cannot:
+
+```dart
+final value = BacnetValue.infer(
+  double.parse(input),
+  objectType: BacnetObjectType.analogValue,
+  propertyId: BacnetPropertyId.presentValue,
+); // BacnetReal
+```
+
+Other typed results:
+
+- `CovNotificationEvent.values` is a `Map<BacnetPropertyId, BacnetValue>`
+  with `presentValue` and `statusFlags` getters.
+- `PropertyMonitor` emits a sealed `PropertyUpdate`: `PropertyValueUpdate`
+  with the value or `PropertyErrorUpdate` with the `BacnetException`.
+- Trend log entries hold a sealed `TrendLogDatum` (`TrendLogValue`,
+  `TrendLogStatus`, `TrendLogFailure`, `TrendLogTimeChange`) and the
+  `BacnetStatusFlags` of the record.
+- `readRange` takes a sealed `BacnetRange` (`all`, `byPosition`,
+  `bySequenceNumber`, `byTime`).
+
+Values, write specifications and trend logs convert to and from JSON
+(`toJson`, `fromJson`), e.g. `{"datatype": "real", "value": 21.5}`.
 
 ## Testing your application
 
@@ -305,10 +404,10 @@ final ahu = FakeBacnetDevice(1234, name: 'AHU-1')
   ..addObject(
     BacnetObjectType.analogInput,
     1,
-    presentValue: 21.5,
+    presentValue: const BacnetReal(21.5),
     units: BacnetEngineeringUnits.degreesCelsius,
   )
-  ..addObject(BacnetObjectType.analogOutput, 1, presentValue: 0);
+  ..addObject(BacnetObjectType.analogOutput, 1);
 final client = FakeBacnetClient(devices: [ahu]);
 await client.start();
 
@@ -319,7 +418,7 @@ final devices = await DeviceScanner(client).discoverDevices(
 
 // simulate the field and the network
 ahu.object(BacnetObjectType.analogInput, 1)![BacnetPropertyId.presentValue] =
-    23.0; // COV notification to subscribers
+    const BacnetReal(23); // COV notification to subscribers
 ahu.online = false; // requests time out
 client.latency = const Duration(milliseconds: 200);
 
@@ -335,9 +434,20 @@ expect(client.requests.where((r) => r.service == 'writeProperty'), isEmpty);
   replace numbers such as `readProperty(id, 2, 1, 85)` with constants
   (`BacnetObjectType.analogValue`, `BacnetPropertyId.presentValue`) or
   `BacnetObjectType(2)`. `getName(value)` still works; prefer `.label`.
-- `readProperty` returns `BacnetObject` instead of `{'type', 'instance'}`
-  maps for object identifiers and complete lists for array properties.
-- `writeProperty(tag:)` defaults to datatype inference instead of REAL.
+- Values are typed (see [Values](#values)): `readProperty` returns a
+  `BacnetValue` instead of `dynamic`, `writeProperty`, `BacnetPropertyValue`
+  and the server's `setPresentValue`, `setProperty`, `addObject` and
+  `BacnetPresentValueUpdate` take one (the `tag:` parameters are gone; use
+  `BacnetValue.infer` for untyped input). `readMultiple` and
+  `DeviceScanner.scanDevice` return
+  `Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>` instead
+  of maps keyed by `'type:instance'` strings and `int`s.
+- `BacnetObject` is only an identifier (it no longer has `properties`) and
+  is the ObjectIdentifier value.
+- `PropertyUpdate` is sealed (`PropertyValueUpdate`/`PropertyErrorUpdate`);
+  `TrendLogEntry` has a `datum` and `statusFlags` instead of `value` and a
+  `status` string; `readRange` takes a `BacnetRange` instead of
+  `type`/`reference`/`count`.
 - `BacnetClient.events` is a `Stream<BacnetEvent>`; use `iAmEvents` and
   `covEvents` for typed streams. COV notifications now include the
   initiating device and the values.

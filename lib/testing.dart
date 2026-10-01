@@ -11,7 +11,8 @@
 ///
 /// final client = FakeBacnetClient(devices: [
 ///   FakeBacnetDevice(1234)
-///     ..addObject(BacnetObjectType.analogInput, 1, presentValue: 21.5),
+///     ..addObject(BacnetObjectType.analogInput, 1,
+///         presentValue: const BacnetReal(21.5)),
 /// ]);
 /// ```
 ///

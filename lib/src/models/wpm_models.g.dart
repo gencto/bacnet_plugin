@@ -28,9 +28,8 @@ BacnetPropertyValue _$BacnetPropertyValueFromJson(Map<String, dynamic> json) =>
     BacnetPropertyValue(
       propertyIdentifier: json['propertyIdentifier'] as BacnetPropertyId,
       propertyArrayIndex: (json['propertyArrayIndex'] as num?)?.toInt() ?? -1,
-      value: json['value'],
+      value: BacnetValue.fromJson(json['value'] as Map<String, dynamic>),
       priority: (json['priority'] as num?)?.toInt() ?? 16,
-      tag: (json['tag'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$BacnetPropertyValueToJson(
@@ -38,7 +37,6 @@ Map<String, dynamic> _$BacnetPropertyValueToJson(
 ) => <String, dynamic>{
   'propertyIdentifier': instance.propertyIdentifier,
   'propertyArrayIndex': instance.propertyArrayIndex,
-  'value': instance.value,
+  'value': instance.value.toJson(),
   'priority': instance.priority,
-  'tag': instance.tag,
 };

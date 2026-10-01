@@ -8,7 +8,6 @@ import 'dart:typed_data';
 import '../codec/log_records.dart';
 import '../codec/requests.dart';
 import '../codec/responses.dart';
-import '../codec/values.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../constants/services.dart';
@@ -17,8 +16,8 @@ import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
-import '../models/bacnet_object.dart';
 import '../models/bacnet_stats.dart';
+import '../models/bacnet_value.dart';
 import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
@@ -26,6 +25,7 @@ import '../models/wpm_models.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
 import 'read_coalescer.dart';
+import 'read_specs.dart';
 
 /// BACnet client for communication with BACnet devices.
 ///
@@ -143,10 +143,10 @@ class BacnetClient {
 
   /// Reads a property of an object.
   ///
-  /// Returns the decoded value: [double] (REAL), [int] (Unsigned, Signed,
-  /// Enumerated), [bool], [String], [BacnetObject] (object identifiers),
-  /// [BacnetBitString], [BacnetDate], [BacnetTime], [Uint8List] (octet
-  /// strings), `null`, or a [List] for arrays and lists.
+  /// Returns the value with its BACnet datatype ([BacnetReal],
+  /// [BacnetEnumerated], [BacnetCharacterString], ...; see [BacnetValue]);
+  /// arrays and lists are a [BacnetList]. Errors returned by the device
+  /// throw a [BacnetProtocolException].
   ///
   /// Concurrent reads of one device are merged into ReadPropertyMultiple
   /// requests unless [BacnetConfig.coalesceReads] is off; reads of an
@@ -159,8 +159,15 @@ class BacnetClient {
   ///   1,
   ///   BacnetPropertyId.presentValue,
   /// );
+  /// switch (value) {
+  ///   case BacnetReal(:final value):
+  ///     print('$value °C');
+  ///   default:
+  ///     print('unexpected $value');
+  /// }
+  /// print(value.asDouble); // or null for other datatypes
   /// ```
-  Future<dynamic> readProperty(
+  Future<BacnetValue> readProperty(
     int deviceId,
     BacnetObjectType objectType,
     int instance,
@@ -193,7 +200,7 @@ class BacnetClient {
     );
   }
 
-  Future<Object?> _readSingle(
+  Future<BacnetValue> _readSingle(
     int deviceId,
     BacnetObjectType objectType,
     int instance,
@@ -222,10 +229,42 @@ class BacnetClient {
   /// Reads multiple properties of multiple objects with
   /// ReadPropertyMultiple.
   ///
-  /// Returns `'type:instance'` → property id → value; properties that could
-  /// not be read map to a [BacnetError]. Requests whose answer does not fit
+  /// Returns object → property → result: a [BacnetValue], or a
+  /// [BacnetError] for a property the device could not return. A property
+  /// may appear only once per object. Requests whose answer does not fit
   /// into one APDU are split automatically.
-  Future<Map<String, Map<int, dynamic>>> readMultiple(
+  ///
+  /// ```dart
+  /// const sensor = BacnetObject(
+  ///   type: BacnetObjectType.analogInput,
+  ///   instance: 1,
+  /// );
+  /// final results = await client.readMultiple(1234, [
+  ///   const BacnetReadAccessSpecification(
+  ///     objectIdentifier: sensor,
+  ///     properties: [
+  ///       BacnetPropertyReference(
+  ///         propertyIdentifier: BacnetPropertyId.presentValue,
+  ///       ),
+  ///       BacnetPropertyReference(
+  ///         propertyIdentifier: BacnetPropertyId.objectName,
+  ///       ),
+  ///     ],
+  ///   ),
+  /// ]);
+  /// final properties = results[sensor] ?? const {};
+  /// print(properties.valueOf(BacnetPropertyId.objectName)?.asString);
+  /// switch (properties[BacnetPropertyId.presentValue]) {
+  ///   case BacnetReal(:final value):
+  ///     print('$value °C');
+  ///   case BacnetError(:final errorCode):
+  ///     print('not readable: ${errorCode.label}');
+  ///   case _:
+  ///     print('missing or unexpected');
+  /// }
+  /// ```
+  Future<Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>>
+  readMultiple(
     int deviceId,
     List<BacnetReadAccessSpecification> specs, {
     Duration? timeout,
@@ -233,8 +272,9 @@ class BacnetClient {
     BacnetCancelToken? cancelToken,
   }) async {
     if (specs.isEmpty) return {};
+    checkUniqueProperties(specs);
     try {
-      final result = await _system.confirmed(
+      return await _system.confirmed(
         deviceId: deviceId,
         service: BacnetConfirmedService.readPropertyMultiple,
         payload: encodeReadPropertyMultiple(specs),
@@ -243,7 +283,6 @@ class BacnetClient {
         background: background,
         cancelToken: cancelToken,
       );
-      return result! as Map<String, Map<int, dynamic>>;
     } on BacnetAbortException catch (e) {
       if (!e.isSegmentationNotSupported) rethrow;
       final halves = _splitSpecs(specs);
@@ -264,10 +303,11 @@ class BacnetClient {
           cancelToken: cancelToken,
         ),
       ]);
-      final merged = <String, Map<int, dynamic>>{};
+      final merged =
+          <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
       for (final part in parts) {
-        for (final entry in part.entries) {
-          (merged[entry.key] ??= <int, dynamic>{}).addAll(entry.value);
+        for (final MapEntry(key: object, value: properties) in part.entries) {
+          (merged[object] ??= {}).addAll(properties);
         }
       }
       return merged;
@@ -312,11 +352,11 @@ class BacnetClient {
 
   /// Writes a property value.
   ///
-  /// The BACnet datatype is inferred from the object type, the property
-  /// and the Dart value (REAL for analog present values, ENUMERATED for
-  /// binary ones, UNSIGNED for multi-state ones, ...). Use [tag] (see
-  /// [BacnetApplicationTag]) or a [BacnetValue] to force it. `null` writes
-  /// NULL, which relinquishes the given [priority].
+  /// The class of [value] decides the BACnet datatype, e.g. [BacnetReal]
+  /// for analog present values, [BacnetEnumerated] for binary ones and
+  /// [BacnetUnsigned] for multi-state ones. A [BacnetNull] relinquishes
+  /// [priority]. [BacnetValue.infer] converts values whose type is only
+  /// known at run time.
   ///
   /// ```dart
   /// await client.writeProperty(
@@ -324,7 +364,7 @@ class BacnetClient {
   ///   BacnetObjectType.analogOutput,
   ///   1,
   ///   BacnetPropertyId.presentValue,
-  ///   75.5,
+  ///   const BacnetReal(75.5),
   ///   priority: 8,
   /// );
   /// ```
@@ -333,15 +373,14 @@ class BacnetClient {
     BacnetObjectType objectType,
     int instance,
     BacnetPropertyId propertyId,
-    dynamic value, {
+    BacnetValue value, {
     int priority = 16,
-    int? tag,
     int arrayIndex = -1,
     Duration? timeout,
     bool background = false,
     BacnetCancelToken? cancelToken,
   }) async {
-    await _system.confirmed(
+    await _system.confirmed<void>(
       deviceId: deviceId,
       service: BacnetConfirmedService.writeProperty,
       payload: encodeWriteProperty(
@@ -349,7 +388,6 @@ class BacnetClient {
         instance,
         propertyId,
         value,
-        tag: tag,
         arrayIndex: arrayIndex,
         priority: priority,
       ),
@@ -369,7 +407,7 @@ class BacnetClient {
     BacnetCancelToken? cancelToken,
   }) async {
     if (specs.isEmpty) return;
-    await _system.confirmed(
+    await _system.confirmed<void>(
       deviceId: deviceId,
       service: BacnetConfirmedService.writePropertyMultiple,
       payload: encodeWritePropertyMultiple(specs),
@@ -418,7 +456,7 @@ class BacnetClient {
     } on BacnetProtocolException {
       // some devices refuse to return the whole array
     }
-    final count = await readProperty(
+    final length = await readProperty(
       deviceId,
       BacnetObjectType.device,
       deviceId,
@@ -427,7 +465,8 @@ class BacnetClient {
       background: background,
       cancelToken: cancelToken,
     );
-    if (count is! int || count <= 0) return const [];
+    final count = length.asInt ?? 0;
+    if (count <= 0) return const [];
     final elements = await Future.wait([
       for (var i = 1; i <= count; i++)
         readProperty(
@@ -440,14 +479,11 @@ class BacnetClient {
           cancelToken: cancelToken,
         ),
     ]);
-    return _objects(elements);
+    return _objects(BacnetList(elements));
   }
 
-  static List<BacnetObject> _objects(Object? value) => switch (value) {
-    final BacnetObject object => [object],
-    final List<Object?> list => list.whereType<BacnetObject>().toList(),
-    _ => const [],
-  };
+  static List<BacnetObject> _objects(BacnetValue value) =>
+      value.asList.whereType<BacnetObject>().toList();
 
   /// Adds (or replaces) a static device address binding.
   ///
@@ -511,7 +547,7 @@ class BacnetClient {
     final lifetimeSeconds = lifetime.inSeconds;
     final usePropertyService =
         propId != BacnetPropertyId.presentValue || covIncrement != null;
-    await _system.confirmed(
+    await _system.confirmed<void>(
       deviceId: deviceId,
       service: usePropertyService
           ? BacnetConfirmedService.subscribeCovProperty
@@ -547,7 +583,7 @@ class BacnetClient {
     Duration? timeout,
   }) async {
     final usePropertyService = propId != BacnetPropertyId.presentValue;
-    await _system.confirmed(
+    await _system.confirmed<void>(
       deviceId: deviceId,
       service: usePropertyService
           ? BacnetConfirmedService.subscribeCovProperty
@@ -570,21 +606,20 @@ class BacnetClient {
     );
   }
 
-  /// Reads a range of a list property with ReadRange.
+  /// Reads the items of a list property selected by [range] with
+  /// ReadRange (the whole list by default).
   Future<ReadRangeResult> readRange(
     int deviceId,
     BacnetObjectType objectType,
     int instance,
     BacnetPropertyId propertyId, {
-    ReadRangeType type = ReadRangeType.all,
-    Object? reference,
-    int count = 0,
+    BacnetRange range = const BacnetRange.all(),
     int arrayIndex = -1,
     Duration? timeout,
     bool background = false,
     BacnetCancelToken? cancelToken,
-  }) async {
-    final result = await _system.confirmed(
+  }) {
+    return _system.confirmed(
       deviceId: deviceId,
       service: BacnetConfirmedService.readRange,
       payload: encodeReadRange(
@@ -592,16 +627,13 @@ class BacnetClient {
         instance,
         propertyId,
         arrayIndex: arrayIndex,
-        type: type,
-        reference: reference,
-        count: count,
+        range: range,
       ),
       decoding: AckDecoding.readRange,
       timeout: timeout,
       background: background,
       cancelToken: cancelToken,
     );
-    return result! as ReadRangeResult;
   }
 
   /// Reads records of a Trend Log object.
@@ -626,9 +658,7 @@ class BacnetClient {
         BacnetObjectType.trendLog,
         instance,
         logBufferPropId,
-        type: ReadRangeType.bySequenceNumber,
-        reference: fromSequenceNumber,
-        count: count,
+        range: BacnetRange.bySequenceNumber(fromSequenceNumber, count),
         timeout: timeout,
         background: background,
         cancelToken: cancelToken,
@@ -643,7 +673,7 @@ class BacnetClient {
         background: background,
         cancelToken: cancelToken,
       );
-      final total = recordCount is int ? recordCount : 0;
+      final total = recordCount.asInt ?? 0;
       if (total == 0) {
         return const TrendLogData(itemCount: 0, totalRecords: 0);
       }
@@ -652,9 +682,7 @@ class BacnetClient {
         BacnetObjectType.trendLog,
         instance,
         logBufferPropId,
-        type: ReadRangeType.byPosition,
-        reference: total,
-        count: -count,
+        range: BacnetRange.byPosition(total, -count),
         timeout: timeout,
         background: background,
         cancelToken: cancelToken,
@@ -698,8 +726,8 @@ class BacnetClient {
     Duration? timeout,
     bool background = false,
     BacnetCancelToken? cancelToken,
-  }) async {
-    final result = await _system.confirmed(
+  }) {
+    return _system.confirmed(
       deviceId: deviceId,
       service: service,
       payload: serviceData,
@@ -708,7 +736,6 @@ class BacnetClient {
       background: background,
       cancelToken: cancelToken,
     );
-    return result is Uint8List ? result : Uint8List(0);
   }
 
   /// Returns runtime statistics of the engine.

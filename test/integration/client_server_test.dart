@@ -88,7 +88,7 @@ void main() {
         device,
         BacnetPropertyId.objectName,
       ),
-      'DemoServer',
+      const BacnetCharacterString('DemoServer'),
     );
     final value = await client.readProperty(
       device,
@@ -96,7 +96,7 @@ void main() {
       50,
       BacnetPropertyId.presentValue,
     );
-    expect(value, 50.0);
+    expect(value, const BacnetReal(50));
     expect(
       await client.readProperty(
         device,
@@ -104,7 +104,20 @@ void main() {
         0,
         BacnetPropertyId.stateText,
       ),
-      ['Off', 'On', 'Auto'],
+      const BacnetList([
+        BacnetCharacterString('Off'),
+        BacnetCharacterString('On'),
+        BacnetCharacterString('Auto'),
+      ]),
+    );
+    expect(
+      await client.readProperty(
+        device,
+        BacnetObjectType.analogValue,
+        50,
+        BacnetPropertyId.units,
+      ),
+      const BacnetEnumerated(BacnetEngineeringUnits.degreesCelsius),
     );
   });
 
@@ -134,9 +147,23 @@ void main() {
         ],
       ),
     ]);
-    expect(result['2:60']![77], 'AV-60');
-    expect(result['2:60']![117], 62);
-    expect(result['2:60']![9999], isA<BacnetError>());
+    final av60 =
+        result[const BacnetObject(
+          type: BacnetObjectType.analogValue,
+          instance: 60,
+        )]!;
+    expect(
+      av60[BacnetPropertyId.objectName],
+      const BacnetCharacterString('AV-60'),
+    );
+    expect(
+      av60[BacnetPropertyId.units],
+      const BacnetEnumerated(BacnetEngineeringUnits.degreesCelsius),
+    );
+    expect(
+      av60.errorOf(const BacnetPropertyId(9999))?.errorCode,
+      BacnetErrorCode.unknownProperty,
+    );
   });
 
   test('large ReadPropertyMultiple requests are split', () async {
@@ -161,16 +188,23 @@ void main() {
         ),
     ]);
     expect(result, hasLength(100));
-    expect(result['2:99']![77], 'AV-99');
+    expect(
+      result[const BacnetObject(
+            type: BacnetObjectType.analogValue,
+            instance: 99,
+          )]!
+          .valueOf(BacnetPropertyId.objectName),
+      const BacnetCharacterString('AV-99'),
+    );
   });
 
-  test('writes with inferred datatypes', () async {
+  test('writes typed values', () async {
     await client.writeProperty(
       device,
       BacnetObjectType.analogValue,
       70,
       BacnetPropertyId.presentValue,
-      12.5,
+      const BacnetReal(12.5),
       priority: 8,
     );
     expect(
@@ -180,14 +214,14 @@ void main() {
         70,
         BacnetPropertyId.presentValue,
       ),
-      12.5,
+      const BacnetReal(12.5),
     );
     await client.writeProperty(
       device,
       BacnetObjectType.binaryValue,
       0,
       BacnetPropertyId.presentValue,
-      true,
+      const BacnetEnumerated(BacnetBinaryPV.active),
     );
     expect(
       await client.readProperty(
@@ -196,7 +230,7 @@ void main() {
         0,
         BacnetPropertyId.presentValue,
       ),
-      1,
+      const BacnetEnumerated(BacnetBinaryPV.active),
     );
     await client.writeMultiple(device, const [
       BacnetWriteAccessSpecification(
@@ -207,7 +241,7 @@ void main() {
         listOfProperties: [
           BacnetPropertyValue(
             propertyIdentifier: BacnetPropertyId.presentValue,
-            value: 3,
+            value: BacnetUnsigned(3),
           ),
         ],
       ),
@@ -219,7 +253,7 @@ void main() {
         0,
         BacnetPropertyId.presentValue,
       ),
-      3,
+      const BacnetUnsigned(3),
     );
     await Future<void>.delayed(const Duration(milliseconds: 100));
     expect(server.lines.where((l) => l.startsWith('WRITE')), hasLength(3));
@@ -247,7 +281,7 @@ void main() {
         BacnetObjectType.multiStateValue,
         0,
         BacnetPropertyId.presentValue,
-        9,
+        const BacnetUnsigned(9),
       ),
       throwsA(isA<BacnetProtocolException>()),
     );
@@ -273,7 +307,7 @@ void main() {
         ),
     ]);
     for (var i = 0; i < results.length; i++) {
-      expect(results[i], 'AV-${i % 100}');
+      expect(results[i], BacnetCharacterString('AV-${i % 100}'));
     }
     final stats = await client.stats();
     expect(stats.inFlightRequests, 0);
@@ -308,7 +342,7 @@ void main() {
       for (final read in reads)
         read.then<Object?>((value) => value, onError: (Object e) => e),
     ]);
-    expect(settled[48], 'AV-1');
+    expect(settled[48], const BacnetCharacterString('AV-1'));
     expect(
       settled[49],
       isA<BacnetProtocolException>().having(
@@ -370,7 +404,7 @@ void main() {
         1,
         BacnetPropertyId.objectName,
       ),
-      'AV-1',
+      const BacnetCharacterString('AV-1'),
     );
     await Future<void>.delayed(const Duration(milliseconds: 200));
     final stats = await client.stats();
@@ -399,7 +433,7 @@ void main() {
       return device;
     }
 
-    Future<Object?> readObjectList(SegmentingDevice device) =>
+    Future<BacnetValue> readObjectList(SegmentingDevice device) =>
         client.readProperty(
           device.deviceId,
           BacnetObjectType.device,
@@ -410,10 +444,10 @@ void main() {
     test('are reassembled', () async {
       final fake = await device();
       final before = await client.stats();
-      final list = await readObjectList(fake);
+      final list = (await readObjectList(fake)).asList;
       expect(list, hasLength(300));
       expect(
-        (list! as List<Object?>)[299],
+        list[299],
         const BacnetObject(type: BacnetObjectType.analogValue, instance: 299),
       );
       expect(fake.segmentationAccepted, [true]);
@@ -426,7 +460,7 @@ void main() {
     test('ask again for lost segments', () async {
       final fake = await device(dropOnce: {4});
       final list = await readObjectList(fake);
-      expect(list, hasLength(300));
+      expect(list.asList, hasLength(300));
       expect(fake.acks, contains((true, 3)));
     });
 
@@ -461,7 +495,8 @@ void main() {
     await subscription.cancel();
     expect(notifications, isNotEmpty);
     expect(notifications.first.deviceId, device);
-    expect(notifications.first.values[85], isA<double>());
+    expect(notifications.first.presentValue, isA<BacnetReal>());
+    expect(notifications.first.statusFlags, isNotNull);
   });
 
   test('PropertyMonitor streams COV updates', () async {

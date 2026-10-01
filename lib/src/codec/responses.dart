@@ -3,11 +3,10 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 
 import '../constants/errors.dart';
-import '../core/types.dart';
-import '../models/bacnet_object.dart';
+import '../constants/property_ids.dart';
+import '../models/bacnet_value.dart';
 import 'reader.dart';
 import 'value_encoding.dart';
-import 'values.dart';
 
 /// Decoded ReadProperty-ACK.
 @immutable
@@ -24,23 +23,23 @@ class ReadPropertyResult {
   final BacnetObject object;
 
   /// Property that was read.
-  final int propertyId;
+  final BacnetPropertyId propertyId;
 
   /// Array index or -1.
   final int arrayIndex;
 
   /// Decoded values.
-  final List<Object?> values;
+  final List<BacnetValue> values;
 
-  /// Collapsed value (see [collapseValues]).
-  Object? get value => collapseValues(values);
+  /// The value: a single value, or a [BacnetList] for several values.
+  BacnetValue get value => collapseValues(values);
 }
 
 /// Decodes a ReadProperty-ACK.
 ReadPropertyResult decodeReadPropertyAck(Uint8List data) {
   final r = BacnetReader(data);
   final object = r.readContextObjectId(0);
-  final propertyId = r.readContextUnsigned(1);
+  final propertyId = BacnetPropertyId(r.readContextUnsigned(1));
   final arrayIndex = r.readOptionalContextUnsigned(2) ?? -1;
   r.expectOpening(3);
   final values = r.readValuesUntilClosing(3);
@@ -52,36 +51,38 @@ ReadPropertyResult decodeReadPropertyAck(Uint8List data) {
   );
 }
 
-/// Decodes a ReadPropertyMultiple-ACK into `'type:instance'` →
-/// `propertyId` → value (a [BacnetError] for property access errors).
-Map<String, Map<int, dynamic>> decodeReadPropertyMultipleAck(Uint8List data) {
+/// Decodes a ReadPropertyMultiple-ACK into object → property → value, or
+/// a [BacnetError] for property access errors.
+Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>
+decodeReadPropertyMultipleAck(Uint8List data) {
   final r = BacnetReader(data);
-  final result = <String, Map<int, dynamic>>{};
+  final result = <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
   while (!r.isAtEnd) {
     final object = r.readContextObjectId(0);
-    final properties = <int, dynamic>{};
+    final properties = result[object] ??= {};
     r.expectOpening(1);
     while (!r.nextIsClosing(1)) {
-      final propertyId = r.readContextUnsigned(2);
+      final propertyId = BacnetPropertyId(r.readContextUnsigned(2));
       r.readOptionalContextUnsigned(3);
       if (r.nextIsOpening(4)) {
         r.expectOpening(4);
         properties[propertyId] = collapseValues(r.readValuesUntilClosing(4));
       } else {
         r.expectOpening(5);
-        final errorClass = r.readApplicationValue();
-        final errorCode = r.readApplicationValue();
+        properties[propertyId] = _readError(r);
         r.expectClosing(5);
-        properties[propertyId] = BacnetError(
-          BacnetErrorClass(errorClass is int ? errorClass : -1),
-          BacnetErrorCode(errorCode is int ? errorCode : -1),
-        );
       }
     }
     r.expectClosing(1);
-    result['${object.type}:${object.instance}'] = properties;
   }
   return result;
+}
+
+/// Reads the error class and code of a BACnetError.
+BacnetError _readError(BacnetReader r) {
+  final errorClass = r.readApplicationValue().asInt ?? -1;
+  final errorCode = r.readApplicationValue().asInt ?? -1;
+  return BacnetError(BacnetErrorClass(errorClass), BacnetErrorCode(errorCode));
 }
 
 /// Decoded ReadRange-ACK.
@@ -101,7 +102,7 @@ class ReadRangeResult {
   final BacnetObject object;
 
   /// Property that was read.
-  final int propertyId;
+  final BacnetPropertyId propertyId;
 
   /// Result flags: bit 0 first-item, bit 1 last-item, bit 2 more-items.
   final BacnetBitString resultFlags;
@@ -110,7 +111,7 @@ class ReadRangeResult {
   final int itemCount;
 
   /// Decoded items (application values or constructed records).
-  final List<Object?> items;
+  final List<BacnetValue> items;
 
   /// Sequence number of the first item (log buffers only).
   final int? firstSequenceNumber;
@@ -123,11 +124,11 @@ class ReadRangeResult {
 ReadRangeResult decodeReadRangeAck(Uint8List data) {
   final r = BacnetReader(data);
   final object = r.readContextObjectId(0);
-  final propertyId = r.readContextUnsigned(1);
+  final propertyId = BacnetPropertyId(r.readContextUnsigned(1));
   r.readOptionalContextUnsigned(2);
   final flags = r.readContextBitString(3);
   final count = r.readContextUnsigned(4);
-  var items = const <Object?>[];
+  var items = const <BacnetValue>[];
   if (r.nextIsOpening(5)) {
     r.expectOpening(5);
     items = r.readValuesUntilClosing(5);
@@ -155,13 +156,13 @@ class CovPropertyValue {
   });
 
   /// Property identifier.
-  final int propertyId;
+  final BacnetPropertyId propertyId;
 
   /// Array index or -1.
   final int arrayIndex;
 
   /// Decoded value.
-  final Object? value;
+  final BacnetValue value;
 
   /// Priority, if present.
   final int? priority;
@@ -205,7 +206,7 @@ CovNotificationData decodeCovNotification(Uint8List data) {
   r.expectOpening(4);
   final values = <CovPropertyValue>[];
   while (!r.nextIsClosing(4)) {
-    final propertyId = r.readContextUnsigned(0);
+    final propertyId = BacnetPropertyId(r.readContextUnsigned(0));
     final arrayIndex = r.readOptionalContextUnsigned(1) ?? -1;
     r.expectOpening(2);
     final value = collapseValues(r.readValuesUntilClosing(2));
@@ -231,14 +232,8 @@ CovNotificationData decodeCovNotification(Uint8List data) {
 
 /// Extracts error class and code from a complex Error PDU payload
 /// (e.g. WritePropertyMultiple-Error, CreateObject-Error).
-(int, int) decodeComplexError(Uint8List data) {
+BacnetError decodeComplexError(Uint8List data) {
   final r = BacnetReader(data);
-  final wrapped = r.nextIsOpening(0);
-  if (wrapped) r.expectOpening(0);
-  final errorClass = r.readApplicationValue();
-  final errorCode = r.readApplicationValue();
-  return (
-    BacnetErrorClass(errorClass is int ? errorClass : -1),
-    BacnetErrorCode(errorCode is int ? errorCode : -1),
-  );
+  if (r.nextIsOpening(0)) r.expectOpening(0);
+  return _readError(r);
 }

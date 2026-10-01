@@ -24,7 +24,7 @@ void main() {
         1,
         name: 'Setpoint',
         units: BacnetEngineeringUnits.degreesCelsius,
-        presentValue: 21.5,
+        presentValue: const BacnetReal(21.5),
       );
       await server.addObject(BacnetObjectType.binaryValue, 1, name: 'Fan');
 
@@ -34,7 +34,7 @@ void main() {
           1,
           BacnetPropertyId.objectName,
         ),
-        'Setpoint',
+        const BacnetCharacterString('Setpoint'),
       );
       expect(
         await server.readProperty(
@@ -42,19 +42,19 @@ void main() {
           1,
           BacnetPropertyId.presentValue,
         ),
-        21.5,
+        const BacnetReal(21.5),
       );
 
       final applied = await server.updatePresentValues(const [
         BacnetPresentValueUpdate(
           objectType: BacnetObjectType.analogValue,
           instance: 1,
-          value: 23.0,
+          value: BacnetReal(23),
         ),
         BacnetPresentValueUpdate(
           objectType: BacnetObjectType.binaryValue,
           instance: 1,
-          value: true,
+          value: BacnetEnumerated(BacnetBinaryPV.active),
         ),
       ]);
       expect(applied, 2);
@@ -64,7 +64,7 @@ void main() {
           1,
           BacnetPropertyId.presentValue,
         ),
-        1,
+        const BacnetEnumerated(BacnetBinaryPV.active),
       );
 
       final stats = await client.stats();

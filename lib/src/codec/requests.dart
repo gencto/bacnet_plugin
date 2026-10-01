@@ -1,10 +1,11 @@
 import 'dart:typed_data';
 
-import '../models/bacnet_object.dart';
+import 'package:meta/meta.dart';
+
+import '../models/bacnet_value.dart';
 import '../models/rpm_models.dart';
 import '../models/wpm_models.dart';
 import 'value_encoding.dart';
-import 'values.dart';
 import 'writer.dart';
 
 /// Encodes a ReadProperty request.
@@ -50,8 +51,7 @@ Uint8List encodeWriteProperty(
   int objectType,
   int instance,
   int propertyId,
-  Object? value, {
-  int? tag,
+  BacnetValue value, {
   int arrayIndex = -1,
   int priority = 16,
 }) {
@@ -60,7 +60,7 @@ Uint8List encodeWriteProperty(
     ..ctxUnsigned(1, propertyId);
   if (arrayIndex >= 0) w.ctxUnsigned(2, arrayIndex);
   w.opening(3);
-  _encodeObjectPropertyValue(w, objectType, propertyId, value, tag);
+  encodeApplicationValue(w, value);
   w.closing(3);
   if (priority >= 1 && priority < 16) w.ctxUnsigned(4, priority);
   return w.toBytes();
@@ -82,13 +82,7 @@ Uint8List encodeWritePropertyMultiple(
         w.ctxUnsigned(1, property.propertyArrayIndex);
       }
       w.opening(2);
-      _encodeObjectPropertyValue(
-        w,
-        object.type,
-        property.propertyIdentifier,
-        property.value,
-        property.tag,
-      );
+      encodeApplicationValue(w, property.value);
       w.closing(2);
       if (property.priority >= 1 && property.priority < 16) {
         w.ctxUnsigned(3, property.priority);
@@ -147,56 +141,109 @@ Uint8List encodeSubscribeCovProperty({
   return w.toBytes();
 }
 
-/// ReadRange request types.
-enum ReadRangeType {
-  /// Read the whole list.
-  all,
+/// The items of a list property to read with ReadRange (the Range choice
+/// of ASHRAE 135 clause 15.8.1.1.4).
+///
+/// A negative `count` reads backwards from the reference item.
+///
+/// ```dart
+/// // the newest 50 records of a log buffer with 1000 records
+/// await client.readRange(1234, BacnetObjectType.trendLog, 1,
+///     BacnetPropertyId.logBuffer,
+///     range: const BacnetRange.byPosition(1000, -50));
+/// ```
+@immutable
+sealed class BacnetRange {
+  const BacnetRange();
 
-  /// By position (index, starting at 1).
-  byPosition,
+  /// The whole list.
+  const factory BacnetRange.all() = BacnetRangeAll;
 
-  /// By sequence number (log buffers).
-  bySequenceNumber,
+  /// [count] items from position [index] (1 based).
+  const factory BacnetRange.byPosition(int index, int count) =
+      BacnetRangeByPosition;
 
-  /// By time (log buffers).
-  byTime,
+  /// [count] records from sequence number [sequenceNumber] (log buffers).
+  const factory BacnetRange.bySequenceNumber(int sequenceNumber, int count) =
+      BacnetRangeBySequenceNumber;
+
+  /// [count] records from the first one logged at or after [time] (log
+  /// buffers; before [time] when [count] is negative).
+  const factory BacnetRange.byTime(DateTime time, int count) =
+      BacnetRangeByTime;
+}
+
+/// The whole list.
+final class BacnetRangeAll extends BacnetRange {
+  /// Creates the range.
+  const BacnetRangeAll();
+}
+
+/// Items by position.
+final class BacnetRangeByPosition extends BacnetRange {
+  /// Creates the range.
+  const BacnetRangeByPosition(this.index, this.count)
+    : assert(index >= 1, 'positions start at 1');
+
+  /// Position of the reference item (1 based).
+  final int index;
+
+  /// Number of items; negative reads backwards.
+  final int count;
+}
+
+/// Log records by sequence number.
+final class BacnetRangeBySequenceNumber extends BacnetRange {
+  /// Creates the range.
+  const BacnetRangeBySequenceNumber(this.sequenceNumber, this.count);
+
+  /// Sequence number of the reference record.
+  final int sequenceNumber;
+
+  /// Number of records; negative reads backwards.
+  final int count;
+}
+
+/// Log records by time.
+final class BacnetRangeByTime extends BacnetRange {
+  /// Creates the range.
+  const BacnetRangeByTime(this.time, this.count);
+
+  /// Reference time (device local time).
+  final DateTime time;
+
+  /// Number of records; negative reads backwards.
+  final int count;
 }
 
 /// Encodes a ReadRange request.
-///
-/// For [ReadRangeType.byPosition] and [ReadRangeType.bySequenceNumber],
-/// [reference] is the index/sequence number; for [ReadRangeType.byTime] it
-/// is a [DateTime]. A negative [count] reads backwards from the reference.
 Uint8List encodeReadRange(
   int objectType,
   int instance,
   int propertyId, {
   int arrayIndex = -1,
-  ReadRangeType type = ReadRangeType.all,
-  Object? reference,
-  int count = 0,
+  BacnetRange range = const BacnetRangeAll(),
 }) {
   final w = BacnetWriter(32)
     ..ctxObjectId(0, objectType, instance)
     ..ctxUnsigned(1, propertyId);
   if (arrayIndex >= 0) w.ctxUnsigned(2, arrayIndex);
-  switch (type) {
-    case ReadRangeType.all:
+  switch (range) {
+    case BacnetRangeAll():
       break;
-    case ReadRangeType.byPosition:
+    case BacnetRangeByPosition(:final index, :final count):
       w
         ..opening(3)
-        ..appUnsigned(coerceInt(reference ?? 1))
+        ..appUnsigned(index)
         ..appSigned(count)
         ..closing(3);
-    case ReadRangeType.bySequenceNumber:
+    case BacnetRangeBySequenceNumber(:final sequenceNumber, :final count):
       w
         ..opening(6)
-        ..appUnsigned(coerceInt(reference ?? 1))
+        ..appUnsigned(sequenceNumber)
         ..appSigned(count)
         ..closing(6);
-    case ReadRangeType.byTime:
-      final time = reference is DateTime ? reference : DateTime.now();
+    case BacnetRangeByTime(:final time, :final count):
       w
         ..opening(7)
         ..appDate(BacnetDate.fromDateTime(time))
@@ -229,17 +276,3 @@ Uint8List encodeTimeSynchronization(DateTime time) =>
           ..appDate(BacnetDate.fromDateTime(time))
           ..appTime(BacnetTime.fromDateTime(time)))
         .toBytes();
-
-void _encodeObjectPropertyValue(
-  BacnetWriter writer,
-  int objectType,
-  int propertyId,
-  Object? value,
-  int? tag,
-) {
-  encodeApplicationValue(
-    writer,
-    value,
-    tag: tag ?? inferApplicationTag(objectType, propertyId, value),
-  );
-}

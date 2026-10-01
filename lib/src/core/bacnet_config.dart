@@ -3,7 +3,7 @@
 /// @docImport 'exceptions.dart';
 library;
 
-import '../models/bacnet_object.dart';
+import '../models/bacnet_value.dart';
 import 'logger.dart';
 import 'types.dart';
 

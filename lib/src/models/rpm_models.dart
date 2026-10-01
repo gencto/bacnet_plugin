@@ -5,7 +5,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
 
 import '../constants/property_ids.dart';
-import 'bacnet_object.dart';
+import 'bacnet_value.dart';
 
 part 'rpm_models.g.dart';
 

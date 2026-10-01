@@ -177,6 +177,21 @@ const List<_File> _files = [
       doc: 'BACnet segmentation support (BACnetSegmentation).',
       unknown: r'Segmentation $value',
     ),
+    _Enum(
+      'BacnetBinaryPV',
+      cEnum: 'BACNET_BINARY_PV',
+      prefix: 'BINARY_',
+      doc: 'Values of binary objects (BACnetBinaryPV).',
+      unknown: r'Binary PV $value',
+      maxValue: 1,
+    ),
+    _Enum(
+      'BacnetPolarity',
+      cEnum: 'BACNET_POLARITY',
+      prefix: 'POLARITY_',
+      doc: 'Polarity of binary objects (BACnetPolarity).',
+      unknown: r'Polarity $value',
+    ),
   ]),
 ];
 

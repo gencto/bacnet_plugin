@@ -6,6 +6,9 @@ import 'package:test/test.dart';
 
 class MockBacnetClient extends Mock implements BacnetClient {}
 
+BacnetObject device(int instance) =>
+    BacnetObject(type: BacnetObjectType.device, instance: instance);
+
 void main() {
   late MockBacnetClient mockClient;
   late DeviceScanner scanner;
@@ -42,11 +45,21 @@ void main() {
           ),
         ).thenAnswer(
           (_) async => {
-            '${BacnetObjectType.device}:1234': {
-              BacnetPropertyId.objectName: 'Test Device',
-              BacnetPropertyId.vendorIdentifier: 99,
-              BacnetPropertyId.vendorName: 'Test Vendor',
-              BacnetPropertyId.modelName: 'Test Model',
+            device(1234): {
+              BacnetPropertyId.objectName: const BacnetCharacterString(
+                'Test Device',
+              ),
+              BacnetPropertyId.vendorIdentifier: const BacnetUnsigned(99),
+              BacnetPropertyId.vendorName: const BacnetCharacterString(
+                'Test Vendor',
+              ),
+              BacnetPropertyId.modelName: const BacnetError(
+                BacnetErrorClass.property,
+                BacnetErrorCode.unknownProperty,
+              ),
+              BacnetPropertyId.segmentationSupported: const BacnetEnumerated(
+                BacnetSegmentation.receive,
+              ),
             },
           },
         );
@@ -67,6 +80,10 @@ void main() {
         expect(devices, hasLength(1));
         expect(devices.first.deviceId, 1234);
         expect(devices.first.deviceName, 'Test Device');
+        expect(devices.first.vendorId, 99);
+        expect(devices.first.vendorName, 'Test Vendor');
+        expect(devices.first.modelName, isNull);
+        expect(devices.first.segmentationSupported, BacnetSegmentation.receive);
         verify(() => mockClient.sendWhoIs()).called(1);
       });
 
@@ -88,8 +105,10 @@ void main() {
           ),
         ).thenAnswer(
           (_) async => {
-            '${BacnetObjectType.device}:10': {
-              BacnetPropertyId.objectName: 'Device 10',
+            device(10): {
+              BacnetPropertyId.objectName: const BacnetCharacterString(
+                'Device 10',
+              ),
             },
           },
         );
@@ -101,8 +120,10 @@ void main() {
           ),
         ).thenAnswer(
           (_) async => {
-            '${BacnetObjectType.device}:20': {
-              BacnetPropertyId.objectName: 'Device 20',
+            device(20): {
+              BacnetPropertyId.objectName: const BacnetCharacterString(
+                'Device 20',
+              ),
             },
           },
         );
@@ -145,8 +166,10 @@ void main() {
           ),
         ).thenAnswer(
           (_) async => {
-            '${BacnetObjectType.device}:10': {
-              BacnetPropertyId.objectName: 'Device 10',
+            device(10): {
+              BacnetPropertyId.objectName: const BacnetCharacterString(
+                'Device 10',
+              ),
             },
           },
         );
@@ -207,8 +230,8 @@ void main() {
           // Verify batching logic via invocation arguments if needed
           // Return mock results
           return {
-            '0:1': {85: 100.0},
-            '1:2': {85: 200.0},
+            obj1: {BacnetPropertyId.presentValue: const BacnetReal(100)},
+            obj2: {BacnetPropertyId.presentValue: const BacnetReal(200)},
           };
         });
 
@@ -220,8 +243,14 @@ void main() {
 
         // Assert
         expect(results, hasLength(2));
-        expect(results[obj1]?[85], 100.0);
-        expect(results[obj2]?[85], 200.0);
+        expect(
+          results[obj1]?.valueOf(BacnetPropertyId.presentValue),
+          const BacnetReal(100),
+        );
+        expect(
+          results[obj2]?.valueOf(BacnetPropertyId.presentValue),
+          const BacnetReal(200),
+        );
       });
     });
 

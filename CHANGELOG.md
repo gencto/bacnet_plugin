@@ -61,6 +61,39 @@ notes in the README.
   `maxCoalescedReads`, `coalescingWindow`); identical reads share one
   result, devices without RPM support are detected. 50 000 concurrent
   reads need 24× fewer requests and run 2× faster on loopback.
+- **Typed values**: property values are the sealed class `BacnetValue`
+  with one subclass per BACnet datatype (`BacnetReal`, `BacnetUnsigned`,
+  `BacnetEnumerated`, `BacnetCharacterString`, `BacnetObject`,
+  `BacnetList`, ...); no public API returns or accepts `dynamic` or
+  `Object?` values any more:
+  - `readProperty` (client and server) returns `Future<BacnetValue>`;
+    Unsigned and Enumerated are no longer both decoded to `int`, and NULL
+    is `BacnetNull` instead of `null`. Accessors `asDouble`, `asInt`,
+    `asBool`, `asString`, `asStatusFlags` and `asList`.
+  - `readMultiple` and `DeviceScanner.scanDevice` return
+    `Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>`
+    (a `BacnetValue` or a `BacnetError` per property; `valueOf`/`errorOf`)
+    instead of `'type:instance'` → `int` → `dynamic` maps, and reject
+    specifications that request a property twice.
+  - `writeProperty`, `BacnetPropertyValue`, `BacnetServer.setPresentValue`,
+    `setProperty`, `addObject` and `BacnetPresentValueUpdate` take a
+    `BacnetValue`; the `tag:` parameters are removed.
+    `BacnetValue.infer` converts untyped input explicitly.
+  - `BacnetObject` is an identifier and the ObjectIdentifier value; its
+    `properties` map and the getters based on it are removed.
+  - `CovNotificationEvent.values` is `Map<BacnetPropertyId, BacnetValue>`
+    (`presentValue`, `statusFlags`); `PropertyWriteEvent.value` is a
+    `BacnetValue?`.
+  - `PropertyUpdate` is sealed: `PropertyValueUpdate` and
+    `PropertyErrorUpdate` (with a `BacnetException`).
+  - `TrendLogEntry` has a sealed `datum` (`TrendLogValue`,
+    `TrendLogStatus`, `TrendLogFailure`, `TrendLogTimeChange`) and
+    `BacnetStatusFlags? statusFlags` instead of `value` and `status`.
+  - `readRange` takes a sealed `BacnetRange` instead of
+    `type`/`reference`/`count`; `ReadRangeType` is removed.
+  - `BacnetError` moved next to the values; values, write specifications
+    and trend logs support JSON (`{"datatype": "real", "value": 21.5}`).
+  - Constants `BacnetBinaryPV` and `BacnetPolarity`.
 - **Testing**: `package:bacnet_plugin/testing.dart` with
   `FakeBacnetClient`, `FakeBacnetDevice` and `FakeBacnetObject`: in-memory
   devices with discovery, real error codes, priority arrays, COV
@@ -110,6 +143,9 @@ notes in the README.
 - RPM/ReadRange decoders could read past the received data; ReadRange
   item data used the wrong context tag; malformed UCS-4 strings threw.
 - JSON serialization of nested models.
+- Unsigned and Enumerated values of 64 bits wrapped to negative numbers;
+  they are now rejected with `BacnetDecodeException`.
+- Datatype inference wrote REAL to Accumulator present values (Unsigned).
 
 ### Added
 
@@ -120,8 +156,8 @@ notes in the README.
   `readRange`, `getTrendLog` (decoded log records), `timeSynchronization`,
   `sendConfirmedRaw`, `removeDeviceBinding`, `isDeviceBound`,
   `unsubscribeCOV`, `CallbackLogger`.
-- Value types `BacnetBitString`, `BacnetStatusFlags`, `BacnetDate`,
-  `BacnetTime`, `BacnetValue`.
+- Value types `BacnetValue` (sealed, see *Typed values*),
+  `BacnetStatusFlags`.
 - Constants `BacnetEngineeringUnits`, `BacnetEventState`,
   `BacnetReliability`, `BacnetDeviceStatus`, `BacnetSegmentation`,
   `BacnetAbortReason`, `BacnetRejectReason`, `BacnetConfirmedService`,

@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../client/bacnet_client.dart';
+import '../client/read_specs.dart';
 import '../codec/requests.dart';
 import '../codec/responses.dart';
-import '../codec/values.dart';
 import '../constants/engineering_units.dart';
 import '../constants/enumerations.dart';
 import '../constants/errors.dart';
@@ -15,8 +15,8 @@ import '../core/bacnet_config.dart';
 import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/types.dart';
-import '../models/bacnet_object.dart';
 import '../models/bacnet_stats.dart';
+import '../models/bacnet_value.dart';
 import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
@@ -32,6 +32,8 @@ final class FakeBacnetRequest {
     this.propertyId,
     this.value,
     this.priority,
+    this.time,
+    this.address,
   });
 
   /// Client method, e.g. `readProperty`, `writeProperty`, `subscribeCOV`.
@@ -47,10 +49,16 @@ final class FakeBacnetRequest {
   final BacnetPropertyId? propertyId;
 
   /// Written value.
-  final Object? value;
+  final BacnetValue? value;
 
   /// Write priority.
   final int? priority;
+
+  /// Time sent with `timeSynchronization`.
+  final DateTime? time;
+
+  /// BBMD address (`host:port`) of `registerForeignDevice`.
+  final String? address;
 
   @override
   String toString() =>
@@ -74,10 +82,10 @@ final class FakeBacnetObject {
   /// Whether the present value is commanded through a priority array.
   final bool commandable;
 
-  /// Property values (property id → value).
-  final Map<int, Object?> properties = {};
+  /// Property values.
+  final Map<BacnetPropertyId, BacnetValue> properties = {};
 
-  final List<Object?> _priorityArray = List<Object?>.filled(16, null);
+  final List<BacnetValue> _priorityArray = List.filled(16, const BacnetNull());
 
   /// Trend Log records returned by [FakeBacnetClient.getTrendLog].
   final List<TrendLogEntry> records = [];
@@ -86,55 +94,59 @@ final class FakeBacnetObject {
   BacnetObject get identifier => BacnetObject(type: type, instance: instance);
 
   /// Value of [property], or null.
-  Object? operator [](BacnetPropertyId property) => properties[property];
+  BacnetValue? operator [](BacnetPropertyId property) => properties[property];
 
   /// Sets [property] like a change in the field (not a client write) and
   /// notifies COV subscribers.
-  void operator []=(BacnetPropertyId property, Object? value) {
-    properties[property] = _normalize(property, value);
+  void operator []=(BacnetPropertyId property, BacnetValue value) {
+    properties[property] = value;
     device._changed(this, property);
-  }
-
-  Object? _normalize(BacnetPropertyId property, Object? value) {
-    final raw = value is BacnetValue ? value.value : value;
-    if (property != BacnetPropertyId.presentValue) return raw;
-    return switch ((type, raw)) {
-      (
-        BacnetObjectType.binaryInput ||
-            BacnetObjectType.binaryOutput ||
-            BacnetObjectType.binaryValue,
-        final bool on,
-      ) =>
-        on ? 1 : 0,
-      (
-        BacnetObjectType.analogInput ||
-            BacnetObjectType.analogOutput ||
-            BacnetObjectType.analogValue,
-        final num number,
-      ) =>
-        number.toDouble(),
-      _ => raw,
-    };
   }
 
   /// Applies a client write with WriteProperty semantics.
-  void _write(BacnetPropertyId property, Object? value, int priority) {
+  void _write(BacnetPropertyId property, BacnetValue value, int priority) {
     if (property == BacnetPropertyId.presentValue && commandable) {
-      _priorityArray[(priority.clamp(1, 16)) - 1] = value == null
-          ? null
-          : _normalize(property, value);
-      properties[BacnetPropertyId.priorityArray] = List<Object?>.of(
-        _priorityArray,
-      );
+      _priorityArray[(priority.clamp(1, 16)) - 1] = value;
+      _publishPriorityArray();
       properties[property] = _priorityArray.firstWhere(
-        (v) => v != null,
-        orElse: () => properties[BacnetPropertyId.relinquishDefault],
+        (v) => v is! BacnetNull,
+        orElse: () =>
+            properties[BacnetPropertyId.relinquishDefault] ??
+            const BacnetNull(),
       );
     } else {
-      properties[property] = _normalize(property, value);
+      properties[property] = value;
     }
     device._changed(this, property);
   }
+
+  void _publishPriorityArray() {
+    properties[BacnetPropertyId.priorityArray] = BacnetList(
+      List.unmodifiable(_priorityArray),
+    );
+  }
+
+  /// Present value of a new object without one.
+  static BacnetValue _defaultPresentValue(BacnetObjectType type) =>
+      switch (type) {
+        BacnetObjectType.analogInput ||
+        BacnetObjectType.analogOutput ||
+        BacnetObjectType.analogValue => const BacnetReal(0),
+        BacnetObjectType.binaryInput ||
+        BacnetObjectType.binaryOutput ||
+        BacnetObjectType.binaryValue => const BacnetEnumerated(
+          BacnetBinaryPV.inactive,
+        ),
+        BacnetObjectType.multiStateInput ||
+        BacnetObjectType.multiStateOutput ||
+        BacnetObjectType.multiStateValue => const BacnetUnsigned(1),
+        BacnetObjectType.integerValue => const BacnetSigned(0),
+        BacnetObjectType.positiveIntegerValue => const BacnetUnsigned(0),
+        BacnetObjectType.characterStringValue => const BacnetCharacterString(
+          '',
+        ),
+        _ => const BacnetNull(),
+      };
 }
 
 /// An in-memory BACnet device for [FakeBacnetClient].
@@ -145,7 +157,7 @@ final class FakeBacnetObject {
 ///     BacnetObjectType.analogInput,
 ///     1,
 ///     name: 'Supply Air Temperature',
-///     presentValue: 21.5,
+///     presentValue: const BacnetReal(21.5),
 ///     units: BacnetEngineeringUnits.degreesCelsius,
 ///   );
 /// final client = FakeBacnetClient(devices: [device]);
@@ -167,13 +179,13 @@ final class FakeBacnetDevice {
       name: name ?? 'Device $deviceId',
     );
     device.properties.addAll({
-      BacnetPropertyId.vendorIdentifier: vendorId,
-      BacnetPropertyId.vendorName: vendorName,
-      BacnetPropertyId.modelName: modelName,
-      BacnetPropertyId.maxApduLengthAccepted: maxApdu,
-      BacnetPropertyId.segmentationSupported: segmentation,
-      BacnetPropertyId.protocolVersion: 1,
-      BacnetPropertyId.protocolRevision: 22,
+      BacnetPropertyId.vendorIdentifier: BacnetUnsigned(vendorId),
+      BacnetPropertyId.vendorName: BacnetCharacterString(vendorName),
+      BacnetPropertyId.modelName: BacnetCharacterString(modelName),
+      BacnetPropertyId.maxApduLengthAccepted: BacnetUnsigned(maxApdu),
+      BacnetPropertyId.segmentationSupported: BacnetEnumerated(segmentation),
+      BacnetPropertyId.protocolVersion: const BacnetUnsigned(1),
+      BacnetPropertyId.protocolRevision: const BacnetUnsigned(22),
     });
   }
 
@@ -202,15 +214,16 @@ final class FakeBacnetDevice {
   Iterable<FakeBacnetObject> get objects => _objects.values;
 
   /// Adds an object. Outputs are commandable unless [commandable] says
-  /// otherwise; their [presentValue] becomes the relinquish default.
+  /// otherwise; their [presentValue] becomes the relinquish default. Without
+  /// [presentValue] the object starts at 0, inactive or state 1.
   FakeBacnetObject addObject(
     BacnetObjectType type,
     int instance, {
     String? name,
-    Object? presentValue,
+    BacnetValue? presentValue,
     BacnetEngineeringUnits? units,
     bool? commandable,
-    Map<BacnetPropertyId, Object?> properties = const {},
+    Map<BacnetPropertyId, BacnetValue> properties = const {},
   }) {
     final object = FakeBacnetObject._(
       this,
@@ -223,26 +236,20 @@ final class FakeBacnetDevice {
     );
     object.properties.addAll({
       BacnetPropertyId.objectIdentifier: object.identifier,
-      BacnetPropertyId.objectName: name ?? '${type.label} $instance',
-      BacnetPropertyId.objectType: type,
+      BacnetPropertyId.objectName: BacnetCharacterString(
+        name ?? '${type.label} $instance',
+      ),
+      BacnetPropertyId.objectType: BacnetEnumerated(type),
+      if (units != null) BacnetPropertyId.units: BacnetEnumerated(units),
       ...properties,
     });
-    if (units != null) object.properties[BacnetPropertyId.units] = units;
-    if (presentValue != null || type != BacnetObjectType.device) {
-      final value = object._normalize(
-        BacnetPropertyId.presentValue,
-        presentValue,
-      );
+    if (type != BacnetObjectType.device) {
+      final value = presentValue ?? FakeBacnetObject._defaultPresentValue(type);
       object.properties[BacnetPropertyId.presentValue] = value;
       if (object.commandable) {
         object.properties[BacnetPropertyId.relinquishDefault] = value;
-        object.properties[BacnetPropertyId.priorityArray] = List<Object?>.of(
-          object._priorityArray,
-        );
+        object._publishPriorityArray();
       }
-    }
-    if (type == BacnetObjectType.device) {
-      object.properties.remove(BacnetPropertyId.presentValue);
     }
     _objects[(type, instance)] = object;
     return object;
@@ -258,18 +265,19 @@ final class FakeBacnetDevice {
     }
   }
 
-  Object? _read(BacnetObjectType type, int instance, BacnetPropertyId id) {
+  BacnetValue _read(BacnetObjectType type, int instance, BacnetPropertyId id) {
     final object = _objects[(type, instance)];
     if (object == null) {
       throw _error(BacnetErrorClass.object, BacnetErrorCode.unknownObject);
     }
     if (type == BacnetObjectType.device && id == BacnetPropertyId.objectList) {
-      return [for (final o in _objects.values) o.identifier];
+      return BacnetList([for (final o in _objects.values) o.identifier]);
     }
-    if (!object.properties.containsKey(id)) {
-      throw _error(BacnetErrorClass.property, BacnetErrorCode.unknownProperty);
-    }
-    return object.properties[id];
+    return object.properties[id] ??
+        (throw _error(
+          BacnetErrorClass.property,
+          BacnetErrorCode.unknownProperty,
+        ));
   }
 
   BacnetProtocolException _error(BacnetErrorClass c, BacnetErrorCode e) =>
@@ -299,7 +307,8 @@ typedef _Subscription = ({
 ///
 /// ```dart
 /// final ahu = FakeBacnetDevice(1234)
-///   ..addObject(BacnetObjectType.analogValue, 1, presentValue: 21.0);
+///   ..addObject(BacnetObjectType.analogValue, 1,
+///       presentValue: const BacnetReal(21));
 /// final client = FakeBacnetClient(devices: [ahu]);
 /// await client.start();
 ///
@@ -309,7 +318,7 @@ typedef _Subscription = ({
 ///   const BacnetObject(type: BacnetObjectType.analogValue, instance: 1),
 /// );
 /// ahu.object(BacnetObjectType.analogValue, 1)![BacnetPropertyId.presentValue] =
-///     22.5; // delivered as a COV notification
+///     const BacnetReal(22.5); // delivered as a COV notification
 /// ```
 class FakeBacnetClient implements BacnetClient {
   /// Creates a client serving [devices].
@@ -434,7 +443,7 @@ class FakeBacnetClient implements BacnetClient {
   }
 
   @override
-  Future<dynamic> readProperty(
+  Future<BacnetValue> readProperty(
     int deviceId,
     BacnetObjectType objectType,
     int instance,
@@ -455,13 +464,13 @@ class FakeBacnetClient implements BacnetClient {
     return _request(deviceId, cancelToken, (device) {
       final value = device._read(objectType, instance, propertyId);
       if (arrayIndex < 0) return value;
-      if (value is! List<Object?>) {
+      if (value is! BacnetList) {
         throw device._error(
           BacnetErrorClass.property,
           BacnetErrorCode.propertyIsNotAnArray,
         );
       }
-      if (arrayIndex == 0) return value.length;
+      if (arrayIndex == 0) return BacnetUnsigned(value.length);
       if (arrayIndex > value.length) {
         throw device._error(
           BacnetErrorClass.property,
@@ -473,7 +482,8 @@ class FakeBacnetClient implements BacnetClient {
   }
 
   @override
-  Future<Map<String, Map<int, dynamic>>> readMultiple(
+  Future<Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>>
+  readMultiple(
     int deviceId,
     List<BacnetReadAccessSpecification> specs, {
     Duration? timeout,
@@ -481,22 +491,26 @@ class FakeBacnetClient implements BacnetClient {
     BacnetCancelToken? cancelToken,
   }) {
     requests.add(FakeBacnetRequest('readMultiple', deviceId: deviceId));
+    if (specs.isEmpty) return Future.value(const {});
+    checkUniqueProperties(specs);
     return _request(deviceId, cancelToken, (device) {
-      return <String, Map<int, dynamic>>{
-        for (final spec in specs)
-          '${spec.objectIdentifier.type}:${spec.objectIdentifier.instance}': {
-            for (final reference in spec.properties)
-              reference.propertyIdentifier: _readOrError(
-                device,
-                spec.objectIdentifier,
-                reference.propertyIdentifier,
-              ),
-          },
-      };
+      final result =
+          <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
+      for (final spec in specs) {
+        final properties = result[spec.objectIdentifier] ??= {};
+        for (final reference in spec.properties) {
+          properties[reference.propertyIdentifier] = _readOrError(
+            device,
+            spec.objectIdentifier,
+            reference.propertyIdentifier,
+          );
+        }
+      }
+      return result;
     });
   }
 
-  static Object? _readOrError(
+  static BacnetPropertyResult _readOrError(
     FakeBacnetDevice device,
     BacnetObject object,
     BacnetPropertyId property,
@@ -514,9 +528,8 @@ class FakeBacnetClient implements BacnetClient {
     BacnetObjectType objectType,
     int instance,
     BacnetPropertyId propertyId,
-    dynamic value, {
+    BacnetValue value, {
     int priority = 16,
-    int? tag,
     int arrayIndex = -1,
     Duration? timeout,
     bool background = false,
@@ -567,7 +580,7 @@ class FakeBacnetClient implements BacnetClient {
     BacnetObjectType type,
     int instance,
     BacnetPropertyId property,
-    Object? value,
+    BacnetValue value,
     int priority,
   ) {
     final object = device.object(type, instance);
@@ -673,11 +686,13 @@ class FakeBacnetClient implements BacnetClient {
           s.property != property) {
         continue;
       }
-      final values = <int, Object?>{property: object.properties[property]};
-      if (object.properties.containsKey(BacnetPropertyId.statusFlags)) {
-        values[BacnetPropertyId.statusFlags] =
-            object.properties[BacnetPropertyId.statusFlags];
-      }
+      final value = object.properties[property];
+      if (value == null) continue;
+      final values = <BacnetPropertyId, BacnetValue>{
+        property: value,
+        BacnetPropertyId.statusFlags:
+            ?object.properties[BacnetPropertyId.statusFlags],
+      };
       final event = CovNotificationEvent(
         objectType: object.type,
         instance: object.instance,
@@ -708,7 +723,7 @@ class FakeBacnetClient implements BacnetClient {
       BacnetPropertyId.objectList,
       cancelToken: cancelToken,
     );
-    return (list as List<Object?>).whereType<BacnetObject>().toList();
+    return list.asList.whereType<BacnetObject>().toList();
   }
 
   @override
@@ -759,9 +774,7 @@ class FakeBacnetClient implements BacnetClient {
     BacnetObjectType objectType,
     int instance,
     BacnetPropertyId propertyId, {
-    ReadRangeType type = ReadRangeType.all,
-    Object? reference,
-    int count = 0,
+    BacnetRange range = const BacnetRange.all(),
     int arrayIndex = -1,
     Duration? timeout,
     bool background = false,
@@ -798,7 +811,7 @@ class FakeBacnetClient implements BacnetClient {
   }) async {
     _checkStarted();
     requests.add(
-      FakeBacnetRequest('timeSynchronization', deviceId: deviceId, value: time),
+      FakeBacnetRequest('timeSynchronization', deviceId: deviceId, time: time),
     );
   }
 
@@ -810,7 +823,7 @@ class FakeBacnetClient implements BacnetClient {
   }) async {
     _checkStarted();
     requests.add(
-      FakeBacnetRequest('registerForeignDevice', value: '$ip:$port'),
+      FakeBacnetRequest('registerForeignDevice', address: '$ip:$port'),
     );
   }
 

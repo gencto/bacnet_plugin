@@ -44,7 +44,7 @@ void main() {
             BacnetObjectType.analogValue,
             1,
             85,
-            180.0,
+            const BacnetReal(180),
             priority: 8,
           ),
         ),
@@ -62,7 +62,7 @@ void main() {
           listOfProperties: [
             BacnetPropertyValue(
               propertyIdentifier: BacnetPropertyId.presentValue,
-              value: 67.0,
+              value: BacnetReal(67),
             ),
           ],
         ),
@@ -101,19 +101,21 @@ void main() {
       expect(encodeWhoIs(), isEmpty);
     });
 
-    test('ReadRange by position', () {
+    test('ReadRange', () {
+      String encode(BacnetRange range) =>
+          hex(encodeReadRange(20, 1, 131, range: range));
+      expect(encode(const BacnetRange.all()), '0c 05 00 00 01 19 83');
       expect(
-        hex(
-          encodeReadRange(
-            20,
-            1,
-            131,
-            type: ReadRangeType.byPosition,
-            reference: 1,
-            count: 4,
-          ),
-        ),
+        encode(const BacnetRange.byPosition(1, 4)),
         '0c 05 00 00 01 19 83 3e 21 01 31 04 3f',
+      );
+      expect(
+        encode(const BacnetRange.bySequenceNumber(300, -2)),
+        '0c 05 00 00 01 19 83 6e 22 01 2c 31 fe 6f',
+      );
+      expect(
+        encode(BacnetRange.byTime(DateTime(2026, 10, 1, 12, 30), 10)),
+        '0c 05 00 00 01 19 83 7e a4 7e 0a 01 04 b4 0c 1e 00 00 31 0a 7f',
       );
     });
   });

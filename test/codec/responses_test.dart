@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:bacnet_plugin/bacnet_plugin.dart';
 import 'package:bacnet_plugin/src/codec/responses.dart';
 import 'package:test/test.dart';
@@ -29,8 +31,8 @@ void main() {
         result.object,
         const BacnetObject(type: BacnetObjectType.analogInput, instance: 5),
       );
-      expect(result.propertyId, 85);
-      expect(result.value, 72.0);
+      expect(result.propertyId, BacnetPropertyId.presentValue);
+      expect(result.value, const BacnetReal(72));
     });
 
     test('ReadProperty-ACK with an array', () {
@@ -41,11 +43,14 @@ void main() {
           0x3F,
         ]),
       );
-      expect(result.value, const [
-        BacnetObject(type: BacnetObjectType.device, instance: 1),
-        BacnetObject(type: BacnetObjectType.analogInput, instance: 3),
-        BacnetObject(type: BacnetObjectType.analogValue, instance: 1),
-      ]);
+      expect(
+        result.value,
+        const BacnetList([
+          BacnetObject(type: BacnetObjectType.device, instance: 1),
+          BacnetObject(type: BacnetObjectType.analogInput, instance: 3),
+          BacnetObject(type: BacnetObjectType.analogValue, instance: 1),
+        ]),
+      );
     });
 
     test('ReadPropertyMultiple-ACK with values and errors', () {
@@ -60,11 +65,27 @@ void main() {
           0x1F,
         ]),
       );
-      expect(result['0:16']![85], 72.0);
-      final error = result['0:16']![103] as BacnetError;
-      expect(error.errorClass, BacnetErrorClass.property);
-      expect(error.errorCode, BacnetErrorCode.unknownProperty);
-      expect(result['2:2']![77], 'AV2');
+      const ai16 = BacnetObject(
+        type: BacnetObjectType.analogInput,
+        instance: 16,
+      );
+      const av2 = BacnetObject(type: BacnetObjectType.analogValue, instance: 2);
+      expect(result.keys, [ai16, av2]);
+      expect(
+        result[ai16]![BacnetPropertyId.presentValue],
+        const BacnetReal(72),
+      );
+      expect(
+        result[ai16]![BacnetPropertyId.reliability],
+        const BacnetError(
+          BacnetErrorClass.property,
+          BacnetErrorCode.unknownProperty,
+        ),
+      );
+      expect(
+        result[av2]!.valueOf(BacnetPropertyId.objectName),
+        const BacnetCharacterString('AV2'),
+      );
     });
 
     test('COV notification (Annex F.1.4)', () {
@@ -110,8 +131,8 @@ void main() {
         cov.monitoredObject,
         const BacnetObject(type: BacnetObjectType.analogInput, instance: 10),
       );
-      expect(cov.values.first.propertyId, 85);
-      expect(cov.values.first.value, 65.0);
+      expect(cov.values.first.propertyId, BacnetPropertyId.presentValue);
+      expect(cov.values.first.value, const BacnetReal(65));
       expect(
         cov.values.last.value,
         const BacnetBitString([false, false, false, false]),
@@ -149,16 +170,117 @@ void main() {
       final entries = decodeLogRecords(result.items);
       expect(entries, hasLength(2));
       expect(entries[0].timestamp, DateTime(2026, 9, 30, 12));
-      expect(entries[0].value, 20.5);
-      expect(entries[0].status, 'OK');
-      expect(entries[1].value, 21.5);
-      expect(entries[1].status, 'FAULT');
+      expect(entries[0].datum, const TrendLogValue(BacnetReal(20.5)));
+      expect(entries[0].value, const BacnetReal(20.5));
+      expect(entries[0].statusFlags, const BacnetStatusFlags());
+      expect(entries[1].value, const BacnetReal(21.5));
+      expect(entries[1].statusFlags, const BacnetStatusFlags(fault: true));
+    });
+
+    test('trend log records of every datum kind', () {
+      List<BacnetValue> record(
+        void Function(BacnetWriter writer) datum, {
+        bool flags = false,
+      }) {
+        final writer = BacnetWriter()
+          ..opening(0)
+          ..appDate(const BacnetDate(year: 2026, month: 9, day: 30, weekday: 3))
+          ..appTime(const BacnetTime(hour: 0, minute: 0, second: 0))
+          ..closing(0)
+          ..opening(1);
+        datum(writer);
+        writer.closing(1);
+        final reader = BacnetReader(writer.toBytes());
+        return [reader.readAnyValue(), reader.readAnyValue()];
+      }
+
+      TrendLogDatum decode(void Function(BacnetWriter writer) datum) =>
+          decodeLogRecords(record(datum)).single.datum;
+
+      expect(
+        decode((w) => w.ctxRaw(0, [0x05, 0xA0])),
+        const TrendLogStatus(logDisabled: true, logInterrupted: true),
+      );
+      expect(
+        decode((w) => w.ctxBoolean(1, true)),
+        const TrendLogValue(BacnetBoolean(true)),
+      );
+      expect(
+        decode((w) => w.ctxUnsigned(3, 1)),
+        const TrendLogValue(BacnetEnumerated(1)),
+      );
+      expect(
+        decode((w) => w.ctxUnsigned(4, 7)),
+        const TrendLogValue(BacnetUnsigned(7)),
+      );
+      expect(
+        decode((w) => w.ctxSigned(5, -7)),
+        const TrendLogValue(BacnetSigned(-7)),
+      );
+      expect(decode((w) => w.ctxRaw(7, [])), const TrendLogValue(BacnetNull()));
+      expect(
+        decode(
+          (w) => w
+            ..opening(8)
+            ..appEnumerated(BacnetErrorClass.object)
+            ..appEnumerated(BacnetErrorCode.unknownObject)
+            ..closing(8),
+        ),
+        const TrendLogFailure(
+          BacnetError(BacnetErrorClass.object, BacnetErrorCode.unknownObject),
+        ),
+      );
+      expect(
+        decode((w) => w.ctxReal(9, -3600)),
+        const TrendLogTimeChange(-3600),
+      );
+      expect(
+        decode(
+          (w) => w
+            ..opening(10)
+            ..appCharacterString('on')
+            ..closing(10),
+        ),
+        const TrendLogValue(BacnetCharacterString('on')),
+      );
+    });
+
+    test('trend log entries convert to JSON and back', () {
+      final entries = [
+        TrendLogEntry(
+          timestamp: DateTime(2026, 10, 1, 12),
+          datum: const TrendLogValue(BacnetReal(21.5)),
+          statusFlags: const BacnetStatusFlags(overridden: true),
+        ),
+        TrendLogEntry(
+          timestamp: DateTime(2026, 10, 1, 13),
+          datum: const TrendLogStatus(bufferPurged: true),
+        ),
+        TrendLogEntry(
+          timestamp: DateTime(2026, 10, 1, 14),
+          datum: const TrendLogFailure(
+            BacnetError(BacnetErrorClass.device, BacnetErrorCode.timeout),
+          ),
+        ),
+        TrendLogEntry(
+          timestamp: DateTime(2026, 10, 1, 15),
+          datum: const TrendLogTimeChange(60),
+        ),
+      ];
+      final data = TrendLogData(
+        itemCount: entries.length,
+        totalRecords: 9,
+        entries: entries,
+      );
+      final json =
+          jsonDecode(jsonEncode(data.toJson())) as Map<String, dynamic>;
+      expect(TrendLogData.fromJson(json).entries, entries);
     });
 
     test('complex error payload', () {
       expect(
         decodeComplexError(bytes([0x0E, 0x91, 0x02, 0x91, 0x28, 0x0F, 0x1E])),
-        (2, 40),
+        const BacnetError(BacnetErrorClass.property, BacnetErrorCode(40)),
       );
     });
   });

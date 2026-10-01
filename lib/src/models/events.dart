@@ -6,7 +6,7 @@ import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/types.dart';
-import 'bacnet_object.dart';
+import 'bacnet_value.dart';
 
 /// Base class of the unsolicited events delivered by the BACnet stack.
 ///
@@ -143,15 +143,21 @@ class CovNotificationEvent extends BacnetEvent {
   /// Remaining subscription lifetime in seconds (0 = indefinite).
   final int timeRemaining;
 
-  /// Reported property values (property id → value), typically
-  /// present-value and status-flags.
-  final Map<int, Object?> values;
+  /// Reported property values, typically Present_Value and Status_Flags.
+  final Map<BacnetPropertyId, BacnetValue> values;
 
   /// True for a confirmed notification.
   final bool confirmed;
 
   /// The monitored object.
   BacnetObject get object => BacnetObject(type: objectType, instance: instance);
+
+  /// The reported Present_Value, if any.
+  BacnetValue? get presentValue => values[BacnetPropertyId.presentValue];
+
+  /// The reported Status_Flags, if any.
+  BacnetStatusFlags? get statusFlags =>
+      values[BacnetPropertyId.statusFlags]?.asStatusFlags;
 
   @override
   String toString() =>
@@ -166,7 +172,7 @@ class PropertyWriteEvent extends BacnetEvent {
     required this.objectType,
     required this.instance,
     required this.propertyId,
-    this.value,
+    required this.value,
     this.index = -1,
     this.priority = 16,
     this.rawValue,
@@ -181,8 +187,10 @@ class PropertyWriteEvent extends BacnetEvent {
   /// Property identifier written.
   final BacnetPropertyId propertyId;
 
-  /// Decoded written value.
-  final Object? value;
+  /// The written value; null only if [rawValue] could not be decoded.
+  ///
+  /// A [BacnetNull] relinquished [priority].
+  final BacnetValue? value;
 
   /// Array index written (-1 for the whole property).
   final int index;

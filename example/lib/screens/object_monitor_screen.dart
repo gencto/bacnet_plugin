@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../format_value.dart';
 
 /// Screen for monitoring a BACnet object's properties with COV subscription.
 class ObjectMonitorScreen extends StatefulWidget {
@@ -23,7 +24,7 @@ class ObjectMonitorScreen extends StatefulWidget {
 
 class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
   String? _objectName;
-  dynamic _presentValue;
+  BacnetValue? _presentValue;
   String? _units;
   String? _errorMessage;
   bool _isLoading = true;
@@ -32,7 +33,7 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
   StreamSubscription<PropertyUpdate>? _covSubscription;
   PropertyMonitor? _propertyMonitor;
 
-  final List<PropertyUpdate> _valueHistory = [];
+  final List<PropertyValueUpdate> _valueHistory = [];
 
   @override
   void initState() {
@@ -74,28 +75,30 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
         ),
       ]);
 
-      final key = '${widget.object.type}:${widget.object.instance}';
-      final props = results[key];
+      final props = results[widget.object];
 
       if (props != null) {
+        final presentValue = props.valueOf(BacnetPropertyId.presentValue);
         setState(() {
-          _objectName = props[BacnetPropertyId.objectName] as String?;
-          _presentValue = props[BacnetPropertyId.presentValue];
-          _units = _getUnitsString(props[BacnetPropertyId.units]);
+          _objectName = props.valueOf(BacnetPropertyId.objectName)?.asString;
+          _presentValue = presentValue;
+          _units = formatUnits(props.valueOf(BacnetPropertyId.units));
           _isLoading = false;
         });
 
         // Add to history
-        _valueHistory.add(
-          PropertyUpdate(
-            deviceId: widget.deviceId,
-            objectIdentifier: widget.object,
-            propertyIdentifier: BacnetPropertyId.presentValue,
-            value: _presentValue,
-            timestamp: DateTime.now(),
-            source: UpdateSource.manual,
-          ),
-        );
+        if (presentValue != null) {
+          _valueHistory.add(
+            PropertyValueUpdate(
+              deviceId: widget.deviceId,
+              objectIdentifier: widget.object,
+              propertyIdentifier: BacnetPropertyId.presentValue,
+              value: presentValue,
+              timestamp: DateTime.now(),
+              source: UpdateSource.manual,
+            ),
+          );
+        }
       } else {
         setState(() {
           _errorMessage = 'No data returned';
@@ -135,14 +138,19 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
 
     _covSubscription = stream.listen(
       (update) {
-        setState(() {
-          _presentValue = update.value;
-          _valueHistory.add(update);
-          // Keep only last 20 values
-          if (_valueHistory.length > 20) {
-            _valueHistory.removeAt(0);
-          }
-        });
+        switch (update) {
+          case PropertyValueUpdate(:final value):
+            setState(() {
+              _presentValue = value;
+              _valueHistory.add(update);
+              // Keep only last 20 values
+              if (_valueHistory.length > 20) {
+                _valueHistory.removeAt(0);
+              }
+            });
+          case PropertyErrorUpdate(:final error):
+            debugPrint('Read failed: $error');
+        }
       },
       onError: (Object e) {
         debugPrint('COV Error: $e');
@@ -158,16 +166,6 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
         content: Text('Value monitoring started (polling every 3s)'),
       ),
     );
-  }
-
-  String? _getUnitsString(dynamic units) {
-    if (units == null) return null;
-    if (units is int) {
-      // Common BACnet units
-      const unitNames = {62: '°C', 64: '°F', 95: '%', 98: 'Pa', 0: 'no-units'};
-      return unitNames[units] ?? 'Units: $units';
-    }
-    return units.toString();
   }
 
   @override
@@ -243,7 +241,10 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              _presentValue?.toString() ?? 'N/A',
+              switch (_presentValue) {
+                final value? => formatValue(value),
+                null => 'N/A',
+              },
               style: Theme.of(context).textTheme.displayMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).primaryColor,
@@ -335,7 +336,7 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: Text(
-                          '${update.value}',
+                          formatValue(update.value),
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),

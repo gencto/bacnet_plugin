@@ -144,11 +144,16 @@ void main() {
       const object = BacnetObject(
         type: BacnetObjectType.binaryValue,
         instance: 3,
-        properties: {BacnetPropertyId.units: 62},
       );
       final copy = BacnetObject.fromJson(object.toJson());
       expect(copy.type, BacnetObjectType.binaryValue);
-      expect(copy.units, BacnetEngineeringUnits.degreesCelsius);
+      final units = BacnetValue.fromJson(
+        const BacnetEnumerated(BacnetEngineeringUnits.degreesCelsius).toJson(),
+      );
+      expect(
+        BacnetEngineeringUnits(units.asInt!),
+        BacnetEngineeringUnits.degreesCelsius,
+      );
     });
   });
 }

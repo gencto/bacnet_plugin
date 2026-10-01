@@ -1,7 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
 
-import 'bacnet_object.dart';
+import 'bacnet_value.dart';
 
 part 'device_metadata.g.dart';
 
@@ -16,8 +16,8 @@ part 'device_metadata.g.dart';
 ///   deviceId: 1234,
 ///   objectCount: 42,
 ///   objects: [
-///     BacnetObject(type: 0, instance: 1234),
-///     BacnetObject(type: 2, instance: 0),
+///     BacnetObject(type: BacnetObjectType.device, instance: 1234),
+///     BacnetObject(type: BacnetObjectType.analogValue, instance: 0),
 ///   ],
 ///   supportedServices: [0, 12, 15],
 /// );

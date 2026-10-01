@@ -2,6 +2,7 @@ import 'package:bacnet_plugin/bacnet_plugin.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../format_value.dart';
 import '../../models/server_object.dart';
 import '../../widgets/log_console.dart';
 
@@ -96,7 +97,11 @@ class _ServerScreenState extends State<ServerScreen> {
       _server!.writeEvents.listen((event) {
         _log(
           'Write received: ${event.objectType}:${event.instance} '
-          'Property ${event.propertyId} = ${event.value}',
+          'Property ${event.propertyId.label} = '
+          '${switch (event.value) {
+            final value? => formatValue(value),
+            null => 'undecodable',
+          }}',
         );
       });
 

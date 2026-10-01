@@ -1,4 +1,5 @@
 /// @docImport '../client/bacnet_client.dart';
+/// @docImport '../constants/enumerations.dart';
 library;
 
 import 'dart:async';
@@ -13,8 +14,8 @@ import '../constants/engineering_units.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/bacnet_config.dart';
-import '../core/exceptions.dart';
 import '../core/logger.dart';
+import '../models/bacnet_value.dart';
 import '../models/events.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
@@ -22,8 +23,10 @@ import '../native/protocol.dart';
 /// One present value update for [BacnetServer.updatePresentValues].
 @immutable
 class BacnetPresentValueUpdate {
-  /// Creates an update. [value] is a number, a bool (binary objects) or
-  /// `null` to relinquish [priority] of commandable objects.
+  /// Creates an update. [value] is a number ([BacnetReal], [BacnetDouble],
+  /// [BacnetUnsigned], [BacnetSigned], [BacnetEnumerated]), a
+  /// [BacnetBoolean] or a [BacnetNull] to relinquish [priority] of
+  /// commandable objects.
   const BacnetPresentValueUpdate({
     required this.objectType,
     required this.instance,
@@ -38,7 +41,7 @@ class BacnetPresentValueUpdate {
   final int instance;
 
   /// New present value.
-  final Object? value;
+  final BacnetValue value;
 
   /// Priority for commandable objects (1..16).
   final int priority;
@@ -58,7 +61,8 @@ class BacnetPresentValueUpdate {
 /// await server.addObject(BacnetObjectType.analogInput, 1,
 ///     name: 'Supply Air Temp',
 ///     units: BacnetEngineeringUnits.degreesCelsius, covIncrement: 0.1);
-/// await server.setPresentValue(BacnetObjectType.analogInput, 1, 21.5);
+/// await server.setPresentValue(
+///     BacnetObjectType.analogInput, 1, const BacnetReal(21.5));
 ///
 /// server.writeEvents.listen((event) {
 ///   print('${event.objectType}:${event.instance} <- ${event.value}');
@@ -137,7 +141,8 @@ class BacnetServer {
   /// Supported types: Analog/Binary/Multi-state Input/Output/Value, Integer
   /// Value, Positive Integer Value, CharacterString Value and every other
   /// object type of bacnet-stack that supports CreateObject.
-  /// [stateTexts] defines the states of multi-state objects.
+  /// [stateTexts] defines the states of multi-state objects. See
+  /// [setPresentValue] for the supported [presentValue]s.
   Future<int> addObject(
     BacnetObjectType objectType,
     int instance, {
@@ -147,9 +152,9 @@ class BacnetServer {
     double? covIncrement,
     bool? outOfService,
     List<String>? stateTexts,
-    Object? presentValue,
-  }) async {
-    final result = await _system.call<Object?>(
+    BacnetValue? presentValue,
+  }) {
+    return _system.call<int>(
       (id) => CreateObjectCommand(
         id,
         objectType: objectType,
@@ -163,11 +168,13 @@ class BacnetServer {
           if (outOfService != null)
             BacnetPropertyId.outOfService: outOfService ? 1 : 0,
         },
-        presentValue: presentValue is String ? null : _number(presentValue),
-        presentValueString: presentValue is String ? presentValue : null,
+        presentValue: switch (presentValue) {
+          null || BacnetCharacterString() => null,
+          final value => _number(value),
+        },
+        presentValueString: presentValue?.asString,
       ),
     );
-    return result is int ? result : instance;
   }
 
   /// Removes an object from the server.
@@ -177,15 +184,25 @@ class BacnetServer {
   /// Sets the present value of an object (local update, triggers COV
   /// notifications to subscribers).
   ///
-  /// [value] is a number, a bool (binary objects), a String (CharacterString
-  /// Value) or `null` to relinquish [priority] of commandable objects.
+  /// [value] is a number ([BacnetReal], [BacnetDouble], [BacnetUnsigned],
+  /// [BacnetSigned], [BacnetEnumerated]), a [BacnetBoolean] (binary
+  /// objects), a [BacnetCharacterString] (CharacterString Value) or a
+  /// [BacnetNull] to relinquish [priority] of commandable objects. Other
+  /// datatypes throw an [ArgumentError]; use [setProperty] for them.
+  ///
+  /// ```dart
+  /// await server.setPresentValue(
+  ///     BacnetObjectType.analogValue, 1, const BacnetReal(21.5));
+  /// await server.setPresentValue(BacnetObjectType.binaryValue, 1,
+  ///     const BacnetEnumerated(BacnetBinaryPV.active));
+  /// ```
   Future<void> setPresentValue(
     BacnetObjectType objectType,
     int instance,
-    Object? value, {
+    BacnetValue value, {
     int priority = 16,
   }) {
-    if (value is String) {
+    if (value case BacnetCharacterString(:final value)) {
       return _system.call<void>(
         (id) => SetTextCommand(
           id,
@@ -202,7 +219,7 @@ class BacnetServer {
         objectType: objectType,
         instance: instance,
         propertyId: BacnetPropertyId.presentValue,
-        value: _number(value) ?? double.nan,
+        value: _number(value),
         priority: priority,
       ),
     );
@@ -222,7 +239,7 @@ class BacnetServer {
         ..setUint32(at, update.instance, Endian.host)
         ..setUint16(at + 4, update.objectType, Endian.host)
         ..setUint8(at + 6, update.priority)
-        ..setFloat64(at + 8, _number(update.value) ?? double.nan, Endian.host);
+        ..setFloat64(at + 8, _number(update.value), Endian.host);
     }
     final transferable = TransferableTypedData.fromList([
       packed.buffer.asUint8List(),
@@ -264,21 +281,21 @@ class BacnetServer {
 
   /// Writes any property of a local object with WriteProperty semantics
   /// (the same checks as a remote write, no write notification).
+  ///
+  /// ```dart
+  /// await server.setProperty(BacnetObjectType.analogValue, 1,
+  ///     BacnetPropertyId.highLimit, const BacnetReal(28));
+  /// ```
   Future<void> setProperty(
     BacnetObjectType objectType,
     int instance,
     BacnetPropertyId propertyId,
-    Object? value, {
+    BacnetValue value, {
     int priority = 16,
-    int? tag,
     int arrayIndex = -1,
   }) {
     final writer = BacnetWriter();
-    encodeApplicationValue(
-      writer,
-      value,
-      tag: tag ?? inferApplicationTag(objectType, propertyId, value),
-    );
+    encodeApplicationValue(writer, value);
     final payload = writer.toBytes();
     return _system.call<void>(
       (id) => LocalWriteCommand(
@@ -293,14 +310,15 @@ class BacnetServer {
     );
   }
 
-  /// Reads a property of a local object.
-  Future<dynamic> readProperty(
+  /// Reads a property of a local object (see [BacnetClient.readProperty]
+  /// for the returned values).
+  Future<BacnetValue> readProperty(
     BacnetObjectType objectType,
     int instance,
     BacnetPropertyId propertyId, {
     int arrayIndex = -1,
   }) {
-    return _system.call<Object?>(
+    return _system.call<BacnetValue>(
       (id) => LocalReadCommand(
         id,
         objectType: objectType,
@@ -314,12 +332,18 @@ class BacnetServer {
   /// Broadcasts an I-Am for the local device.
   Future<void> sendIAm() => _system.call<void>(SendIAmCommand.new);
 
-  static double? _number(Object? value) => switch (value) {
-    null => null,
-    final bool v => v ? 1 : 0,
-    final num v => v.toDouble(),
-    _ => throw BacnetEncodeException(
-      'unsupported present value type ${value.runtimeType}',
+  /// The number the native engine stores; NaN relinquishes.
+  static double _number(BacnetValue value) => switch (value) {
+    BacnetNull() => double.nan,
+    BacnetBoolean(:final value) => value ? 1 : 0,
+    BacnetReal(:final value) || BacnetDouble(:final value) => value,
+    BacnetUnsigned(:final value) ||
+    BacnetSigned(:final value) ||
+    BacnetEnumerated(:final value) => value.toDouble(),
+    _ => throw ArgumentError.value(
+      value,
+      'value',
+      'not supported as present value, use setProperty',
     ),
   };
 

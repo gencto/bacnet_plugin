@@ -52,7 +52,7 @@ Future<void> main(List<String> args) async {
     av.type,
     av.instance,
     BacnetPropertyId.presentValue,
-    33.25,
+    const BacnetReal(33.25),
     priority: 9,
   );
   print(
@@ -63,7 +63,7 @@ Future<void> main(List<String> args) async {
     av.type,
     av.instance,
     BacnetPropertyId.presentValue,
-    null,
+    const BacnetNull(),
     priority: 9,
   );
   print(
@@ -98,7 +98,7 @@ Future<void> main(List<String> args) async {
     av.type,
     av.instance,
     BacnetPropertyId.presentValue,
-    50.0,
+    const BacnetReal(50),
     priority: 9,
   );
   await Future<void>.delayed(const Duration(seconds: 2));
@@ -110,7 +110,7 @@ Future<void> main(List<String> args) async {
     av.type,
     av.instance,
     BacnetPropertyId.presentValue,
-    null,
+    const BacnetNull(),
     priority: 9,
   );
   try {

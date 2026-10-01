@@ -18,6 +18,7 @@ import '../constants/services.dart';
 import '../core/exceptions.dart';
 import '../core/types.dart';
 import '../models/bacnet_stats.dart';
+import '../models/bacnet_value.dart';
 import '../models/events.dart';
 import 'bindings.g.dart';
 import 'engine.dart';
@@ -392,18 +393,24 @@ final class _Worker implements RequestTransport {
   BacnetException _failure(int deviceId, NativeEvent event) {
     switch (event.kind) {
       case BP_EVENT_ERROR:
-        var (errorClass, errorCode) = (event.a, event.b);
+        var error = BacnetError(
+          BacnetErrorClass(event.a),
+          BacnetErrorCode(event.b),
+        );
         if (event.hasFlag(BP_FLAG_COMPLEX)) {
           try {
-            (errorClass, errorCode) = decodeComplexError(event.data);
+            error = decodeComplexError(event.data);
           } on BacnetDecodeException {
-            (errorClass, errorCode) = (-1, -1);
+            error = const BacnetError(
+              BacnetErrorClass(-1),
+              BacnetErrorCode(-1),
+            );
           }
         }
         return BacnetProtocolException(
           'device $deviceId returned an error',
-          errorClass: BacnetErrorClass(errorClass),
-          errorCode: BacnetErrorCode(errorCode),
+          errorClass: error.errorClass,
+          errorCode: error.errorCode,
         );
       case BP_EVENT_REJECT:
         return BacnetRejectException(
@@ -472,11 +479,11 @@ final class _Worker implements RequestTransport {
 
   PropertyWriteEvent _writeEvent(NativeEvent event) {
     final raw = Uint8List.fromList(event.data);
-    Object? value;
+    BacnetValue? value;
     try {
       value = decodeApplicationData(raw);
     } on BacnetDecodeException {
-      value = raw;
+      value = null;
     }
     return PropertyWriteEvent(
       objectType: BacnetObjectType(event.a),
