@@ -5,6 +5,10 @@ import 'dart:async';
 
 import '../client/bacnet_client.dart';
 import '../constants/property_ids.dart';
+import '../core/exceptions.dart';
+import '../core/types.dart';
+import '../models/bacnet_object.dart';
+import '../models/events.dart';
 import '../models/property_update.dart';
 
 /// Monitors BACnet properties using COV subscriptions with polling fallback.
@@ -63,7 +67,7 @@ class PropertyMonitor {
     final processId = client.allocateProcessId();
     Timer? pollingTimer;
     Timer? renewTimer;
-    StreamSubscription<COVNotificationResponse>? covSubscription;
+    StreamSubscription<CovNotificationEvent>? covSubscription;
     var subscribed = false;
     var polling = false;
     var closed = false;
@@ -154,7 +158,7 @@ class PropertyMonitor {
     }
 
     controller.onListen = () async {
-      covSubscription = client.covNotifications.listen((event) {
+      covSubscription = client.covEvents.listen((event) {
         if (event.deviceId != deviceId ||
             event.objectType != object.type ||
             event.instance != object.instance ||

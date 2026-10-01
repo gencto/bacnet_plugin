@@ -72,7 +72,7 @@ Future<void> main() async {
   );
   await client.start();
 
-  client.iAmStream.listen((iAm) {
+  client.iAmEvents.listen((iAm) {
     print('device ${iAm.deviceId} at ${iAm.ipAddress}:${iAm.port}');
   });
   await client.sendWhoIs();
@@ -110,7 +110,7 @@ await server.addObject(
   BacnetObjectType.analogInput,
   1,
   name: 'Supply Air Temperature',
-  units: 62, // degrees Celsius
+  units: BacnetEngineeringUnits.degreesCelsius,
   covIncrement: 0.1,
 );
 await server.addObject(
@@ -252,12 +252,12 @@ await client.writeProperty(1234, BacnetObjectType.binaryOutput, 1,
 - `readProperty` returns `BacnetObject` instead of `{'type', 'instance'}`
   maps for object identifiers and complete lists for array properties.
 - `writeProperty(tag:)` defaults to datatype inference instead of REAL.
-- `BacnetClient.events` is a `Stream<WorkerResponse>`; use `iAmStream` and
-  `covNotifications` for typed streams. COV notifications now include the
+- `BacnetClient.events` is a `Stream<BacnetEvent>`; use `iAmEvents` and
+  `covEvents` for typed streams. COV notifications now include the
   initiating device and the values.
 - `subscribeCOV` completes when the device acknowledged the subscription;
   pass `processId`/`lifetime` and cancel with `unsubscribeCOV`.
-- `WriteNotificationResponse.value` is decoded; the raw bytes are in
+- `PropertyWriteEvent.value` is decoded; the raw bytes are in
   `rawValue`.
 - Internal request/response classes (`WhoIsRequest`, `ReadPropertyRequest`,
   ...) were removed from the public API.

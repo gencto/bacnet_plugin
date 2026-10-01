@@ -2,58 +2,65 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
-import '../bacnet_object.dart';
+import '../core/types.dart';
+import 'bacnet_object.dart';
 
-/// Base class of all events delivered by the BACnet worker.
+/// Base class of the unsolicited events delivered by the BACnet stack.
 ///
-/// Subscribe to [BacnetClient.events] (all events) or to the typed streams
-/// such as [BacnetClient.iAmStream] and [BacnetClient.covNotifications].
-sealed class WorkerResponse {
-  const WorkerResponse();
+/// Listen to `BacnetClient.events` for all events or to the typed streams
+/// `BacnetClient.iAmEvents`, `BacnetClient.covEvents` and
+/// `BacnetServer.writeEvents`. The class is sealed, so a `switch` over the
+/// event type is checked for exhaustiveness.
+@immutable
+sealed class BacnetEvent {
+  const BacnetEvent();
 }
 
-/// An unexpected error reported by the worker (not tied to a request).
-@immutable
-class ErrorResponse extends WorkerResponse {
-  /// Creates an error response.
-  const ErrorResponse(this.error);
+/// An unexpected error reported by the stack (not tied to a request).
+class ErrorEvent extends BacnetEvent {
+  /// Creates an error event.
+  const ErrorEvent(this.error);
 
   /// Error message.
   final String error;
 
   @override
-  String toString() => 'ErrorResponse($error)';
+  String toString() => 'ErrorEvent($error)';
 }
 
-/// A log message from the worker isolate.
-@immutable
-class LogResponse extends WorkerResponse {
-  /// Creates a log response.
-  const LogResponse({
+/// A log message produced by the worker isolate or the native engine.
+class LogEvent extends BacnetEvent {
+  /// Creates a log event.
+  const LogEvent({
     required this.levelIndex,
     required this.message,
     this.errorObj,
     this.stackTrace,
   });
 
-  /// Log level index (see [BacnetLogLevel]).
+  /// Index of the [BacnetLogLevel].
   final int levelIndex;
 
   /// Log message.
   final String message;
 
-  /// Error object string if present.
+  /// Error description, if any.
   final String? errorObj;
 
-  /// Stack trace string if present.
+  /// Stack trace, if any.
   final String? stackTrace;
+
+  /// Severity of the message.
+  BacnetLogLevel get level => BacnetLogLevel.values[levelIndex];
+
+  @override
+  String toString() => 'LogEvent(${level.name}: $message)';
 }
 
-/// An I-Am announcement from a device.
-@immutable
-class IAmResponse extends WorkerResponse {
-  /// Creates an I-Am response.
-  const IAmResponse({
+/// An I-Am announcement of a device.
+class IAmEvent extends BacnetEvent {
+  /// Creates an I-Am event.
+  const IAmEvent({
     required this.deviceId,
     required this.net,
     required this.mac,
@@ -97,15 +104,14 @@ class IAmResponse extends WorkerResponse {
 
   @override
   String toString() =>
-      'IAmResponse(device: $deviceId, ip: $ipAddress, '
+      'IAmEvent(device: $deviceId, ip: $ipAddress, '
       'port: $port, net: $net, maxApdu: $maxApdu, vendor: $vendorId)';
 }
 
 /// A Change-of-Value notification.
-@immutable
-class COVNotificationResponse extends WorkerResponse {
-  /// Creates a COV notification response.
-  const COVNotificationResponse({
+class CovNotificationEvent extends BacnetEvent {
+  /// Creates a COV notification event.
+  const CovNotificationEvent({
     required this.objectType,
     required this.instance,
     required this.timestamp,
@@ -146,15 +152,14 @@ class COVNotificationResponse extends WorkerResponse {
 
   @override
   String toString() =>
-      'COVNotification(device: $deviceId, '
+      'CovNotificationEvent(device: $deviceId, '
       'object: $objectType:$instance, values: $values)';
 }
 
 /// A remote client wrote to an object of the local server.
-@immutable
-class WriteNotificationResponse extends WorkerResponse {
-  /// Creates a WriteProperty notification response.
-  const WriteNotificationResponse({
+class PropertyWriteEvent extends BacnetEvent {
+  /// Creates a property write event.
+  const PropertyWriteEvent({
     required this.objectType,
     required this.instance,
     required this.propertyId,
@@ -187,16 +192,15 @@ class WriteNotificationResponse extends WorkerResponse {
 
   @override
   String toString() =>
-      'WriteNotification($objectType:$instance '
+      'PropertyWriteEvent($objectType:$instance '
       'property $propertyId = $value @ $priority)';
 }
 
 /// Any other unconfirmed service request or confirmed notification
 /// (I-Have, event notifications, text messages, private transfers).
-@immutable
-class UnconfirmedServiceResponse extends WorkerResponse {
-  /// Creates an unconfirmed service response.
-  const UnconfirmedServiceResponse({
+class UnconfirmedServiceEvent extends BacnetEvent {
+  /// Creates an unconfirmed service event.
+  const UnconfirmedServiceEvent({
     required this.service,
     required this.data,
     required this.mac,
@@ -204,8 +208,8 @@ class UnconfirmedServiceResponse extends WorkerResponse {
     this.confirmed = false,
   });
 
-  /// Service choice (see [BacnetUnconfirmedService], or
-  /// [BacnetConfirmedService] when [confirmed]).
+  /// Service choice (see `BacnetUnconfirmedService`, or
+  /// `BacnetConfirmedService` when [confirmed]).
   final int service;
 
   /// Encoded service request.
@@ -220,3 +224,29 @@ class UnconfirmedServiceResponse extends WorkerResponse {
   /// True for a confirmed notification (already acknowledged).
   final bool confirmed;
 }
+
+// ---- names used up to 0.0.x ----------------------------------------------
+
+/// Former name of [BacnetEvent].
+@Deprecated('Use BacnetEvent')
+typedef WorkerResponse = BacnetEvent;
+
+/// Former name of [ErrorEvent].
+@Deprecated('Use ErrorEvent')
+typedef ErrorResponse = ErrorEvent;
+
+/// Former name of [LogEvent].
+@Deprecated('Use LogEvent')
+typedef LogResponse = LogEvent;
+
+/// Former name of [IAmEvent].
+@Deprecated('Use IAmEvent')
+typedef IAmResponse = IAmEvent;
+
+/// Former name of [CovNotificationEvent].
+@Deprecated('Use CovNotificationEvent')
+typedef COVNotificationResponse = CovNotificationEvent;
+
+/// Former name of [PropertyWriteEvent].
+@Deprecated('Use PropertyWriteEvent')
+typedef WriteNotificationResponse = PropertyWriteEvent;

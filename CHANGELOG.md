@@ -17,7 +17,7 @@ notes in the README.
   `json_annotation` 4.12, `meta` 1.16+, `hooks` 2.2, `code_assets` 2.1,
   `native_toolchain_c` 0.19, `ffigen` 22, `build_runner` 2.16,
   `json_serializable` 6.14, `mocktail` 1.0.5, `test` 1.30+, `lints` 6.1;
-  example: `go_router` 18, `provider` 6.1.5, `cupertino_icons` 2;
+  example: `go_router` 18, `provider` 6.1.5;
   CI actions `checkout@v7`, `setup-dart@v1`, `flutter-action@v2`,
   `setup-java@v6`.
 - **Build**: the native library is compiled by `hook/build.dart` for all
@@ -46,6 +46,17 @@ notes in the README.
 - `DeviceScanner` and `PropertyMonitor` run requests in parallel;
   COV subscriptions are renewed and cancelled, notifications carry values.
 - `BacnetClient` and `BacnetServer` share one reference counted stack.
+- **Events** form the sealed `BacnetEvent` hierarchy (`IAmEvent`,
+  `CovNotificationEvent`, `PropertyWriteEvent`, `UnconfirmedServiceEvent`,
+  `LogEvent`, `ErrorEvent`); the `*Response` names of 0.0.x are deprecated
+  aliases. Internal request/response classes are no longer exported.
+- **Constants** are generated from bacnet-stack (`tool/generate_constants.dart`)
+  and cover every standard object type, property, error code and service;
+  existing names are unchanged.
+- **Internals** reorganized for maintainability: codec, worker isolate
+  (engine facade, event reader, unit tested request scheduler) and the C
+  engine are split into focused modules; tests mirror `lib/src`; stricter
+  lints.
 
 ### Fixed
 
@@ -71,13 +82,16 @@ notes in the README.
 - Typed exceptions: `BacnetRejectException`, `BacnetAbortException`,
   `BacnetDeviceNotFoundException`, `BacnetQueueFullException`,
   `BacnetDecodeException`, `BacnetEncodeException`.
-- `BacnetStats`, `client.stats()`, `iAmStream`, `covNotifications`,
+- `BacnetStats`, `client.stats()`, `iAmEvents`, `covEvents`,
   `readRange`, `getTrendLog` (decoded log records), `timeSynchronization`,
   `sendConfirmedRaw`, `removeDeviceBinding`, `isDeviceBound`,
   `unsubscribeCOV`, `CallbackLogger`.
 - Value types `BacnetBitString`, `BacnetStatusFlags`, `BacnetDate`,
-  `BacnetTime`, `BacnetValue` and constants for abort/reject reasons,
-  services, more object types and properties.
+  `BacnetTime`, `BacnetValue`.
+- Constants `BacnetEngineeringUnits`, `BacnetEventState`,
+  `BacnetReliability`, `BacnetDeviceStatus`, `BacnetSegmentation`,
+  `BacnetAbortReason`, `BacnetRejectReason`, `BacnetConfirmedService`,
+  `BacnetUnconfirmedService`; `values` lists the known values of each.
 - Unit tests (codec vectors from ASHRAE 135 Annex F, fuzzing), loopback
   client/server integration tests, load and server benchmarks, interop
   checks against the bacnet-stack demo tools.

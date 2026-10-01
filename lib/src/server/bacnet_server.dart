@@ -1,20 +1,21 @@
+/// @docImport '../client/bacnet_client.dart';
+library;
+
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
-import '../codec/codec.dart';
-import '../codec/services.dart';
+import '../codec/value_encoding.dart';
+import '../codec/writer.dart';
 import '../constants/property_ids.dart';
 import '../core/bacnet_config.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
-import '../models/internal/worker_message.dart';
+import '../models/events.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
-
-export '../core/logger.dart';
 
 /// One present value update for [BacnetServer.updatePresentValues].
 @immutable
@@ -53,7 +54,8 @@ class BacnetPresentValueUpdate {
 /// await server.start();
 /// await server.init(4194300, 'Flutter BACnet Server');
 /// await server.addObject(BacnetObjectType.analogInput, 1,
-///     name: 'Supply Air Temp', units: 62, covIncrement: 0.1);
+///     name: 'Supply Air Temp',
+///     units: BacnetEngineeringUnits.degreesCelsius, covIncrement: 0.1);
 /// await server.setPresentValue(BacnetObjectType.analogInput, 1, 21.5);
 ///
 /// server.writeEvents.listen((event) {
@@ -79,9 +81,9 @@ class BacnetServer {
   BacnetConfig get config => _config;
 
   /// Writes performed by remote clients on objects of this server.
-  Stream<WriteNotificationResponse> get writeEvents => _system.events
-      .where((e) => e is WriteNotificationResponse)
-      .cast<WriteNotificationResponse>();
+  Stream<PropertyWriteEvent> get writeEvents => _system.events
+      .where((e) => e is PropertyWriteEvent)
+      .cast<PropertyWriteEvent>();
 
   /// Starts the BACnet stack (shared with [BacnetClient] instances).
   Future<void> start({String? interface, int? port}) async {
@@ -306,8 +308,8 @@ class BacnetServer {
 
   static double? _number(Object? value) => switch (value) {
     null => null,
-    bool v => v ? 1 : 0,
-    num v => v.toDouble(),
+    final bool v => v ? 1 : 0,
+    final num v => v.toDouble(),
     _ => throw BacnetEncodeException(
       'unsupported present value type ${value.runtimeType}',
     ),

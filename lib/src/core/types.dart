@@ -1,3 +1,7 @@
+/// @docImport '../constants/errors.dart';
+/// @docImport 'logger.dart';
+library;
+
 /// Log level enumeration for BACnet operations.
 ///
 /// Used by [BacnetLogger] implementations to categorize log messages.

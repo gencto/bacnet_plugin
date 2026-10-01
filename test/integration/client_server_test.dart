@@ -190,8 +190,8 @@ void main() {
   });
 
   test('receives COV notifications with values', () async {
-    final notifications = <COVNotificationResponse>[];
-    final subscription = client.covNotifications.listen(notifications.add);
+    final notifications = <CovNotificationEvent>[];
+    final subscription = client.covEvents.listen(notifications.add);
     await client.subscribeCOV(
       device,
       2,

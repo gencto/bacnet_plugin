@@ -12,9 +12,9 @@ void main() {
   const propertyId = BacnetPropertyId.presentValue;
 
   late MockBacnetClient client;
-  late StreamController<COVNotificationResponse> covController;
+  late StreamController<CovNotificationEvent> covController;
 
-  void stubSubscribe({Object? error}) {
+  void stubSubscribe({Exception? error}) {
     when(
       () => client.subscribeCOV(
         any(),
@@ -37,8 +37,8 @@ void main() {
 
   setUp(() {
     client = MockBacnetClient();
-    covController = StreamController<COVNotificationResponse>.broadcast();
-    when(() => client.covNotifications).thenAnswer((_) => covController.stream);
+    covController = StreamController<CovNotificationEvent>.broadcast();
+    when(() => client.covEvents).thenAnswer((_) => covController.stream);
     when(() => client.allocateProcessId()).thenReturn(42);
     when(
       () => client.readProperty(deviceId, 0, 1, propertyId),
@@ -86,7 +86,7 @@ void main() {
       covController
         // other subscription: ignored
         ..add(
-          const COVNotificationResponse(
+          const CovNotificationEvent(
             deviceId: deviceId,
             objectType: 0,
             instance: 1,
@@ -96,7 +96,7 @@ void main() {
           ),
         )
         ..add(
-          const COVNotificationResponse(
+          const CovNotificationEvent(
             deviceId: deviceId,
             objectType: 0,
             instance: 1,
@@ -116,20 +116,12 @@ void main() {
           deviceId,
           0,
           1,
-          propId: propertyId,
           processId: 42,
           lifetime: any(named: 'lifetime'),
-          confirmed: false,
         ),
       ).called(1);
       verify(
-        () => client.unsubscribeCOV(
-          deviceId,
-          0,
-          1,
-          propId: propertyId,
-          processId: 42,
-        ),
+        () => client.unsubscribeCOV(deviceId, 0, 1, processId: 42),
       ).called(1);
     });
 

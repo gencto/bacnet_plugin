@@ -1,0 +1,16 @@
+name: Feature request
+description: A BACnet service, object type or API that is missing.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Use case
+      description: What do you want to do and why is it not possible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The API or behavior you have in mind (ASHRAE 135 clause if relevant).

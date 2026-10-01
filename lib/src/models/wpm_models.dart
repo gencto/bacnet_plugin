@@ -1,6 +1,11 @@
-import 'package:bacnet_plugin/src/models/bacnet_object.dart';
+/// @docImport '../codec/values.dart';
+/// @docImport '../constants/property_ids.dart';
+library;
+
 import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
+
+import 'bacnet_object.dart';
 
 part 'wpm_models.g.dart';
 

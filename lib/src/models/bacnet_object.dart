@@ -1,3 +1,7 @@
+/// @docImport '../constants/object_types.dart';
+/// @docImport '../constants/property_ids.dart';
+library;
+
 import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
 
@@ -20,7 +24,7 @@ part 'bacnet_object.g.dart';
 ///   properties: {
 ///     BacnetPropertyId.objectName: 'Temperature Sensor',
 ///     BacnetPropertyId.presentValue: 22.5,
-///     BacnetPropertyId.units: 62, // degrees Celsius
+///     BacnetPropertyId.units: BacnetEngineeringUnits.degreesCelsius,
 ///   },
 /// );
 ///

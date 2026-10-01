@@ -84,7 +84,7 @@ class _PropertyMonitorWidgetState extends State<PropertyMonitorWidget> {
         _covSubscribed = true;
 
         // COV notifications carry the new value: no extra read needed
-        _eventSubscription = appState.client.covNotifications.listen((event) {
+        _eventSubscription = appState.client.covEvents.listen((event) {
           if (event.deviceId == widget.deviceId &&
               event.objectType == widget.objectType &&
               event.instance == widget.instance &&

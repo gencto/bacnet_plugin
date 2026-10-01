@@ -80,8 +80,8 @@ Future<void> main(List<String> args) async {
       print('trend log failed: $e');
     }
   }
-  final covs = <COVNotificationResponse>[];
-  final sub = client.covNotifications.listen(covs.add);
+  final covs = <CovNotificationEvent>[];
+  final sub = client.covEvents.listen(covs.add);
   await client.subscribeCOV(
     device,
     av.type,
