@@ -251,6 +251,14 @@ BP_API int32_t bacnet_plugin_device_binding(
     uint16_t *net,
     uint16_t *max_apdu);
 
+/**
+ * Copies the own BACnet/IP address (IPv4 address and UDP port, 6 bytes) to
+ * `mac`, which must hold at least 6 bytes: where devices send
+ * notifications to this engine.
+ * @return the number of bytes copied or a negative BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_local_address(uint8_t *mac);
+
 /** Registers as foreign device with a BBMD and keeps the registration. */
 BP_API int32_t bacnet_plugin_register_foreign_device(
     const char *host, uint16_t port, uint16_t ttl_seconds);

@@ -215,6 +215,8 @@ final class _Worker implements RequestTransport {
         _scheduler.deviceBound(command.deviceId);
       case UnbindDeviceCommand():
         _engine.unbindDevice(command.deviceId);
+      case LocalAddressCommand():
+        return _engine.localAddress();
       case DeviceBindingCommand():
         final binding = _engine.deviceBinding(command.deviceId);
         return binding == null

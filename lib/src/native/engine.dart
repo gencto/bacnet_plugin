@@ -169,6 +169,17 @@ class NativeEngine {
   /// Removes the address binding of a device.
   void unbindDevice(int deviceId) => bacnet_plugin_unbind_device(deviceId);
 
+  /// The own BACnet/IP address (IPv4 address and port).
+  List<int> localAddress() {
+    final mac = calloc<ffi.Uint8>(8);
+    try {
+      final length = checkNative(bacnet_plugin_local_address(mac));
+      return List<int>.of(mac.asTypedList(length));
+    } finally {
+      calloc.free(mac);
+    }
+  }
+
   /// Returns the address binding of a device, or null when unknown.
   NativeDeviceBinding? deviceBinding(int deviceId) {
     final mac = calloc<ffi.Uint8>(8);

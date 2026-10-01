@@ -157,6 +157,11 @@ class UnbindDeviceCommand extends WorkerCommand {
 }
 
 /// Queries the address binding of a device.
+/// Returns the own BACnet/IP address as a list of 6 bytes.
+class LocalAddressCommand extends WorkerCommand {
+  const LocalAddressCommand(super.id);
+}
+
 class DeviceBindingCommand extends WorkerCommand {
   const DeviceBindingCommand(super.id, this.deviceId);
   final int deviceId;

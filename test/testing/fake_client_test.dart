@@ -476,6 +476,120 @@ void main() {
       expect(sensor.eventState, BacnetEventState.lowLimit);
     });
 
+    test('subscribes with subscribeAlarms', () async {
+      final me = await client.localAddress();
+      expect(me.ipAddress, '127.0.0.1');
+      expect(me.port, client.config.port);
+
+      final alarms = await client.subscribeAlarms(1234, notificationClass: 1);
+      expect(alarms.destination.recipient, me);
+      expect(
+        await client.read(
+          1234,
+          notificationClass,
+          BacnetProperties.recipientList,
+        ),
+        [alarms.destination],
+      );
+      // another class of the device is not part of the subscription
+      ahu.addNotificationClass(2);
+      final other = ahu.addObject(BacnetObjectType.analogValue, 9)
+        ..enableEventReporting(notificationClass: 2);
+      await client.subscribeAlarms(1234, notificationClass: 2);
+
+      final received = alarms.notifications.first;
+      other.reportEvent(BacnetEventState.highLimit);
+      sensor.reportEvent(BacnetEventState.lowLimit);
+      final event = await received;
+      expect(event.object, sensor.identifier);
+      expect(event.processId, alarms.destination.processId);
+      expect(await alarms.eventInformation(), hasLength(2));
+
+      // the device lost its recipients
+      ahu.object(
+        BacnetObjectType.notificationClass,
+        1,
+      )![BacnetPropertyId.recipientList] = const BacnetList(
+        [],
+      );
+      expect(await alarms.refresh(), isTrue);
+      expect(await alarms.refresh(), isFalse);
+
+      await alarms.cancel();
+      expect(alarms.isCancelled, isTrue);
+      expect(
+        await client.read(
+          1234,
+          notificationClass,
+          BacnetProperties.recipientList,
+        ),
+        isEmpty,
+      );
+      await alarms.cancel(); // once only
+      expect(alarms.refresh, throwsStateError);
+    });
+
+    test('subscribes with WriteProperty without AddListElement', () async {
+      ahu.unsupportedServices.addAll([
+        BacnetConfirmedService.addListElement,
+        BacnetConfirmedService.removeListElement,
+      ]);
+      await expectLater(
+        client.addListElements(
+          1234,
+          notificationClass,
+          BacnetProperties.recipientList,
+          [destination],
+        ),
+        throwsA(
+          isA<BacnetRejectException>().having(
+            (e) => e.reason,
+            'reason',
+            BacnetRejectReason.unrecognizedService,
+          ),
+        ),
+      );
+      final alarms = await client.subscribeAlarms(
+        1234,
+        notificationClass: 1,
+        processId: 77,
+        confirmed: true,
+      );
+      expect(
+        await client.read(
+          1234,
+          notificationClass,
+          BacnetProperties.recipientList,
+        ),
+        [alarms.destination],
+      );
+      final received = alarms.notifications.first;
+      sensor.reportEvent(BacnetEventState.highLimit);
+      final event = await received;
+      expect(event.processId, 77);
+      expect(event.confirmed, isTrue);
+      await alarms.cancel();
+      expect(
+        await client.read(
+          1234,
+          notificationClass,
+          BacnetProperties.recipientList,
+        ),
+        isEmpty,
+      );
+      expect(
+        client.requests.map((r) => r.service),
+        containsAllInOrder([
+          'addListElement',
+          'readProperty',
+          'writeProperty',
+          'removeListElement',
+          'readProperty',
+          'writeProperty',
+        ]),
+      );
+    });
+
     test('requires event reporting to be enabled', () {
       final output = ahu.object(BacnetObjectType.analogOutput, 1)!;
       expect(

@@ -638,6 +638,18 @@ class BacnetClient {
       await _system.call<Object?>((id) => DeviceBindingCommand(id, deviceId)) !=
       null;
 
+  /// The BACnet/IP address of this client (the IPv4 address of its
+  /// interface and its UDP port): the recipient devices send notifications
+  /// to.
+  ///
+  /// ```dart
+  /// final me = await client.localAddress();
+  /// print('${me.ipAddress}:${me.port}');
+  /// ```
+  Future<BacnetAddressRecipient> localAddress() => _system
+      .call<List<int>>(LocalAddressCommand.new)
+      .then((mac) => BacnetAddressRecipient(network: 0, mac: mac));
+
   /// Allocates a subscriber process identifier for COV subscriptions.
   int allocateProcessId() {
     final id = _nextProcessId;

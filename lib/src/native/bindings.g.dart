@@ -95,6 +95,13 @@ external int bacnet_plugin_init(
   int socket_buffer_bytes,
 );
 
+/// Copies the own BACnet/IP address (IPv4 address and UDP port, 6 bytes) to
+/// `mac`, which must hold at least 6 bytes: where devices send
+/// notifications to this engine.
+/// @return the number of bytes copied or a negative BP_ERR_* code.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Uint8>)>(isLeaf: true)
+external int bacnet_plugin_local_address(ffi.Pointer<ffi.Uint8> mac);
+
 /// Creates a server object. Returns the instance or a negative error.
 @ffi.Native<
   ffi.Int64 Function(

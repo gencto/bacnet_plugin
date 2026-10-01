@@ -46,5 +46,6 @@ export 'src/models/trend_log_data.dart';
 export 'src/models/wpm_models.dart';
 export 'src/server/bacnet_server.dart';
 // Utilities
+export 'src/utilities/alarm_subscription.dart';
 export 'src/utilities/device_scanner.dart';
 export 'src/utilities/property_monitor.dart';

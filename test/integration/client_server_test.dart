@@ -751,5 +751,46 @@ void main() {
       );
       expect(await recipients(), isEmpty);
     });
+    test('subscribes with subscribeAlarms', () async {
+      final me = await client.localAddress();
+      expect(me.ipAddress, '127.0.0.1');
+      expect(me.port, 47862);
+      final alarms = await client.subscribeAlarms(
+        device,
+        notificationClass: 1,
+        processId: 44,
+      );
+      expect(await recipients(), contains(alarms.destination));
+      final received = alarms.notifications
+          .firstWhere((e) => e.object == alarmAv)
+          .timeout(const Duration(seconds: 10));
+      await client.write(
+        device,
+        alarmAv,
+        BacnetProperties.analogPresentValue,
+        5,
+        priority: 8,
+      );
+      final alarm = await received;
+      expect(alarm.toState, BacnetEventState.lowLimit);
+      expect(alarm.processId, 44);
+      await client.acknowledgeEvent(alarm, source: 'integration test');
+      final normal = alarms.notifications
+          .firstWhere(
+            (e) => e.object == alarmAv && e.toState == BacnetEventState.normal,
+          )
+          .timeout(const Duration(seconds: 10));
+      await client.write(
+        device,
+        alarmAv,
+        BacnetProperties.analogPresentValue,
+        20,
+        priority: 8,
+      );
+      await normal;
+      expect(await alarms.refresh(), isFalse);
+      await alarms.cancel();
+      expect(await recipients(), isNot(contains(alarms.destination)));
+    });
   });
 }

@@ -449,6 +449,11 @@ final class FakeBacnetDevice {
   /// While false, requests to the device time out and it ignores Who-Is.
   bool online = true;
 
+  /// Services the device rejects as unrecognized, e.g.
+  /// [BacnetConfirmedService.addListElement] to test the fallbacks of an
+  /// application for devices that lack them.
+  final Set<BacnetConfirmedService> unsupportedServices = {};
+
   /// Extra response time of this device.
   Duration latency = Duration.zero;
 
@@ -841,24 +846,29 @@ class FakeBacnetClient implements BacnetClient {
         propertyId: propertyId,
       ),
     );
-    return _request(deviceId, cancelToken, (device) {
-      final value = device._read(objectType, instance, propertyId);
-      if (arrayIndex < 0) return value;
-      if (value is! BacnetList) {
-        throw device._error(
-          BacnetErrorClass.property,
-          BacnetErrorCode.propertyIsNotAnArray,
-        );
-      }
-      if (arrayIndex == 0) return BacnetUnsigned(value.length);
-      if (arrayIndex > value.length) {
-        throw device._error(
-          BacnetErrorClass.property,
-          BacnetErrorCode.invalidArrayIndex,
-        );
-      }
-      return value[arrayIndex - 1];
-    });
+    return _request(
+      BacnetConfirmedService.readProperty,
+      deviceId,
+      cancelToken,
+      (device) {
+        final value = device._read(objectType, instance, propertyId);
+        if (arrayIndex < 0) return value;
+        if (value is! BacnetList) {
+          throw device._error(
+            BacnetErrorClass.property,
+            BacnetErrorCode.propertyIsNotAnArray,
+          );
+        }
+        if (arrayIndex == 0) return BacnetUnsigned(value.length);
+        if (arrayIndex > value.length) {
+          throw device._error(
+            BacnetErrorClass.property,
+            BacnetErrorCode.invalidArrayIndex,
+          );
+        }
+        return value[arrayIndex - 1];
+      },
+    );
   }
 
   @override
@@ -911,21 +921,26 @@ class FakeBacnetClient implements BacnetClient {
     requests.add(FakeBacnetRequest('readMultiple', deviceId: deviceId));
     if (specs.isEmpty) return Future.value(const {});
     checkUniqueProperties(specs);
-    return _request(deviceId, cancelToken, (device) {
-      final result =
-          <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
-      for (final spec in specs) {
-        final properties = result[spec.objectIdentifier] ??= {};
-        for (final reference in spec.properties) {
-          properties[reference.propertyIdentifier] = _readOrError(
-            device,
-            spec.objectIdentifier,
-            reference.propertyIdentifier,
-          );
+    return _request(
+      BacnetConfirmedService.readPropertyMultiple,
+      deviceId,
+      cancelToken,
+      (device) {
+        final result =
+            <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
+        for (final spec in specs) {
+          final properties = result[spec.objectIdentifier] ??= {};
+          for (final reference in spec.properties) {
+            properties[reference.propertyIdentifier] = _readOrError(
+              device,
+              spec.objectIdentifier,
+              reference.propertyIdentifier,
+            );
+          }
         }
-      }
-      return result;
-    });
+        return result;
+      },
+    );
   }
 
   static BacnetPropertyResult _readOrError(
@@ -963,9 +978,14 @@ class FakeBacnetClient implements BacnetClient {
         priority: priority,
       ),
     );
-    return _request(deviceId, cancelToken, (device) {
-      _write(device, objectType, instance, propertyId, value, priority);
-    });
+    return _request(
+      BacnetConfirmedService.writeProperty,
+      deviceId,
+      cancelToken,
+      (device) {
+        _write(device, objectType, instance, propertyId, value, priority);
+      },
+    );
   }
 
   @override
@@ -977,20 +997,25 @@ class FakeBacnetClient implements BacnetClient {
     BacnetCancelToken? cancelToken,
   }) {
     requests.add(FakeBacnetRequest('writeMultiple', deviceId: deviceId));
-    return _request(deviceId, cancelToken, (device) {
-      for (final spec in specs) {
-        for (final property in spec.listOfProperties) {
-          _write(
-            device,
-            spec.objectIdentifier.type,
-            spec.objectIdentifier.instance,
-            property.propertyIdentifier,
-            property.value,
-            property.priority,
-          );
+    return _request(
+      BacnetConfirmedService.writePropertyMultiple,
+      deviceId,
+      cancelToken,
+      (device) {
+        for (final spec in specs) {
+          for (final property in spec.listOfProperties) {
+            _write(
+              device,
+              spec.objectIdentifier.type,
+              spec.objectIdentifier.instance,
+              property.propertyIdentifier,
+              property.value,
+              property.priority,
+            );
+          }
         }
-      }
-    });
+      },
+    );
   }
 
   void _write(
@@ -1037,7 +1062,9 @@ class FakeBacnetClient implements BacnetClient {
         propertyId: propId,
       ),
     );
-    return _request(deviceId, null, (device) {
+    return _request(BacnetConfirmedService.subscribeCov, deviceId, null, (
+      device,
+    ) {
       device._read(objectType, instance, propId);
       _subscriptions
         ..removeWhere(
@@ -1071,7 +1098,7 @@ class FakeBacnetClient implements BacnetClient {
         propertyId: propId,
       ),
     );
-    return _request(deviceId, null, (_) {
+    return _request(BacnetConfirmedService.subscribeCov, deviceId, null, (_) {
       _subscriptions.removeWhere(
         (s) => _same(s, deviceId, objectType, instance, propId, processId),
       );
@@ -1165,7 +1192,9 @@ class FakeBacnetClient implements BacnetClient {
         ),
       ),
     );
-    return _request(deviceId, cancelToken, (device) {
+    return _request(BacnetConfirmedService.readRange, deviceId, cancelToken, (
+      device,
+    ) {
       final object = device.object(BacnetObjectType.trendLog, instance);
       if (object == null) {
         throw device._error(
@@ -1205,7 +1234,9 @@ class FakeBacnetClient implements BacnetClient {
         value: elements,
       ),
     );
-    return _request(deviceId, null, (device) {
+    return _request(BacnetConfirmedService.addListElement, deviceId, null, (
+      device,
+    ) {
       final object = _listObject(device, objectType, instance, propertyId);
       final current = _listElements(object, propertyId, object[propertyId]!);
       final added = _listElements(object, propertyId, elements);
@@ -1235,7 +1266,9 @@ class FakeBacnetClient implements BacnetClient {
         value: elements,
       ),
     );
-    return _request(deviceId, null, (device) {
+    return _request(BacnetConfirmedService.removeListElement, deviceId, null, (
+      device,
+    ) {
       final object = _listObject(device, objectType, instance, propertyId);
       final current = _listElements(object, propertyId, object[propertyId]!);
       final removed = _listElements(object, propertyId, elements);
@@ -1353,7 +1386,9 @@ class FakeBacnetClient implements BacnetClient {
         source: source,
       ),
     );
-    return _request(deviceId, null, (device) {
+    return _request(BacnetConfirmedService.acknowledgeAlarm, deviceId, null, (
+      device,
+    ) {
       final target = device.object(object.type, object.instance);
       if (target == null) {
         throw device._error(
@@ -1390,6 +1425,7 @@ class FakeBacnetClient implements BacnetClient {
   }) {
     requests.add(FakeBacnetRequest('getEventInformation', deviceId: deviceId));
     return _request(
+      BacnetConfirmedService.getEventInformation,
       deviceId,
       cancelToken,
       (device) => List.unmodifiable(
@@ -1407,6 +1443,7 @@ class FakeBacnetClient implements BacnetClient {
   }) {
     requests.add(FakeBacnetRequest('getAlarmSummary', deviceId: deviceId));
     return _request(
+      BacnetConfirmedService.getAlarmSummary,
       deviceId,
       cancelToken,
       (device) => List.unmodifiable([
@@ -1449,6 +1486,7 @@ class FakeBacnetClient implements BacnetClient {
   Future<T> _unsupported<T>(int deviceId, String service) {
     requests.add(FakeBacnetRequest(service, deviceId: deviceId));
     return _request(
+      null,
       deviceId,
       null,
       (_) => throw BacnetRejectException(
@@ -1503,6 +1541,17 @@ class FakeBacnetClient implements BacnetClient {
   @override
   Future<bool> isDeviceBound(int deviceId) async => _bound.contains(deviceId);
 
+  /// `127.0.0.1` and the port of [config].
+  @override
+  Future<BacnetAddressRecipient> localAddress() async {
+    _checkStarted();
+    final port = _config.port;
+    return BacnetAddressRecipient(
+      network: 0,
+      mac: [127, 0, 0, 1, port >> 8, port & 0xFF],
+    );
+  }
+
   @override
   Future<BacnetStats> stats() async => BacnetStats(
     queuedRequests: 0,
@@ -1526,6 +1575,7 @@ class FakeBacnetClient implements BacnetClient {
 
   /// Runs [answer] against the device after the simulated latency.
   Future<T> _request<T>(
+    BacnetConfirmedService? service,
     int deviceId,
     BacnetCancelToken? cancelToken,
     T Function(FakeBacnetDevice device) answer,
@@ -1546,6 +1596,12 @@ class FakeBacnetClient implements BacnetClient {
           throw BacnetTimeoutException('device $deviceId did not answer');
         }
         _bound.add(deviceId);
+        if (device.unsupportedServices.contains(service)) {
+          throw BacnetRejectException(
+            'device $deviceId rejected the request',
+            reason: BacnetRejectReason.unrecognizedService,
+          );
+        }
         final result = answer(device);
         _completed++;
         return result;
