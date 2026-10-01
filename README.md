@@ -43,7 +43,7 @@ Dart programs such as headless gateways and supervisory services.
 
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.3.0
+  bacnet_plugin: ^0.4.0
 ```
 
 Requirements:
@@ -590,6 +590,15 @@ sensor.reportEvent(
   ),
 );
 ```
+
+## Migrating from 0.3.x
+
+- `AlarmAcknowledgedEvent` and `ListElementEvent` are new `BacnetEvent`
+  subclasses: a `switch` over `BacnetEvent` needs cases for them.
+- `BacnetEventSummary.isUnacknowledged` covers every transition; use
+  `unacknowledgedTransitions` with `timeStampOf` and `stateOf` to
+  acknowledge them.
+- Classes implementing `BacnetClient` need `localAddress()`.
 
 ## Migrating from 0.2.x
 
