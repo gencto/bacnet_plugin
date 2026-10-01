@@ -60,7 +60,7 @@ notes in the README.
   merged into ReadPropertyMultiple requests (`coalesceReads`,
   `maxCoalescedReads`, `coalescingWindow`); identical reads share one
   result, devices without RPM support are detected. 50 000 concurrent
-  reads need 24× fewer requests and run 2× faster on loopback.
+  reads need 24× fewer requests and run about 3× faster on loopback.
 - **Typed values**: property values are the sealed class `BacnetValue`
   with one subclass per BACnet datatype (`BacnetReal`, `BacnetUnsigned`,
   `BacnetEnumerated`, `BacnetCharacterString`, `BacnetObject`,
@@ -143,6 +143,12 @@ notes in the README.
 - RPM/ReadRange decoders could read past the received data; ReadRange
   item data used the wrong context tag; malformed UCS-4 strings threw.
 - JSON serialization of nested models.
+- In JIT mode (debug builds, `dart run`) bursts of tens of thousands of
+  requests stalled for seconds: the client kept one suspended `async` call
+  per request, and the VM deoptimizes each of them separately when the
+  function's optimized code is invalidated. Request methods now use
+  callbacks; non-BACnet errors of merged reads fail the reads instead of
+  escaping as uncaught errors.
 - Unsigned and Enumerated values of 64 bits wrapped to negative numbers;
   they are now rejected with `BacnetDecodeException`.
 - Datatype inference wrote REAL to Accumulator present values (Unsigned).

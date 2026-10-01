@@ -47,44 +47,44 @@ Future<void> main(List<String> args) async {
   final latencies = <int>[];
   var errors = 0;
   final clock = Stopwatch()..start();
-  await Future.wait([
-    for (var i = 0; i < total; i++)
-      () async {
-        final target = targets[i % targets.length];
-        final started = clock.elapsedMicroseconds;
-        try {
-          if (mode == 'rpm') {
-            await client.readMultiple(target.device, [
-              for (var o = 0; o < 10; o++)
-                BacnetReadAccessSpecification(
-                  objectIdentifier: BacnetObject(
-                    type: BacnetObjectType.analogValue,
-                    instance: (i + o) % objects,
-                  ),
-                  properties: const [
-                    BacnetPropertyReference(
-                      propertyIdentifier: BacnetPropertyId.presentValue,
-                    ),
-                    BacnetPropertyReference(
-                      propertyIdentifier: BacnetPropertyId.statusFlags,
-                    ),
-                  ],
+  // Callbacks instead of one async closure per request: in JIT mode
+  // (`dart run`) tens of thousands of suspended async calls are expensive
+  // to deoptimize and would measure the VM instead of the client.
+  Future<void> request(int i) {
+    final target = targets[i % targets.length];
+    final started = clock.elapsedMicroseconds;
+    final Future<Object> response = mode == 'rpm'
+        ? client.readMultiple(target.device, [
+            for (var o = 0; o < 10; o++)
+              BacnetReadAccessSpecification(
+                objectIdentifier: BacnetObject(
+                  type: BacnetObjectType.analogValue,
+                  instance: (i + o) % objects,
                 ),
-            ]);
-          } else {
-            await client.readProperty(
-              target.device,
-              BacnetObjectType.analogValue,
-              i % objects,
-              BacnetPropertyId.presentValue,
-            );
-          }
-          latencies.add(clock.elapsedMicroseconds - started);
-        } on BacnetException {
+                properties: const [
+                  BacnetPropertyReference(
+                    propertyIdentifier: BacnetPropertyId.presentValue,
+                  ),
+                  BacnetPropertyReference(
+                    propertyIdentifier: BacnetPropertyId.statusFlags,
+                  ),
+                ],
+              ),
+          ])
+        : client.readProperty(
+            target.device,
+            BacnetObjectType.analogValue,
+            i % objects,
+            BacnetPropertyId.presentValue,
+          );
+    return response
+        .then((_) => latencies.add(clock.elapsedMicroseconds - started))
+        .catchError((Object _) {
           errors++;
-        }
-      }(),
-  ]);
+        }, test: (error) => error is BacnetException);
+  }
+
+  await Future.wait([for (var i = 0; i < total; i++) request(i)]);
   final seconds = clock.elapsedMicroseconds / 1e6;
   latencies.sort();
   String pct(double p) => latencies.isEmpty

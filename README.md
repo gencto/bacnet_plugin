@@ -195,7 +195,7 @@ load generator are separate processes built with `dart build cli`):
 
 | Scenario | Result |
 | --- | --- |
-| Client, 50 000 concurrent `readProperty` to 4 devices (merged into 2 084 RPM) | 140 000 reads/s, 0 errors |
+| Client, 50 000 concurrent `readProperty` to 4 devices (merged into 2 084 RPM) | 170 000–196 000 reads/s, 0 errors |
 | Same with `coalesceReads: false` (50 000 ReadProperty) | 58 000–68 000 requests/s |
 | Client, 10 000 ReadPropertyMultiple (20 values each) to 8 devices | 258 600 values/s |
 | One server, 4 clients × 40 000 ReadProperty | ~128 000 requests/s, 0 errors, 10 MB RSS |

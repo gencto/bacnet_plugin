@@ -127,30 +127,45 @@ final class ReadCoalescer {
     if (reads.length == 1 || _withoutMultiple.contains(batch.deviceId)) {
       reads.forEach(batch.readSingle(_readProperty));
     } else {
-      unawaited(_sendMultiple(batch, reads));
+      _sendMultiple(batch, reads);
     }
   }
 
-  Future<void> _sendMultiple(_Batch batch, List<_Read> reads) async {
-    final Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>> result;
-    try {
-      result = await _readMultiple(
+  // Callbacks instead of async/await: thousands of batches can be pending,
+  // and in JIT mode (debug builds, `dart run`) every suspended async call
+  // of a function whose optimized code was invalidated is deoptimized on
+  // its own when it resumes, which took seconds for 50 000 reads.
+  void _sendMultiple(_Batch batch, List<_Read> reads) {
+    final request = Future.sync(
+      () => _readMultiple(
         batch.deviceId,
         _specs(reads),
         batch.timeout,
         background: batch.background,
-      );
-    } on BacnetException catch (error, stack) {
-      if (_unreachable(error)) {
-        for (final read in reads) {
-          read.completer.completeError(error, stack);
-        }
-        return;
-      }
-      if (_unsupported(error)) _withoutMultiple.add(batch.deviceId);
-      reads.forEach(batch.readSingle(_readProperty));
-      return;
-    }
+      ),
+    );
+    unawaited(
+      request.then(
+        (result) => _completeMultiple(batch, reads, result),
+        onError: (Object error, StackTrace stack) {
+          if (error is! BacnetException || _unreachable(error)) {
+            for (final read in reads) {
+              read.completer.completeError(error, stack);
+            }
+            return;
+          }
+          if (_unsupported(error)) _withoutMultiple.add(batch.deviceId);
+          reads.forEach(batch.readSingle(_readProperty));
+        },
+      ),
+    );
+  }
+
+  void _completeMultiple(
+    _Batch batch,
+    List<_Read> reads,
+    Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>> result,
+  ) {
     for (final read in reads) {
       final object = BacnetObject(
         type: read.objectType,

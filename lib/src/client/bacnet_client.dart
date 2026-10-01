@@ -270,48 +270,64 @@ class BacnetClient {
     Duration? timeout,
     bool background = false,
     BacnetCancelToken? cancelToken,
-  }) async {
-    if (specs.isEmpty) return {};
-    checkUniqueProperties(specs);
-    try {
-      return await _system.confirmed(
-        deviceId: deviceId,
-        service: BacnetConfirmedService.readPropertyMultiple,
-        payload: encodeReadPropertyMultiple(specs),
-        decoding: AckDecoding.readPropertyMultiple,
-        timeout: timeout,
-        background: background,
-        cancelToken: cancelToken,
-      );
-    } on BacnetAbortException catch (e) {
-      if (!e.isSegmentationNotSupported) rethrow;
-      final halves = _splitSpecs(specs);
-      if (halves == null) rethrow;
-      final parts = await Future.wait([
-        readMultiple(
-          deviceId,
-          halves.$1,
-          timeout: timeout,
-          background: background,
-          cancelToken: cancelToken,
-        ),
-        readMultiple(
-          deviceId,
-          halves.$2,
-          timeout: timeout,
-          background: background,
-          cancelToken: cancelToken,
-        ),
-      ]);
-      final merged =
-          <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
-      for (final part in parts) {
-        for (final MapEntry(key: object, value: properties) in part.entries) {
-          (merged[object] ??= {}).addAll(properties);
-        }
+  }) {
+    if (specs.isEmpty) return Future.value({});
+    // Request methods use callbacks instead of async/await: under load
+    // thousands of calls are pending, and in JIT mode suspended async calls
+    // are deoptimized one by one when the function's code is invalidated.
+    return Future.sync(() {
+      checkUniqueProperties(specs);
+      return _system
+          .confirmed<
+            Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>
+          >(
+            deviceId: deviceId,
+            service: BacnetConfirmedService.readPropertyMultiple,
+            payload: encodeReadPropertyMultiple(specs),
+            decoding: AckDecoding.readPropertyMultiple,
+            timeout: timeout,
+            background: background,
+            cancelToken: cancelToken,
+          )
+          .catchError(
+            (Object error, StackTrace stack) {
+              final halves = _splitSpecs(specs);
+              if (halves == null) Error.throwWithStackTrace(error, stack);
+              return Future.wait([
+                readMultiple(
+                  deviceId,
+                  halves.$1,
+                  timeout: timeout,
+                  background: background,
+                  cancelToken: cancelToken,
+                ),
+                readMultiple(
+                  deviceId,
+                  halves.$2,
+                  timeout: timeout,
+                  background: background,
+                  cancelToken: cancelToken,
+                ),
+              ]).then(_merge);
+            },
+            test: (error) =>
+                error is BacnetAbortException &&
+                error.isSegmentationNotSupported,
+          );
+    });
+  }
+
+  static Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>> _merge(
+    List<Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>> parts,
+  ) {
+    final merged =
+        <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
+    for (final part in parts) {
+      for (final MapEntry(key: object, value: properties) in part.entries) {
+        (merged[object] ??= {}).addAll(properties);
       }
-      return merged;
     }
+    return merged;
   }
 
   static (
@@ -379,21 +395,23 @@ class BacnetClient {
     Duration? timeout,
     bool background = false,
     BacnetCancelToken? cancelToken,
-  }) async {
-    await _system.confirmed<void>(
-      deviceId: deviceId,
-      service: BacnetConfirmedService.writeProperty,
-      payload: encodeWriteProperty(
-        objectType,
-        instance,
-        propertyId,
-        value,
-        arrayIndex: arrayIndex,
-        priority: priority,
+  }) {
+    return Future.sync(
+      () => _system.confirmed<void>(
+        deviceId: deviceId,
+        service: BacnetConfirmedService.writeProperty,
+        payload: encodeWriteProperty(
+          objectType,
+          instance,
+          propertyId,
+          value,
+          arrayIndex: arrayIndex,
+          priority: priority,
+        ),
+        timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
       ),
-      timeout: timeout,
-      background: background,
-      cancelToken: cancelToken,
     );
   }
 
@@ -405,15 +423,17 @@ class BacnetClient {
     Duration? timeout,
     bool background = false,
     BacnetCancelToken? cancelToken,
-  }) async {
-    if (specs.isEmpty) return;
-    await _system.confirmed<void>(
-      deviceId: deviceId,
-      service: BacnetConfirmedService.writePropertyMultiple,
-      payload: encodeWritePropertyMultiple(specs),
-      timeout: timeout,
-      background: background,
-      cancelToken: cancelToken,
+  }) {
+    if (specs.isEmpty) return Future.value();
+    return Future.sync(
+      () => _system.confirmed<void>(
+        deviceId: deviceId,
+        service: BacnetConfirmedService.writePropertyMultiple,
+        payload: encodeWritePropertyMultiple(specs),
+        timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
+      ),
     );
   }
 
@@ -543,33 +563,35 @@ class BacnetClient {
     bool confirmed = false,
     double? covIncrement,
     Duration? timeout,
-  }) async {
+  }) {
     final lifetimeSeconds = lifetime.inSeconds;
     final usePropertyService =
         propId != BacnetPropertyId.presentValue || covIncrement != null;
-    await _system.confirmed<void>(
-      deviceId: deviceId,
-      service: usePropertyService
-          ? BacnetConfirmedService.subscribeCovProperty
-          : BacnetConfirmedService.subscribeCov,
-      payload: usePropertyService
-          ? encodeSubscribeCovProperty(
-              subscriberProcessId: processId,
-              objectType: objectType,
-              instance: instance,
-              propertyId: propId,
-              confirmed: confirmed,
-              lifetime: lifetimeSeconds,
-              covIncrement: covIncrement,
-            )
-          : encodeSubscribeCov(
-              subscriberProcessId: processId,
-              objectType: objectType,
-              instance: instance,
-              confirmed: confirmed,
-              lifetime: lifetimeSeconds,
-            ),
-      timeout: timeout,
+    return Future.sync(
+      () => _system.confirmed<void>(
+        deviceId: deviceId,
+        service: usePropertyService
+            ? BacnetConfirmedService.subscribeCovProperty
+            : BacnetConfirmedService.subscribeCov,
+        payload: usePropertyService
+            ? encodeSubscribeCovProperty(
+                subscriberProcessId: processId,
+                objectType: objectType,
+                instance: instance,
+                propertyId: propId,
+                confirmed: confirmed,
+                lifetime: lifetimeSeconds,
+                covIncrement: covIncrement,
+              )
+            : encodeSubscribeCov(
+                subscriberProcessId: processId,
+                objectType: objectType,
+                instance: instance,
+                confirmed: confirmed,
+                lifetime: lifetimeSeconds,
+              ),
+        timeout: timeout,
+      ),
     );
   }
 
@@ -581,28 +603,30 @@ class BacnetClient {
     BacnetPropertyId propId = BacnetPropertyId.presentValue,
     int processId = 1,
     Duration? timeout,
-  }) async {
+  }) {
     final usePropertyService = propId != BacnetPropertyId.presentValue;
-    await _system.confirmed<void>(
-      deviceId: deviceId,
-      service: usePropertyService
-          ? BacnetConfirmedService.subscribeCovProperty
-          : BacnetConfirmedService.subscribeCov,
-      payload: usePropertyService
-          ? encodeSubscribeCovProperty(
-              subscriberProcessId: processId,
-              objectType: objectType,
-              instance: instance,
-              propertyId: propId,
-              cancel: true,
-            )
-          : encodeSubscribeCov(
-              subscriberProcessId: processId,
-              objectType: objectType,
-              instance: instance,
-              cancel: true,
-            ),
-      timeout: timeout,
+    return Future.sync(
+      () => _system.confirmed<void>(
+        deviceId: deviceId,
+        service: usePropertyService
+            ? BacnetConfirmedService.subscribeCovProperty
+            : BacnetConfirmedService.subscribeCov,
+        payload: usePropertyService
+            ? encodeSubscribeCovProperty(
+                subscriberProcessId: processId,
+                objectType: objectType,
+                instance: instance,
+                propertyId: propId,
+                cancel: true,
+              )
+            : encodeSubscribeCov(
+                subscriberProcessId: processId,
+                objectType: objectType,
+                instance: instance,
+                cancel: true,
+              ),
+        timeout: timeout,
+      ),
     );
   }
 

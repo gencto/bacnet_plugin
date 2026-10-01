@@ -203,6 +203,22 @@ void main() {
     expect(coalescer.devicesWithoutMultiple, isEmpty);
   });
 
+  test('fails the reads when the request fails unexpectedly', () async {
+    coalescer = ReadCoalescer(
+      readProperty: device.readProperty,
+      readMultiple: (id, specs, timeout, {background = false}) =>
+          Future.error(StateError('broken')),
+    );
+    final reads = [
+      read(1, BacnetPropertyId.presentValue),
+      read(2, BacnetPropertyId.presentValue),
+    ];
+    for (final future in reads) {
+      await expectLater(future, throwsStateError);
+    }
+    expect(device.singles, isEmpty);
+  });
+
   test('does not retry when the device is unreachable', () async {
     device.multipleError = const BacnetTimeoutException('no answer');
     final reads = [
