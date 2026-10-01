@@ -28,7 +28,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - run: dart pub get
+      - run: dart pub get --no-example
       - name: Verify generated code
         run: |
           dart run build_runner build --delete-conflicting-outputs
@@ -58,7 +58,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - run: dart pub get
+      - run: dart pub get --no-example
       - name: Unit tests
         run: dart test --exclude-tags integration
       - name: Client/server integration tests (loopback)
@@ -133,5 +133,5 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - run: dart pub get
+      - run: dart pub get --no-example
       - run: dart pub publish --force
