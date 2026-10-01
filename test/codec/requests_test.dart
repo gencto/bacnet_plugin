@@ -96,6 +96,27 @@ void main() {
       );
     });
 
+    test('Who-Has (Annex F.1.11)', () {
+      expect(
+        hex(encodeWhoHas(objectName: 'OATemp')),
+        '3d 07 00 4f 41 54 65 6d 70',
+      );
+      expect(
+        hex(
+          encodeWhoHas(
+            object: const BacnetObject(
+              type: BacnetObjectType.analogInput,
+              instance: 3,
+            ),
+            lowLimit: 1,
+            highLimit: 10,
+          ),
+        ),
+        '09 01 19 0a 2c 00 00 00 03',
+      );
+      expect(encodeWhoHas, throwsArgumentError);
+    });
+
     test('Who-Is', () {
       expect(hex(encodeWhoIs(lowLimit: 3, highLimit: 3)), '09 03 19 03');
       expect(encodeWhoIs(), isEmpty);

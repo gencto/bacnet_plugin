@@ -15,6 +15,7 @@ import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/bacnet_config.dart';
 import '../core/logger.dart';
+import '../models/bacnet_property.dart';
 import '../models/bacnet_value.dart';
 import '../models/events.dart';
 import '../native/bacnet_system.dart';
@@ -328,6 +329,32 @@ class BacnetServer {
       ),
     );
   }
+
+  /// Reads [property] of a local object as its Dart type (see
+  /// [BacnetClient.read]).
+  Future<T> read<T>(BacnetObject object, BacnetProperty<T> property) =>
+      readProperty(
+        object.type,
+        object.instance,
+        property.id,
+      ).then(property.decode);
+
+  /// Writes [value] to [property] of a local object with WriteProperty
+  /// semantics (see [setProperty]).
+  Future<void> write<T>(
+    BacnetObject object,
+    BacnetWritableProperty<T> property,
+    T value, {
+    int priority = 16,
+  }) => Future.sync(
+    () => setProperty(
+      object.type,
+      object.instance,
+      property.id,
+      property.encode(value),
+      priority: priority,
+    ),
+  );
 
   /// Broadcasts an I-Am for the local device.
   Future<void> sendIAm() => _system.call<void>(SendIAmCommand.new);

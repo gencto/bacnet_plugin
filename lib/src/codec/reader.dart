@@ -254,6 +254,10 @@ class BacnetReader {
     return _objectId();
   }
 
+  /// Reads context tag [number] as character string.
+  String readContextCharacterString(int number) =>
+      _characterString(_expectContext(number).length);
+
   /// Reads context tag [number] as bit string.
   BacnetBitString readContextBitString(int number) =>
       _bitString(_expectContext(number).length);
@@ -516,4 +520,30 @@ class BacnetReader {
   /// Decodes character string content octets.
   static String characterStringFrom(Uint8List bytes) =>
       BacnetReader(bytes)._characterString(bytes.length);
+
+  /// Decodes the content octets of a context tagged primitive as
+  /// application datatype [applicationTag] (see [BacnetApplicationTag]).
+  ///
+  /// Constructed datatypes tag their fields with context tags, so the
+  /// generic decoder keeps them as [BacnetContextValue]s; their datatype is
+  /// known only from the definition of the construct.
+  static BacnetValue primitiveFrom(Uint8List content, int applicationTag) {
+    if (applicationTag == BacnetApplicationTag.boolean) {
+      // context booleans have one content octet
+      if (content.length != 1) {
+        throw const BacnetDecodeException('bad context BOOLEAN');
+      }
+      return BacnetBoolean(content[0] != 0);
+    }
+    final reader = BacnetReader(content);
+    final value = reader.decodeApplicationContent(
+      BacnetTag._(applicationTag, false, content.length),
+    );
+    if (!reader.isAtEnd) {
+      throw BacnetDecodeException(
+        'extra octets in context value of application tag $applicationTag',
+      );
+    }
+    return value;
+  }
 }

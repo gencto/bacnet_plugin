@@ -462,8 +462,47 @@ final class _Worker implements RequestTransport {
       case BacnetUnconfirmedService.covNotification:
         _emitCov(event.data, confirmed: false);
       default:
-        _emit(_serviceEvent(event, confirmed: false));
+        _emit(_unconfirmedEvent(event));
     }
+  }
+
+  /// The typed event of an unconfirmed service, or the raw request when it
+  /// is not decoded or malformed.
+  BacnetEvent _unconfirmedEvent(NativeEvent event) {
+    try {
+      switch (event.service) {
+        case BacnetUnconfirmedService.iHave:
+          final i = decodeIHave(event.data);
+          return IHaveEvent(
+            deviceId: i.device.instance,
+            object: i.object,
+            objectName: i.name,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+        case BacnetUnconfirmedService.textMessage:
+          final t = decodeTextMessage(event.data);
+          return TextMessageEvent(
+            sourceDeviceId: t.source.instance,
+            message: t.message,
+            urgent: t.urgent,
+            classNumber: t.classNumber,
+            classText: t.classText,
+          );
+        case BacnetUnconfirmedService.privateTransfer:
+          final p = decodePrivateTransfer(event.data);
+          return PrivateTransferEvent(
+            vendorId: p.vendorId,
+            serviceNumber: p.serviceNumber,
+            parameters: p.parameters,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+      }
+    } on BacnetDecodeException catch (e) {
+      _log(BacnetLogLevel.warning, 'malformed service ${event.service}: $e');
+    }
+    return _serviceEvent(event, confirmed: false);
   }
 
   UnconfirmedServiceEvent _serviceEvent(

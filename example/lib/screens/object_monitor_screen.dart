@@ -78,11 +78,12 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
       final props = results[widget.object];
 
       if (props != null) {
+        // Present_Value has no fixed datatype; the others are typed
         final presentValue = props.valueOf(BacnetPropertyId.presentValue);
         setState(() {
-          _objectName = props.valueOf(BacnetPropertyId.objectName)?.asString;
+          _objectName = props.get(BacnetProperties.objectName);
           _presentValue = presentValue;
-          _units = formatUnits(props.valueOf(BacnetPropertyId.units));
+          _units = props.get(BacnetProperties.units)?.label;
           _isLoading = false;
         });
 

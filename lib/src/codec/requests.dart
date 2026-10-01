@@ -270,6 +270,32 @@ Uint8List encodeWhoIs({int? lowLimit, int? highLimit}) {
       .toBytes();
 }
 
+/// Encodes a Who-Has request for [object] or for the object named
+/// [objectName] (exactly one), optionally limited to a device instance
+/// range.
+Uint8List encodeWhoHas({
+  BacnetObject? object,
+  String? objectName,
+  int? lowLimit,
+  int? highLimit,
+}) {
+  if ((object == null) == (objectName == null)) {
+    throw ArgumentError('give either object or objectName');
+  }
+  final w = BacnetWriter(32);
+  if (lowLimit != null && highLimit != null) {
+    w
+      ..ctxUnsigned(0, lowLimit)
+      ..ctxUnsigned(1, highLimit);
+  }
+  if (object != null) {
+    w.ctxObjectId(2, object.type, object.instance);
+  } else {
+    w.ctxCharacterString(3, objectName!);
+  }
+  return w.toBytes();
+}
+
 /// Encodes a (UTC)TimeSynchronization request.
 Uint8List encodeTimeSynchronization(DateTime time) =>
     (BacnetWriter(10)

@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 
 import '../constants/errors.dart';
 import '../constants/property_ids.dart';
+import '../core/exceptions.dart';
 import '../models/bacnet_value.dart';
 import 'reader.dart';
 import 'value_encoding.dart';
@@ -236,4 +237,82 @@ BacnetError decodeComplexError(Uint8List data) {
   final r = BacnetReader(data);
   if (r.nextIsOpening(0)) r.expectOpening(0);
   return _readError(r);
+}
+
+/// Decoded I-Have.
+typedef IHaveData = ({BacnetObject device, BacnetObject object, String name});
+
+/// Decodes an I-Have request (ASHRAE 135 clause 16.8).
+IHaveData decodeIHave(Uint8List data) {
+  final r = BacnetReader(data);
+  final device = r.readApplicationValue();
+  final object = r.readApplicationValue();
+  final name = r.readApplicationValue();
+  if ((device, object, name) case (
+    final BacnetObject device,
+    final BacnetObject object,
+    BacnetCharacterString(value: final name),
+  )) {
+    return (device: device, object: object, name: name);
+  }
+  throw const BacnetDecodeException('malformed I-Have');
+}
+
+/// Decoded (Unconfirmed)TextMessage.
+typedef TextMessageData = ({
+  BacnetObject source,
+  int? classNumber,
+  String? classText,
+  bool urgent,
+  String message,
+});
+
+/// Decodes a TextMessage request (ASHRAE 135 clause 16.5).
+TextMessageData decodeTextMessage(Uint8List data) {
+  final r = BacnetReader(data);
+  final source = r.readContextObjectId(0);
+  int? classNumber;
+  String? classText;
+  if (r.nextIsOpening(1)) {
+    r.expectOpening(1);
+    if (r.nextIsContext(0)) {
+      classNumber = r.readContextUnsigned(0);
+    } else {
+      classText = r.readContextCharacterString(1);
+    }
+    r.expectClosing(1);
+  }
+  final priority = r.readContextUnsigned(2);
+  final message = r.readContextCharacterString(3);
+  return (
+    source: source,
+    classNumber: classNumber,
+    classText: classText,
+    urgent: priority == 1,
+    message: message,
+  );
+}
+
+/// Decoded (Unconfirmed)PrivateTransfer.
+typedef PrivateTransferData = ({
+  int vendorId,
+  int serviceNumber,
+  BacnetValue? parameters,
+});
+
+/// Decodes a PrivateTransfer request (ASHRAE 135 clause 16.2).
+PrivateTransferData decodePrivateTransfer(Uint8List data) {
+  final r = BacnetReader(data);
+  final vendorId = r.readContextUnsigned(0);
+  final serviceNumber = r.readContextUnsigned(1);
+  BacnetValue? parameters;
+  if (r.nextIsOpening(2)) {
+    r.expectOpening(2);
+    parameters = collapseValues(r.readValuesUntilClosing(2));
+  }
+  return (
+    vendorId: vendorId,
+    serviceNumber: serviceNumber,
+    parameters: parameters,
+  );
 }

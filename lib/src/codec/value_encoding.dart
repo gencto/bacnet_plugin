@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../core/exceptions.dart';
 import '../models/bacnet_value.dart';
 import 'reader.dart';
 import 'writer.dart';
@@ -55,6 +56,23 @@ void encodeApplicationValue(BacnetWriter writer, BacnetValue value) {
     case BacnetContextValue(:final tag, :final data):
       writer.ctxRaw(tag, data);
   }
+}
+
+/// Encodes a primitive [value] with context tag [tag], the form fields of
+/// constructed datatypes take (the inverse of [BacnetReader.primitiveFrom]).
+BacnetContextValue contextValue(int tag, BacnetValue value) {
+  if (value case BacnetBoolean(:final value)) {
+    return BacnetContextValue(tag, Uint8List.fromList([if (value) 1 else 0]));
+  }
+  final writer = BacnetWriter(16);
+  encodeApplicationValue(writer, value);
+  final encoded = writer.toBytes();
+  final reader = BacnetReader(encoded);
+  final header = reader.readTag();
+  if (header.isContext || reader.remaining != header.length) {
+    throw BacnetEncodeException('$value is not a primitive value');
+  }
+  return BacnetContextValue(tag, Uint8List.sublistView(encoded, reader.offset));
 }
 
 /// Decodes a property value encoded as application data (server reads and

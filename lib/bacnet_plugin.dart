@@ -32,8 +32,10 @@ export 'src/core/exceptions.dart';
 export 'src/core/logger.dart';
 export 'src/core/types.dart';
 // Models
+export 'src/models/bacnet_property.dart';
 export 'src/models/bacnet_stats.dart';
 export 'src/models/bacnet_value.dart';
+export 'src/models/complex_values.dart';
 export 'src/models/device_metadata.dart';
 export 'src/models/discovered_device.dart';
 export 'src/models/events.dart';

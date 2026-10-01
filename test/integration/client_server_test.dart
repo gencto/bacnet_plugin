@@ -121,6 +121,44 @@ void main() {
     );
   });
 
+  test('reads and writes typed properties', () async {
+    const av = BacnetObject(type: BacnetObjectType.analogValue, instance: 80);
+    expect(await client.read(device, av, BacnetProperties.objectName), 'AV-80');
+    expect(
+      await client.read(device, av, BacnetProperties.units),
+      BacnetEngineeringUnits.degreesCelsius,
+    );
+    expect(
+      await client.read(device, av, BacnetProperties.statusFlags),
+      const BacnetStatusFlags(),
+    );
+    await client.write(
+      device,
+      av,
+      BacnetProperties.analogPresentValue,
+      55.5,
+      priority: 9,
+    );
+    expect(
+      await client.read(device, av, BacnetProperties.analogPresentValue),
+      55.5,
+    );
+    const deviceObject = BacnetObject(
+      type: BacnetObjectType.device,
+      instance: device,
+    );
+    final objects = await client.read(
+      device,
+      deviceObject,
+      BacnetProperties.objectList,
+    );
+    expect(objects, hasLength(104));
+    expect(
+      await client.read(device, deviceObject, BacnetProperties.vendorName),
+      'bacnet_plugin',
+    );
+  });
+
   test('scans the object list', () async {
     final objects = await client.scanDevice(device);
     // device, network port, 100 AV, BV, MSV
@@ -199,6 +237,9 @@ void main() {
   });
 
   test('writes typed values', () async {
+    int writeEvents() =>
+        server.lines.where((l) => l.startsWith('WRITE')).length;
+    final writesBefore = writeEvents();
     await client.writeProperty(
       device,
       BacnetObjectType.analogValue,
@@ -256,7 +297,7 @@ void main() {
       const BacnetUnsigned(3),
     );
     await Future<void>.delayed(const Duration(milliseconds: 100));
-    expect(server.lines.where((l) => l.startsWith('WRITE')), hasLength(3));
+    expect(writeEvents() - writesBefore, 3);
   });
 
   test('reports protocol errors with typed exceptions', () async {

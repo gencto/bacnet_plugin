@@ -220,6 +220,58 @@ void main() {
     await subscription.cancel();
   });
 
+  test('reads and writes typed properties', () async {
+    const output = BacnetObject(
+      type: BacnetObjectType.analogOutput,
+      instance: 1,
+    );
+    const sensor = BacnetObject(
+      type: BacnetObjectType.analogInput,
+      instance: 1,
+    );
+    expect(
+      await client.read(1234, sensor, BacnetProperties.objectName),
+      'Supply Air Temperature',
+    );
+    expect(
+      await client.read(1234, sensor, BacnetProperties.units),
+      BacnetEngineeringUnits.degreesCelsius,
+    );
+    await client.write(
+      1234,
+      output,
+      BacnetProperties.analogPresentValue,
+      42.5,
+      priority: 8,
+    );
+    expect(
+      await client.read(1234, output, BacnetProperties.analogPresentValue),
+      42.5,
+    );
+    final priorities = await client.read(
+      1234,
+      output,
+      BacnetProperties.priorityArray,
+    );
+    expect(priorities.activePriority, 8);
+    await expectLater(
+      client.read(1234, sensor, BacnetProperties.binaryPresentValue),
+      throwsA(isA<BacnetDecodeException>()),
+    );
+  });
+
+  test('answers Who-Has with I-Have', () async {
+    final iHave = client.events.firstWhere((e) => e is IHaveEvent);
+    await client.sendWhoHas(objectName: 'Supply Air Temperature');
+    final event = await iHave as IHaveEvent;
+    expect(event.deviceId, 1234);
+    expect(
+      event.object,
+      const BacnetObject(type: BacnetObjectType.analogInput, instance: 1),
+    );
+    expect(client.requests.last.objectName, 'Supply Air Temperature');
+  });
+
   test('simulates latency and cancellation', () async {
     client.latency = const Duration(milliseconds: 50);
     final token = BacnetCancelToken();

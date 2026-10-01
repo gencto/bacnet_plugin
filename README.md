@@ -389,6 +389,65 @@ Other typed results:
 Values, write specifications and trend logs convert to and from JSON
 (`toJson`, `fromJson`), e.g. `{"datatype": "real", "value": 21.5}`.
 
+## Typed properties
+
+`BacnetProperties` describes the standard properties with their
+datatypes, so `read` returns the Dart type and `write` only accepts it.
+Properties the standard defines as read-only cannot be written: writing
+Status_Flags does not compile.
+
+```dart
+const sensor = BacnetObject(type: BacnetObjectType.analogInput, instance: 1);
+final String name = await client.read(1234, sensor, BacnetProperties.objectName);
+final units = await client.read(1234, sensor, BacnetProperties.units);
+final flags = await client.read(1234, sensor, BacnetProperties.statusFlags);
+
+const output = BacnetObject(type: BacnetObjectType.analogOutput, instance: 1);
+await client.write(1234, output, BacnetProperties.analogPresentValue, 21.5,
+    priority: 8);
+final priorities = await client.read(1234, output, BacnetProperties.priorityArray);
+print('${priorities.activeValue} @ ${priorities.activePriority}');
+```
+
+The constructed datatypes of schedules, calendars, trend logs and event
+reporting are classes as well, read and written like any other value:
+
+| Property | Type |
+| --- | --- |
+| Weekly_Schedule | `BacnetWeeklySchedule` (`BacnetTimeValue`s per day) |
+| Exception_Schedule | `List<BacnetSpecialEvent>` |
+| Date_List | `List<BacnetCalendarEntry>` (date, date range, week-n-day) |
+| Effective_Period | `BacnetDateRange` |
+| Start_Time, Stop_Time | `BacnetDateTime` |
+| Event_Time_Stamps | `List<BacnetTimeStamp>` |
+| Log_DeviceObjectProperty, List_Of_Object_Property_References | `BacnetDeviceObjectPropertyReference` |
+| Priority_Array | `BacnetPriorityArray` |
+| Event_Enable, Acked_Transitions, Limit_Enable | `BacnetEventTransitionBits`, `BacnetLimitEnable` |
+| Device_Address_Binding | `List<BacnetAddressBinding>` |
+
+```dart
+const schedule = BacnetObject(type: BacnetObjectType.schedule, instance: 1);
+final week = await client.read(1234, schedule, BacnetProperties.weeklySchedule);
+final days = [for (final day in week.days) List.of(day)];
+days[DateTime.monday - 1] = const [
+  BacnetTimeValue(BacnetTime(hour: 7, minute: 0, second: 0, hundredths: 0),
+      BacnetReal(21)),
+  BacnetTimeValue(BacnetTime(hour: 18, minute: 0, second: 0, hundredths: 0),
+      BacnetNull()),
+];
+await client.write(1234, schedule, BacnetProperties.weeklySchedule,
+    BacnetWeeklySchedule(days));
+```
+
+Results of `readMultiple` have the same typed access:
+`results[sensor]?.get(BacnetProperties.objectName)` (null for errors,
+missing properties and other datatypes). Proprietary properties are
+declared with `BacnetProperty.real(...)`, `BacnetWritableProperty.unsigned(...)`
+and the other helpers.
+
+Unconfirmed services arrive as typed events too: `IHaveEvent` (the answer
+to `sendWhoHas`), `TextMessageEvent` and `PrivateTransferEvent`.
+
 ## Testing your application
 
 `package:bacnet_plugin/testing.dart` provides `FakeBacnetClient`, a

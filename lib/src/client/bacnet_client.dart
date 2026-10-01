@@ -16,6 +16,7 @@ import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
+import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
 import '../models/events.dart';
@@ -141,6 +142,37 @@ class BacnetClient {
     );
   }
 
+  /// Sends a Who-Has for [object] or for the object named [objectName]
+  /// (exactly one of them). Devices hosting it answer with an
+  /// [IHaveEvent] (see [events]).
+  ///
+  /// [lowLimit] and [highLimit] limit the device instance range (-1 for no
+  /// limit); [network] selects the broadcast as for [sendWhoIs].
+  Future<void> sendWhoHas({
+    BacnetObject? object,
+    String? objectName,
+    int lowLimit = -1,
+    int highLimit = -1,
+    int network = 0xFFFF,
+  }) {
+    return Future.sync(() {
+      final payload = encodeWhoHas(
+        object: object,
+        objectName: objectName,
+        lowLimit: lowLimit < 0 ? null : lowLimit,
+        highLimit: highLimit < 0 ? null : highLimit,
+      );
+      return _system.call<void>(
+        (id) => UnconfirmedRequestCommand(
+          id,
+          service: BacnetUnconfirmedService.whoHas,
+          payload: payload,
+          network: network,
+        ),
+      );
+    });
+  }
+
   /// Reads a property of an object.
   ///
   /// Returns the value with its BACnet datatype ([BacnetReal],
@@ -199,6 +231,65 @@ class BacnetClient {
       cancelToken: cancelToken,
     );
   }
+
+  /// Reads [property] of [object] as its Dart type.
+  ///
+  /// Throws a [BacnetDecodeException] if the device returned another
+  /// datatype than the property defines, besides the errors of
+  /// [readProperty].
+  ///
+  /// ```dart
+  /// final name = await client.read(1234, sensor, BacnetProperties.objectName);
+  /// final schedule = await client.read(
+  ///     1234, schedule1, BacnetProperties.weeklySchedule);
+  /// print(schedule[DateTime.monday]);
+  /// ```
+  Future<T> read<T>(
+    int deviceId,
+    BacnetObject object,
+    BacnetProperty<T> property, {
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => readProperty(
+    deviceId,
+    object.type,
+    object.instance,
+    property.id,
+    timeout: timeout,
+    background: background,
+    cancelToken: cancelToken,
+  ).then(property.decode);
+
+  /// Writes [value] to [property] of [object]; only writable properties
+  /// are accepted.
+  ///
+  /// ```dart
+  /// await client.write(1234, output, BacnetProperties.analogPresentValue,
+  ///     21.5, priority: 8);
+  /// ```
+  Future<void> write<T>(
+    int deviceId,
+    BacnetObject object,
+    BacnetWritableProperty<T> property,
+    T value, {
+    int priority = 16,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => Future.sync(
+    () => writeProperty(
+      deviceId,
+      object.type,
+      object.instance,
+      property.id,
+      property.encode(value),
+      priority: priority,
+      timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
+    ),
+  );
 
   Future<BacnetValue> _readSingle(
     int deviceId,

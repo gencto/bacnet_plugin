@@ -277,6 +277,68 @@ void main() {
       expect(TrendLogData.fromJson(json).entries, entries);
     });
 
+    test('I-Have (Annex F.1.8)', () {
+      final i = decodeIHave(
+        bytes([
+          0xC4, 0x02, 0x00, 0x00, 0x08, 0xC4, 0x00, 0x00, 0x00, 0x03, //
+          0x75, 0x07, 0x00, 0x4F, 0x41, 0x54, 0x65, 0x6D, 0x70,
+        ]),
+      );
+      expect(i.device.instance, 8);
+      expect(
+        i.object,
+        const BacnetObject(type: BacnetObjectType.analogInput, instance: 3),
+      );
+      expect(i.name, 'OATemp');
+      expect(
+        () => decodeIHave(bytes([0x21, 0x01])),
+        throwsA(isA<BacnetDecodeException>()),
+      );
+    });
+
+    test('TextMessage', () {
+      final writer = BacnetWriter()
+        ..ctxObjectId(0, BacnetObjectType.device, 5)
+        ..opening(1)
+        ..ctxCharacterString(1, 'maintenance')
+        ..closing(1)
+        ..ctxUnsigned(2, 1)
+        ..ctxCharacterString(3, 'PM required for PUMP347');
+      final t = decodeTextMessage(writer.toBytes());
+      expect(t.source.instance, 5);
+      expect(t.classText, 'maintenance');
+      expect(t.classNumber, isNull);
+      expect(t.urgent, isTrue);
+      expect(t.message, 'PM required for PUMP347');
+
+      final plain = BacnetWriter()
+        ..ctxObjectId(0, BacnetObjectType.device, 5)
+        ..ctxUnsigned(2, 0)
+        ..ctxCharacterString(3, 'hello');
+      final p = decodeTextMessage(plain.toBytes());
+      expect(p.classNumber, isNull);
+      expect(p.classText, isNull);
+      expect(p.urgent, isFalse);
+    });
+
+    test('PrivateTransfer', () {
+      final writer = BacnetWriter()
+        ..ctxUnsigned(0, 25)
+        ..ctxUnsigned(1, 8)
+        ..opening(2)
+        ..appReal(72.4)
+        ..appUnsigned(3)
+        ..closing(2);
+      final p = decodePrivateTransfer(writer.toBytes());
+      expect(p.vendorId, 25);
+      expect(p.serviceNumber, 8);
+      expect(p.parameters?.asList, hasLength(2));
+      final bare = BacnetWriter()
+        ..ctxUnsigned(0, 25)
+        ..ctxUnsigned(1, 9);
+      expect(decodePrivateTransfer(bare.toBytes()).parameters, isNull);
+    });
+
     test('complex error payload', () {
       expect(
         decodeComplexError(bytes([0x0E, 0x91, 0x02, 0x91, 0x28, 0x0F, 0x1E])),

@@ -22,9 +22,3 @@ String formatValue(BacnetValue value) => switch (value) {
   BacnetList(:final items) => '[${items.map(formatValue).join(', ')}]',
   BacnetConstructedValue() || BacnetContextValue() => value.toString(),
 };
-
-/// Label of an engineering units value.
-String? formatUnits(BacnetValue? units) => switch (units) {
-  BacnetEnumerated(:final value) => BacnetEngineeringUnits(value).label,
-  _ => null,
-};

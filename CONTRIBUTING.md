@@ -31,7 +31,8 @@ lib/
     client/              BacnetClient
     server/              BacnetServer
     utilities/           DeviceScanner, PropertyMonitor
-    models/              values (sealed BacnetValue), models and events
+    models/              values (sealed BacnetValue), constructed datatypes,
+                         typed properties, models and events
     core/                configuration, exceptions, logging
     constants/           BACnet enumerations (generated)
     testing/             FakeBacnetClient and in-memory devices

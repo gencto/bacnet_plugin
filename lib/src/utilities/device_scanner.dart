@@ -11,6 +11,7 @@ import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
 import '../core/types.dart';
+import '../models/bacnet_property.dart';
 import '../models/bacnet_value.dart';
 import '../models/device_metadata.dart';
 import '../models/discovered_device.dart';
@@ -202,28 +203,21 @@ class DeviceScanner {
     DiscoveredDevice device,
     Map<BacnetPropertyId, BacnetPropertyResult> props,
   ) {
-    int? integer(BacnetPropertyId id) => props.valueOf(id)?.asInt;
-    String? text(BacnetPropertyId id) => props.valueOf(id)?.asString;
     return device.copyWith(
-      vendorId: integer(BacnetPropertyId.vendorIdentifier),
-      maxApduLength: integer(BacnetPropertyId.maxApduLengthAccepted),
-      segmentationSupported: switch (props.valueOf(
-        BacnetPropertyId.segmentationSupported,
-      )) {
-        BacnetEnumerated(:final value) => BacnetSegmentation(value),
-        _ => null,
-      },
-      deviceName: text(BacnetPropertyId.objectName),
-      description: text(BacnetPropertyId.description),
-      location: text(BacnetPropertyId.location),
-      modelName: text(BacnetPropertyId.modelName),
-      vendorName: text(BacnetPropertyId.vendorName),
-      firmwareRevision: text(BacnetPropertyId.firmwareRevision),
-      applicationSoftwareVersion: text(
-        BacnetPropertyId.applicationSoftwareVersion,
+      vendorId: props.get(BacnetProperties.vendorIdentifier),
+      maxApduLength: props.get(BacnetProperties.maxApduLengthAccepted),
+      segmentationSupported: props.get(BacnetProperties.segmentationSupported),
+      deviceName: props.get(BacnetProperties.objectName),
+      description: props.get(BacnetProperties.description),
+      location: props.get(BacnetProperties.location),
+      modelName: props.get(BacnetProperties.modelName),
+      vendorName: props.get(BacnetProperties.vendorName),
+      firmwareRevision: props.get(BacnetProperties.firmwareRevision),
+      applicationSoftwareVersion: props.get(
+        BacnetProperties.applicationSoftwareVersion,
       ),
-      protocolVersion: integer(BacnetPropertyId.protocolVersion),
-      protocolRevision: integer(BacnetPropertyId.protocolRevision),
+      protocolVersion: props.get(BacnetProperties.protocolVersion),
+      protocolRevision: props.get(BacnetProperties.protocolRevision),
     );
   }
 

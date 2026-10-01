@@ -53,6 +53,10 @@ README.
 - **Breaking**: `scanDevice` takes `background`/`cancelToken` instead of
   the ignored `endDeviceId`.
 - `DeviceScanner` sends background requests by default (`background`).
+- **Breaking**: I-Have, UnconfirmedTextMessage and
+  UnconfirmedPrivateTransfer arrive as typed events;
+  `UnconfirmedServiceEvent` remains for event notifications and requests
+  that cannot be decoded.
 - **Dependencies**: bacnet-stack 1.7.0-rc4 (security fixes for BVLC header
   encoding, enclosed data and constructed value decoding); the server
   object table gains Averaging, and Accumulator supports COV.
@@ -88,6 +92,22 @@ README.
   devices with discovery, real error codes, priority arrays, COV
   notifications, trend log records, latency and offline simulation, and a
   request log for assertions.
+- **Typed properties**: `BacnetProperty<T>`/`BacnetWritableProperty<T>`
+  and the `BacnetProperties` catalogue of standard properties;
+  `client.read`/`client.write` (also on `BacnetServer` and
+  `FakeBacnetClient`) return and accept the Dart type, read-only
+  properties cannot be written, and `get` reads `readMultiple` results.
+- **Constructed datatypes**: `BacnetWeeklySchedule`, `BacnetTimeValue`,
+  `BacnetSpecialEvent`, `BacnetCalendarEntry`, `BacnetDateRange`,
+  `BacnetWeekNDay`, `BacnetDateTime`, `BacnetTimeStamp`,
+  `BacnetDeviceObjectPropertyReference`, `BacnetAddressBinding`,
+  `BacnetPriorityArray`, `BacnetEventTransitionBits` and
+  `BacnetLimitEnable` convert from and to the values of schedules,
+  calendars, trend logs and event reporting. Checked against
+  bacnet-stack's `bacserv`.
+- **Typed service events**: `IHaveEvent`, `TextMessageEvent` and
+  `PrivateTransferEvent` instead of raw `UnconfirmedServiceEvent`s;
+  `sendWhoHas` (answered by `FakeBacnetDevice`s too).
 - JSON for values, write specifications and trend logs
   (`{"datatype": "real", "value": 21.5}`).
 - Constants `BacnetBinaryPV` and `BacnetPolarity`.

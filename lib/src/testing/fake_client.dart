@@ -15,6 +15,7 @@ import '../core/bacnet_config.dart';
 import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/types.dart';
+import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
 import '../models/events.dart';
@@ -34,6 +35,7 @@ final class FakeBacnetRequest {
     this.priority,
     this.time,
     this.address,
+    this.objectName,
   });
 
   /// Client method, e.g. `readProperty`, `writeProperty`, `subscribeCOV`.
@@ -59,6 +61,9 @@ final class FakeBacnetRequest {
 
   /// BBMD address (`host:port`) of `registerForeignDevice`.
   final String? address;
+
+  /// Object name searched by `sendWhoHas`.
+  final String? objectName;
 
   @override
   String toString() =>
@@ -443,6 +448,48 @@ class FakeBacnetClient implements BacnetClient {
   }
 
   @override
+  Future<void> sendWhoHas({
+    BacnetObject? object,
+    String? objectName,
+    int lowLimit = -1,
+    int highLimit = -1,
+    int network = 0xFFFF,
+  }) async {
+    _checkStarted();
+    if ((object == null) == (objectName == null)) {
+      throw ArgumentError('give either object or objectName');
+    }
+    requests.add(
+      FakeBacnetRequest('sendWhoHas', object: object, objectName: objectName),
+    );
+    for (final device in _devices.values) {
+      final id = device.deviceId;
+      if (!device.online ||
+          (lowLimit >= 0 && id < lowLimit) ||
+          (highLimit >= 0 && id > highLimit)) {
+        continue;
+      }
+      for (final candidate in device.objects) {
+        final name =
+            candidate.properties[BacnetPropertyId.objectName]?.asString ?? '';
+        if (candidate.identifier != object && name != objectName) continue;
+        unawaited(
+          Future<void>.delayed(latency + device.latency, () {
+            if (_events.isClosed) return;
+            _events.add(
+              IHaveEvent(
+                deviceId: id,
+                object: candidate.identifier,
+                objectName: name,
+              ),
+            );
+          }),
+        );
+      }
+    }
+  }
+
+  @override
   Future<BacnetValue> readProperty(
     int deviceId,
     BacnetObjectType objectType,
@@ -480,6 +527,44 @@ class FakeBacnetClient implements BacnetClient {
       return value[arrayIndex - 1];
     });
   }
+
+  @override
+  Future<T> read<T>(
+    int deviceId,
+    BacnetObject object,
+    BacnetProperty<T> property, {
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => readProperty(
+    deviceId,
+    object.type,
+    object.instance,
+    property.id,
+    cancelToken: cancelToken,
+  ).then(property.decode);
+
+  @override
+  Future<void> write<T>(
+    int deviceId,
+    BacnetObject object,
+    BacnetWritableProperty<T> property,
+    T value, {
+    int priority = 16,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => Future.sync(
+    () => writeProperty(
+      deviceId,
+      object.type,
+      object.instance,
+      property.id,
+      property.encode(value),
+      priority: priority,
+      cancelToken: cancelToken,
+    ),
+  );
 
   @override
   Future<Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>>
