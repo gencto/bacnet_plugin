@@ -1,3 +1,6 @@
+/// @docImport '../core/bacnet_config.dart';
+library;
+
 import 'dart:async';
 
 import 'package:meta/meta.dart';

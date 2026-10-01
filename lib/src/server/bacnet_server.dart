@@ -1,11 +1,14 @@
+/// @docImport '../client/bacnet_client.dart';
+library;
+
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
-import '../codec/writer.dart';
 import '../codec/value_encoding.dart';
+import '../codec/writer.dart';
 import '../constants/property_ids.dart';
 import '../core/bacnet_config.dart';
 import '../core/exceptions.dart';
@@ -305,8 +308,8 @@ class BacnetServer {
 
   static double? _number(Object? value) => switch (value) {
     null => null,
-    bool v => v ? 1 : 0,
-    num v => v.toDouble(),
+    final bool v => v ? 1 : 0,
+    final num v => v.toDouble(),
     _ => throw BacnetEncodeException(
       'unsupported present value type ${value.runtimeType}',
     ),

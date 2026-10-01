@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:bacnet_plugin/bacnet_plugin.dart';
-import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
 
 class MockBacnetClient extends Mock implements BacnetClient {}
 
@@ -18,8 +18,8 @@ void main() {
     scanner = DeviceScanner(mockClient);
   });
 
-  tearDown(() {
-    eventController.close();
+  tearDown(() async {
+    await eventController.close();
   });
 
   group('DeviceScanner', () {

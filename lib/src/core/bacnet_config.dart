@@ -1,3 +1,8 @@
+/// @docImport '../client/bacnet_client.dart';
+/// @docImport '../server/bacnet_server.dart';
+/// @docImport 'exceptions.dart';
+library;
+
 import '../models/bacnet_object.dart';
 import 'logger.dart';
 import 'types.dart';

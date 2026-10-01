@@ -1,3 +1,7 @@
+/// @docImport '../server/bacnet_server.dart';
+/// @docImport '../utilities/property_monitor.dart';
+library;
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -352,8 +356,8 @@ class BacnetClient {
   }
 
   static List<BacnetObject> _objects(Object? value) => switch (value) {
-    BacnetObject object => [object],
-    List<Object?> list => list.whereType<BacnetObject>().toList(),
+    final BacnetObject object => [object],
+    final List<Object?> list => list.whereType<BacnetObject>().toList(),
     _ => const [],
   };
 

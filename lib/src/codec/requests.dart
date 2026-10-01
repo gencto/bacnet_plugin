@@ -70,7 +70,7 @@ Uint8List encodeWriteProperty(
 Uint8List encodeWritePropertyMultiple(
   List<BacnetWriteAccessSpecification> specs,
 ) {
-  final w = BacnetWriter(64);
+  final w = BacnetWriter();
   for (final spec in specs) {
     final object = spec.objectIdentifier;
     w

@@ -78,8 +78,6 @@ const List<_File> _files = [
       doc: 'BACnet property identifiers (BACnetPropertyIdentifier).',
       unknown: r'Property $value',
       skip: {'BLANK_1'},
-      names: {},
-      labels: {},
     ),
   ]),
   _File('errors.dart', [

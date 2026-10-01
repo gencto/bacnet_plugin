@@ -1,3 +1,6 @@
+/// @docImport '../constants/property_ids.dart';
+library;
+
 import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
 

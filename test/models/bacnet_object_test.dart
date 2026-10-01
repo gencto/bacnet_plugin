@@ -187,9 +187,9 @@ void main() {
 
         expect(json['type'], equals(0));
         expect(json['instance'], equals(1));
-        expect(json['properties'], isA<Map<String, dynamic>>());
-        expect(json['properties']['77'], equals('Test'));
-        expect(json['properties']['85'], equals(22.5));
+        final properties = json['properties'] as Map<String, dynamic>;
+        expect(properties['77'], equals('Test'));
+        expect(properties['85'], equals(22.5));
       });
 
       test('fromJson deserializes correctly', () {

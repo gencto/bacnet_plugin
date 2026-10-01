@@ -1,3 +1,8 @@
+/// @docImport '../client/bacnet_client.dart';
+/// @docImport '../server/bacnet_server.dart';
+/// @docImport 'bacnet_config.dart';
+library;
+
 import '../constants/errors.dart';
 
 /// Base exception class for BACnet operations.

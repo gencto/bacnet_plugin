@@ -1,3 +1,7 @@
+/// @docImport '../client/bacnet_client.dart';
+/// @docImport '../server/bacnet_server.dart';
+library;
+
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';

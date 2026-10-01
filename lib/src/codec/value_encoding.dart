@@ -100,29 +100,29 @@ void encodeApplicationValue(BacnetWriter writer, Object? value, {int? tag}) {
     switch (value) {
       case null:
         writer.appNull();
-      case bool v:
+      case final bool v:
         writer.appBoolean(v);
-      case int v:
+      case final int v:
         if (v < 0) {
           writer.appSigned(v);
         } else {
           writer.appUnsigned(v);
         }
-      case double v:
+      case final double v:
         writer.appReal(v);
-      case String v:
+      case final String v:
         writer.appCharacterString(v);
-      case BacnetObject v:
+      case final BacnetObject v:
         writer.appObjectId(v.type, v.instance);
-      case BacnetDate v:
+      case final BacnetDate v:
         writer.appDate(v);
-      case BacnetTime v:
+      case final BacnetTime v:
         writer.appTime(v);
-      case BacnetBitString v:
+      case final BacnetBitString v:
         writer.appBitString(v);
-      case Uint8List v:
+      case final Uint8List v:
         writer.appOctetString(v);
-      case List<Object?> v:
+      case final List<Object?> v:
         for (final item in v) {
           encodeApplicationValue(writer, item);
         }

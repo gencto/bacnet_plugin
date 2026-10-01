@@ -14,7 +14,7 @@ void main() {
   late MockBacnetClient client;
   late StreamController<CovNotificationEvent> covController;
 
-  void stubSubscribe({Object? error}) {
+  void stubSubscribe({Exception? error}) {
     when(
       () => client.subscribeCOV(
         any(),
@@ -116,20 +116,12 @@ void main() {
           deviceId,
           0,
           1,
-          propId: propertyId,
           processId: 42,
           lifetime: any(named: 'lifetime'),
-          confirmed: false,
         ),
       ).called(1);
       verify(
-        () => client.unsubscribeCOV(
-          deviceId,
-          0,
-          1,
-          propId: propertyId,
-          processId: 42,
-        ),
+        () => client.unsubscribeCOV(deviceId, 0, 1, processId: 42),
       ).called(1);
     });
 
