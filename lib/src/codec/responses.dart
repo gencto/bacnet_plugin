@@ -471,3 +471,51 @@ List<BacnetAlarmSummary> decodeGetAlarmSummaryAck(Uint8List data) {
   }
   return List.unmodifiable(result);
 }
+
+/// Decoded AcknowledgeAlarm request.
+typedef AcknowledgeAlarmData = ({
+  int processId,
+  BacnetObject object,
+  BacnetEventState eventState,
+  BacnetTimeStamp timeStamp,
+  String source,
+  BacnetTimeStamp timeOfAcknowledgment,
+});
+
+/// Decodes an AcknowledgeAlarm request (ASHRAE 135 clause 13.5).
+AcknowledgeAlarmData decodeAcknowledgeAlarm(Uint8List data) {
+  final r = BacnetReader(data);
+  return (
+    processId: r.readContextUnsigned(0),
+    object: r.readContextObjectId(1),
+    eventState: BacnetEventState(r.readContextUnsigned(2)),
+    timeStamp: _readTimeStamp(r, 3),
+    source: r.readContextCharacterString(4),
+    timeOfAcknowledgment: _readTimeStamp(r, 5),
+  );
+}
+
+/// Decoded AddListElement or RemoveListElement request.
+typedef ListElementsData = ({
+  BacnetObject object,
+  BacnetPropertyId propertyId,
+  int arrayIndex,
+  BacnetValue elements,
+});
+
+/// Decodes an AddListElement or RemoveListElement request (ASHRAE 135
+/// clauses 15.1 and 15.2); the elements one after another.
+ListElementsData decodeListElements(Uint8List data) {
+  final r = BacnetReader(data);
+  final object = r.readContextObjectId(0);
+  final propertyId = BacnetPropertyId(r.readContextUnsigned(1));
+  final arrayIndex = r.readOptionalContextUnsigned(2) ?? -1;
+  r.expectOpening(3);
+  final elements = r.readValuesUntilClosing(3);
+  return (
+    object: object,
+    propertyId: propertyId,
+    arrayIndex: arrayIndex,
+    elements: BacnetList(List.unmodifiable(elements)),
+  );
+}

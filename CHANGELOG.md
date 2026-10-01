@@ -39,10 +39,25 @@ Alarms and events. See *Migrating from 0.2.x* in the README.
   confirmed, device recipients resolved with Who-Is) and answers
   AcknowledgeAlarm, GetEventInformation, GetAlarmSummary and
   Add/RemoveListElement.
+- **Client — subscriptions**: `client.subscribeAlarms(deviceId,
+  notificationClass: n)` adds the client to the Recipient_List (with
+  WriteProperty for devices without AddListElement) and returns an
+  `AlarmSubscription` with its `notifications`, `eventInformation()`,
+  `refresh()` and `cancel()`. `BacnetClient.localAddress()` returns the
+  BACnet/IP address of the client. `BacnetEventSummary` lists its
+  `unacknowledgedTransitions` with `timeStampOf` and `stateOf` for
+  acknowledging them.
+- **Server — events**: `alarmAcknowledgements`
+  (`AlarmAcknowledgedEvent`) and `listElementEvents` (`ListElementEvent`,
+  e.g. to persist Recipient_List changes).
+- **Example**: an alarms screen per device (subscription, active alarms,
+  acknowledgement, notification log) with a widget test on
+  `FakeBacnetClient`.
 - **Testing**: fake devices simulate event reporting
   (`FakeBacnetDevice.addNotificationClass`,
   `FakeBacnetObject.enableEventReporting`, `reportEvent`), acknowledgements,
-  event information, alarm summaries and list services.
+  event information, alarm summaries and list services;
+  `FakeBacnetDevice.unsupportedServices` rejects services.
 
 ### Changed
 

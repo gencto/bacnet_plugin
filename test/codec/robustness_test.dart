@@ -6,6 +6,7 @@ import 'package:bacnet_plugin/src/codec/requests.dart';
 import 'package:bacnet_plugin/src/codec/responses.dart';
 import 'package:test/test.dart';
 
+import '../support/alarm_vectors.dart';
 import '../support/codec_helpers.dart';
 
 void main() {
@@ -52,6 +53,18 @@ void main() {
         0x2F,
         0x4F,
       ]),
+      for (final hex in [
+        vectorOutOfRange,
+        vectorChangeOfState,
+        vectorBufferReady,
+        vectorChangeOfValue,
+        vectorAcknowledgeAlarm,
+        vectorGetEventInformationAck,
+        vectorGetAlarmSummaryAck,
+        vectorDestinationAddress + vectorDestinationDevice,
+        vectorAddListElement,
+      ])
+        hexBytes(hex),
     ];
 
     void decodeAll(Uint8List data) {
@@ -62,6 +75,12 @@ void main() {
         decodeCovNotification,
         decodeComplexError,
         decodeApplicationData,
+        decodeEventNotification,
+        decodeGetEventInformationAck,
+        decodeGetAlarmSummaryAck,
+        decodeAcknowledgeAlarm,
+        decodeListElements,
+        (data) => BacnetDestination.listFromValue(decodeApplicationData(data)),
       ]) {
         try {
           decoder(data);
@@ -81,7 +100,7 @@ void main() {
 
     test('random and mutated packets only raise BacnetDecodeException', () {
       final random = Random(1234);
-      for (var i = 0; i < 20000; i++) {
+      for (var i = 0; i < 50000; i++) {
         final Uint8List data;
         if (i.isEven) {
           data = Uint8List.fromList(

@@ -8,8 +8,13 @@
 #include <string.h>
 
 #include "bacnet/apdu.h"
+#include "bacnet/list_element.h"
+#include "bacnet/alarm_ack.h"
 #include "bacnet/basic/object/bv.h"
 #include "bacnet/basic/object/device.h"
+#include "bacnet/basic/object/ai.h"
+#include "bacnet/basic/object/av.h"
+#include "bacnet/basic/object/bi.h"
 #include "bacnet/basic/object/msv.h"
 #include "bacnet/basic/object/nc.h"
 #include "bacnet/basic/services.h"
@@ -44,14 +49,101 @@ static bool bp_on_write_store(BACNET_WRITE_PROPERTY_DATA *wp_data)
     return true;
 }
 
-static int bp_on_list_element(BACNET_LIST_ELEMENT_DATA *list_element)
+/* source of the confirmed request being handled (for BP_EVENT_SERVICE) */
+static BACNET_ADDRESS bp_service_src;
+static bool bp_service_src_valid;
+
+static void bp_service_event(
+    uint8_t service, const uint8_t *request, int request_len)
 {
-    if (list_element &&
-        list_element->object_type == OBJECT_NOTIFICATION_CLASS &&
+    bp_event_header_t hdr;
+
+    if (request_len <= 0) {
+        return;
+    }
+    bp_event_init(&hdr, BP_EVENT_SERVICE);
+    hdr.service = service;
+    if (bp_service_src_valid) {
+        bp_event_src(&hdr, &bp_service_src);
+    }
+    bp_event_push(&hdr, request, (uint32_t)request_len);
+}
+
+void bp_list_element_changed(
+    uint8_t service, const BACNET_LIST_ELEMENT_DATA *list_element)
+{
+    uint8_t request[MAX_APDU];
+    size_t len;
+
+    if (!list_element) {
+        return;
+    }
+    if (list_element->object_type == OBJECT_NOTIFICATION_CLASS &&
         list_element->object_property == PROP_RECIPIENT_LIST) {
         bp_state.nc_rescan = true;
     }
-    return BACNET_STATUS_OK;
+    len = list_element_service_request_encode(
+        request, sizeof(request), list_element);
+    bp_service_event(service, request, (int)len);
+}
+
+/* the stack handlers, with the source address kept for the events */
+#define BP_SERVICE_HANDLER(name, handler)                               \
+    static void name(                                                   \
+        uint8_t *request, uint16_t len, BACNET_ADDRESS *src,            \
+        BACNET_CONFIRMED_SERVICE_DATA *service_data)                    \
+    {                                                                   \
+        if (src) {                                                      \
+            bp_service_src = *src;                                      \
+            bp_service_src_valid = true;                                \
+        }                                                               \
+        handler(request, len, src, service_data);                       \
+        bp_service_src_valid = false;                                   \
+    }
+
+BP_SERVICE_HANDLER(bp_on_add_list_element, handler_add_list_element)
+BP_SERVICE_HANDLER(bp_on_remove_list_element, handler_remove_list_element)
+
+#if defined(INTRINSIC_REPORTING)
+BP_SERVICE_HANDLER(bp_on_alarm_ack, handler_alarm_ack)
+
+static void bp_alarm_acked(const BACNET_ALARM_ACK_DATA *data)
+{
+    uint8_t request[MAX_APDU];
+
+    bp_service_event(
+        SERVICE_CONFIRMED_ACKNOWLEDGE_ALARM, request,
+        alarm_ack_encode_service_request(request, data));
+}
+
+/* the acknowledgement functions of the objects, reporting successful
+   acknowledgements to Dart */
+#define BP_ALARM_ACK(name, function)                                    \
+    static int name(BACNET_ALARM_ACK_DATA *data, BACNET_ERROR_CODE *code) \
+    {                                                                   \
+        int rc = function(data, code);                                  \
+        if (rc == 1) {                                                  \
+            bp_alarm_acked(data);                                       \
+        }                                                               \
+        return rc;                                                      \
+    }
+
+BP_ALARM_ACK(bp_analog_input_ack, Analog_Input_Alarm_Ack)
+BP_ALARM_ACK(bp_analog_value_ack, Analog_Value_Alarm_Ack)
+BP_ALARM_ACK(bp_binary_input_ack, Binary_Input_Alarm_Ack)
+BP_ALARM_ACK(bp_binary_value_ack, Binary_Value_Alarm_Ack)
+#endif
+
+/* Installs the acknowledgement wrappers. The objects register their own
+   functions when they are created, so this runs after every creation. */
+void bp_alarm_ack_hooks(void)
+{
+#if defined(INTRINSIC_REPORTING)
+    handler_alarm_ack_set(OBJECT_ANALOG_INPUT, bp_analog_input_ack);
+    handler_alarm_ack_set(OBJECT_ANALOG_VALUE, bp_analog_value_ack);
+    handler_alarm_ack_set(OBJECT_BINARY_INPUT, bp_binary_input_ack);
+    handler_alarm_ack_set(OBJECT_BINARY_VALUE, bp_binary_value_ack);
+#endif
 }
 
 /* Runs the event algorithms of the objects (intrinsic reporting) once per
@@ -151,12 +243,12 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_REINITIALIZE_DEVICE, handler_reinitialize_device);
         apdu_set_confirmed_handler(
-            SERVICE_CONFIRMED_ADD_LIST_ELEMENT, handler_add_list_element);
+            SERVICE_CONFIRMED_ADD_LIST_ELEMENT, bp_on_add_list_element);
         apdu_set_confirmed_handler(
-            SERVICE_CONFIRMED_REMOVE_LIST_ELEMENT, handler_remove_list_element);
+            SERVICE_CONFIRMED_REMOVE_LIST_ELEMENT, bp_on_remove_list_element);
 #if defined(INTRINSIC_REPORTING)
         apdu_set_confirmed_handler(
-            SERVICE_CONFIRMED_ACKNOWLEDGE_ALARM, handler_alarm_ack);
+            SERVICE_CONFIRMED_ACKNOWLEDGE_ALARM, bp_on_alarm_ack);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_GET_EVENT_INFORMATION,
             handler_get_event_information);
@@ -165,8 +257,7 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
 #endif
         handler_cov_init();
         Device_Write_Property_Store_Callback_Set(bp_on_write_store);
-        Device_Add_List_Element_Callback_Set(bp_on_list_element);
-        Device_Remove_List_Element_Callback_Set(bp_on_list_element);
+        bp_alarm_ack_hooks();
         bp_state.nc_rescan = true;
         bp_state.nc_rescan_elapsed = 0;
         bp_state.server_enabled = true;
@@ -276,6 +367,7 @@ BP_API int64_t bacnet_plugin_object_create(
     data.object_type = (BACNET_OBJECT_TYPE)object_type;
     data.object_instance = instance;
     if (Device_Create_Object(&data)) {
+        bp_alarm_ack_hooks();
         /* value objects are writable by clients like their BACnet
            definition requires; bacnet-stack disables it by default */
         switch (data.object_type) {

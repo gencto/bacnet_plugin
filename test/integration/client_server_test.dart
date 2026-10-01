@@ -583,6 +583,18 @@ void main() {
         .firstWhere(test)
         .timeout(const Duration(seconds: 10));
 
+    /// The first line of the server output matching [test].
+    Future<String> serverLine(bool Function(String) test) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (DateTime.now().isBefore(deadline)) {
+        for (final line in server.lines) {
+          if (test(line)) return line;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      throw TimeoutException('no matching server output');
+    }
+
     Future<List<BacnetDestination>> recipients() =>
         client.read(device, notificationClass, BacnetProperties.recipientList);
 
@@ -602,6 +614,10 @@ void main() {
         [unconfirmed],
       );
       expect(await recipients(), [unconfirmed]);
+      expect(
+        await serverLine((l) => l.startsWith('LIST') && l.contains('added to')),
+        contains('Recipient List'),
+      );
 
       // the value exceeds the high limit
       final alarmReceived = next(
@@ -661,6 +677,10 @@ void main() {
       );
       await client.acknowledgeEvent(alarm, source: 'integration test');
       expect((await ackReceived).toState, BacnetEventState.highLimit);
+      expect(
+        await serverLine((l) => l.startsWith('ACK')),
+        allOf(contains('High Limit'), contains('"integration test"')),
+      );
       expect(
         (await client.getEventInformation(
           device,
@@ -750,6 +770,12 @@ void main() {
         [confirmed],
       );
       expect(await recipients(), isEmpty);
+      expect(
+        await serverLine(
+          (l) => l.startsWith('LIST') && l.contains('removed from'),
+        ),
+        contains('Recipient List'),
+      );
     });
     test('subscribes with subscribeAlarms', () async {
       final me = await client.localAddress();

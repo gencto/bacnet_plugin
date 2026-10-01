@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../widgets/empty_state_widget.dart';
+import 'alarms_screen.dart';
 import 'object_monitor_screen.dart';
 
 /// Screen displaying details and objects for a specific BACnet device.
@@ -116,12 +117,33 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     }
   }
 
+  void _openAlarms() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (context) => AlarmsScreen(
+          deviceId: widget.deviceId,
+          notificationClasses: [
+            for (final object in _objects ?? const <BacnetObject>[])
+              if (object.type == BacnetObjectType.notificationClass)
+                object.instance,
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_device?.deviceName ?? 'Device ${widget.deviceId}'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: _isLoading || _objects == null ? null : _openAlarms,
+            tooltip: 'Alarms',
+          ),
           IconButton(
             icon: const Icon(Icons.science),
             onPressed: _isLoading ? null : _testRpm,

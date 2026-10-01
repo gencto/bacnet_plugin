@@ -73,6 +73,11 @@ extern "C" {
 #define BP_EVENT_WRITE 9
 /** Diagnostic message, data = UTF-8 text, a = level (0 debug .. 3 error) */
 #define BP_EVENT_LOG 10
+/** A confirmed service request of a remote client changed the server and
+ *  was answered with success: AcknowledgeAlarm, AddListElement or
+ *  RemoveListElement. service = confirmed service choice, data = the
+ *  service request. */
+#define BP_EVENT_SERVICE 11
 
 #define BP_FLAG_ABORT_FROM_SERVER 0x01
 #define BP_FLAG_COMPLEX 0x02

@@ -65,6 +65,8 @@ Future<void> main(List<String> args) async {
     notifyType: BacnetNotifyType.event,
   );
   server.writeEvents.listen((e) => print('WRITE $e'));
+  server.alarmAcknowledgements.listen((e) => print('ACK $e'));
+  server.listElementEvents.listen((e) => print('LIST $e'));
   print('READY ${server.config.port} device $deviceId objects $objects');
   final random = Random(1);
   // keep values moving to exercise COV

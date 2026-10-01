@@ -387,6 +387,8 @@ final class _Worker implements RequestTransport {
         }
       case BP_EVENT_WRITE:
         _emit(_writeEvent(event));
+      case BP_EVENT_SERVICE:
+        _emit(_serviceRequestEvent(event));
       case BP_EVENT_LOG:
         _log(
           BacnetLogLevel.values[event.a.clamp(0, 3)],
@@ -528,6 +530,42 @@ final class _Worker implements RequestTransport {
       _log(BacnetLogLevel.warning, 'malformed event notification: $e');
       return _serviceEvent(event, confirmed: confirmed);
     }
+  }
+
+  /// The typed event of a confirmed request that changed the local server,
+  /// or the raw request when it is malformed.
+  BacnetEvent _serviceRequestEvent(NativeEvent event) {
+    try {
+      switch (event.service) {
+        case BacnetConfirmedService.acknowledgeAlarm:
+          final ack = decodeAcknowledgeAlarm(event.data);
+          return AlarmAcknowledgedEvent(
+            processId: ack.processId,
+            object: ack.object,
+            eventState: ack.eventState,
+            timeStamp: ack.timeStamp,
+            source: ack.source,
+            timeOfAcknowledgment: ack.timeOfAcknowledgment,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+        case BacnetConfirmedService.addListElement ||
+            BacnetConfirmedService.removeListElement:
+          final list = decodeListElements(event.data);
+          return ListElementEvent(
+            object: list.object,
+            propertyId: list.propertyId,
+            arrayIndex: list.arrayIndex,
+            added: event.service == BacnetConfirmedService.addListElement,
+            elements: list.elements,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+      }
+    } on BacnetDecodeException catch (e) {
+      _log(BacnetLogLevel.warning, 'malformed service ${event.service}: $e');
+    }
+    return _serviceEvent(event, confirmed: true);
   }
 
   UnconfirmedServiceEvent _serviceEvent(

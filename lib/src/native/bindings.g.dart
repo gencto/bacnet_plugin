@@ -371,6 +371,8 @@ const int BP_EVENT_LOG = 10;
 
 const int BP_EVENT_REJECT = 4;
 
+const int BP_EVENT_SERVICE = 11;
+
 const int BP_EVENT_SIMPLE_ACK = 2;
 
 const int BP_EVENT_TIMEOUT = 6;

@@ -456,19 +456,12 @@ to `sendWhoHas`), `TextMessageEvent` and `PrivateTransferEvent`.
 ## Alarms and events
 
 Devices report alarms and events to the recipients of a Notification
-Class. A client becomes a recipient by adding a destination to its
-Recipient_List, then receives `EventNotificationEvent`s:
+Class. `subscribeAlarms` adds this client (its `localAddress()`) to the
+Recipient_List of a class and returns the subscription:
 
 ```dart
-const alarms = BacnetObject(type: BacnetObjectType.notificationClass, instance: 1);
-await client.addListElements(1234, alarms, BacnetProperties.recipientList, [
-  BacnetDestination(
-    recipient: BacnetRecipient.ip('192.168.1.10', 47808), // this client
-    processId: 7,
-  ),
-]);
-
-client.eventNotifications.listen((event) async {
+final alarms = await client.subscribeAlarms(1234, notificationClass: 1);
+alarms.notifications.listen((event) async {
   print('${event.object}: ${event.fromState?.label} -> ${event.toState.label}');
   switch (event.eventValues) {
     case BacnetOutOfRangeValues(:final exceedingValue, :final exceededLimit):
@@ -482,15 +475,35 @@ client.eventNotifications.listen((event) async {
     await client.acknowledgeEvent(event, source: 'operator');
   }
 });
+// ...
+await alarms.cancel(); // removes the client from the Recipient_List
 ```
+
+Devices without AddListElement get the destination written with
+WriteProperty. `alarms.refresh()` adds it again when a device lost it
+(e.g. after a restart). `client.eventNotifications` delivers the
+notifications of all subscriptions; `addListElements` with
+`BacnetProperties.recipientList` adds any `BacnetDestination` (another
+recipient, a device recipient, confirmed notifications, selected days and
+transitions).
 
 The values of every event algorithm are a subclass of the sealed
 `BacnetEventValues` (out of range, change of state, change of value,
 buffer ready, change of reliability, ...). `getEventInformation` lists the
 objects in alarm or with unacknowledged transitions, `getAlarmSummary` the
-objects in alarm; `acknowledgeAlarm` acknowledges a transition of such a
-summary (`summary.stateTimeStamp`). `addListElement`/`removeListElement`
-change any list property.
+objects in alarm:
+
+```dart
+for (final summary in await client.getEventInformation(1234)) {
+  for (final transition in summary.unacknowledgedTransitions) {
+    await client.acknowledgeAlarm(1234, summary.object,
+        summary.stateOf(transition), summary.timeStampOf(transition)!,
+        source: 'operator');
+  }
+}
+```
+
+`addListElement`/`removeListElement` change any list property.
 
 The server reports alarms of Analog and Binary Inputs and Values itself
 (the event algorithms of bacnet-stack run every second):
@@ -509,6 +522,11 @@ await server.enableEventReporting(
 // clients add themselves to Recipient_List; values beyond the limits are
 // reported to them and acknowledged with AcknowledgeAlarm
 ```
+
+The server reports what clients change: `alarmAcknowledgements` (who
+acknowledged which alarm) and `listElementEvents` (recipients added or
+removed, e.g. to persist the Recipient_List; bacnet-stack keeps it in
+memory only).
 
 Notification Class instances 0..63 are available, with up to 10
 recipients each. bacnet-stack keeps one destination per recipient: adding
@@ -553,7 +571,9 @@ expect(client.requests.where((r) => r.service == 'writeProperty'), isEmpty);
 
 Fake devices report alarms to the clients in the Recipient_List of a
 Notification Class, keep the event state for `getEventInformation` and
-`getAlarmSummary` and check acknowledgements like a device:
+`getAlarmSummary` and check acknowledgements like a device.
+`device.unsupportedServices` makes a device reject services, to test the
+fallbacks of an application:
 
 ```dart
 ahu.addNotificationClass(1);
