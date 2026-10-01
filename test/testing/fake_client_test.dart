@@ -300,4 +300,176 @@ void main() {
     expect(data.entries.map((e) => e.value?.asDouble), [7.0, 8.0, 9.0]);
     expect(data.totalRecords, 10);
   });
+
+  group('alarms', () {
+    const notificationClass = BacnetObject(
+      type: BacnetObjectType.notificationClass,
+      instance: 1,
+    );
+    final destination = BacnetDestination(
+      recipient: BacnetRecipient.ip('127.0.0.1', 47808),
+      processId: 9,
+    );
+    late FakeBacnetObject sensor;
+
+    setUp(() {
+      ahu.addNotificationClass(1);
+      sensor = ahu.object(BacnetObjectType.analogInput, 1)!
+        ..enableEventReporting(notificationClass: 1);
+    });
+
+    Matcher protocolError(BacnetErrorCode code) => throwsA(
+      isA<BacnetProtocolException>().having((e) => e.errorCode, 'code', code),
+    );
+
+    test('reports, summarizes and acknowledges alarms', () async {
+      await client.addListElements(
+        1234,
+        notificationClass,
+        BacnetProperties.recipientList,
+        [destination],
+      );
+      // adding the same destination again changes nothing
+      await client.addListElements(
+        1234,
+        notificationClass,
+        BacnetProperties.recipientList,
+        [destination],
+      );
+      expect(
+        await client.read(
+          1234,
+          notificationClass,
+          BacnetProperties.recipientList,
+        ),
+        [destination],
+      );
+
+      final alarmReceived = client.eventNotifications.first;
+      sensor.reportEvent(
+        BacnetEventState.highLimit,
+        eventValues: const BacnetOutOfRangeValues(
+          exceedingValue: 31,
+          statusFlags: BacnetStatusFlags(inAlarm: true),
+          deadband: 1,
+          exceededLimit: 30,
+        ),
+        messageText: 'too hot',
+      );
+      final alarm = await alarmReceived;
+      expect(alarm.processId, 9);
+      expect(alarm.deviceId, 1234);
+      expect(alarm.object, sensor.identifier);
+      expect(alarm.eventType, BacnetEventType.outOfRange);
+      expect(alarm.notifyType, BacnetNotifyType.alarm);
+      expect(alarm.fromState, BacnetEventState.normal);
+      expect(alarm.toState, BacnetEventState.highLimit);
+      expect(alarm.ackRequired, isTrue);
+      expect(alarm.priority, 100);
+      expect(alarm.messageText, 'too hot');
+
+      expect(
+        await client.read(1234, sensor.identifier, BacnetProperties.eventState),
+        BacnetEventState.highLimit,
+      );
+      expect(
+        (await client.read(
+          1234,
+          sensor.identifier,
+          BacnetProperties.statusFlags,
+        )).inAlarm,
+        isTrue,
+      );
+      final [summary] = await client.getEventInformation(1234);
+      expect(summary.object, sensor.identifier);
+      expect(summary.isUnacknowledged, isTrue);
+      expect(summary.stateTimeStamp, alarm.timeStamp);
+      expect(summary.eventPriorities, [100, 100, 200]);
+      final [alarmSummary] = await client.getAlarmSummary(1234);
+      expect(alarmSummary.alarmState, BacnetEventState.highLimit);
+
+      await expectLater(
+        client.acknowledgeAlarm(
+          1234,
+          sensor.identifier,
+          BacnetEventState.highLimit,
+          const BacnetTimeStampSequence(1),
+          source: 'operator',
+        ),
+        protocolError(BacnetErrorCode.invalidTimeStamp),
+      );
+
+      final ackReceived = client.eventNotifications.first;
+      await client.acknowledgeEvent(alarm, source: 'operator');
+      final ack = await ackReceived;
+      expect(ack.isAckNotification, isTrue);
+      expect(ack.toState, BacnetEventState.highLimit);
+      expect(client.requests.last.source, 'operator');
+      expect(
+        (await client.getEventInformation(1234)).single.isUnacknowledged,
+        isFalse,
+      );
+
+      // TO-NORMAL needs no acknowledgement by default
+      final normalReceived = client.eventNotifications.first;
+      sensor.reportEvent(BacnetEventState.normal);
+      final normal = await normalReceived;
+      expect(normal.ackRequired, isFalse);
+      expect(normal.fromState, BacnetEventState.highLimit);
+      expect(await client.getEventInformation(1234), isEmpty);
+      expect(await client.getAlarmSummary(1234), isEmpty);
+      await expectLater(
+        client.acknowledgeEvent(alarm, source: 'operator'),
+        protocolError(BacnetErrorCode.invalidEventState),
+      );
+    });
+
+    test('removes recipients', () async {
+      await client.addListElements(
+        1234,
+        notificationClass,
+        BacnetProperties.recipientList,
+        [destination],
+      );
+      await client.removeListElements(
+        1234,
+        notificationClass,
+        BacnetProperties.recipientList,
+        [destination],
+      );
+      expect(
+        await client.read(
+          1234,
+          notificationClass,
+          BacnetProperties.recipientList,
+        ),
+        isEmpty,
+      );
+      await expectLater(
+        client.removeListElements(
+          1234,
+          notificationClass,
+          BacnetProperties.recipientList,
+          [destination],
+        ),
+        protocolError(BacnetErrorCode.listElementNotFound),
+      );
+
+      var received = 0;
+      final subscription = client.eventNotifications.listen((_) => received++);
+      sensor.reportEvent(BacnetEventState.lowLimit);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await subscription.cancel();
+      expect(received, 0);
+      expect(sensor.eventState, BacnetEventState.lowLimit);
+    });
+
+    test('requires event reporting to be enabled', () {
+      final output = ahu.object(BacnetObjectType.analogOutput, 1)!;
+      expect(
+        () => output.reportEvent(BacnetEventState.fault),
+        throwsStateError,
+      );
+    });
+  });
 }

@@ -32,6 +32,7 @@ export 'src/core/exceptions.dart';
 export 'src/core/logger.dart';
 export 'src/core/types.dart';
 // Models
+export 'src/models/alarms.dart';
 export 'src/models/bacnet_property.dart';
 export 'src/models/bacnet_stats.dart';
 export 'src/models/bacnet_value.dart';

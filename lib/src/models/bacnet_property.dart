@@ -9,6 +9,7 @@ import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
+import 'alarms.dart';
 import 'bacnet_value.dart';
 import 'complex_values.dart';
 
@@ -370,6 +371,56 @@ abstract final class BacnetProperties {
     _encodeUnsigned,
   );
 
+  /// Notify_Type: whether the transitions of the object are alarms or
+  /// events.
+  static const notifyType = BacnetWritableProperty<BacnetNotifyType>(
+    BacnetPropertyId.notifyType,
+    _notifyType,
+    _encodeEnumerated,
+  );
+
+  /// Event_Detection_Enable: false disables event reporting of the object.
+  static const eventDetectionEnable = BacnetWritableProperty<bool>(
+    BacnetPropertyId.eventDetectionEnable,
+    _boolean,
+    _encodeBoolean,
+  );
+
+  /// Event_Message_Texts: the texts of the last TO-OFFNORMAL, TO-FAULT and
+  /// TO-NORMAL notifications.
+  static const eventMessageTexts = BacnetProperty<List<String>>(
+    BacnetPropertyId.eventMessageTexts,
+    _stringList,
+  );
+
+  // ---- notification class ------------------------------------------------------
+
+  /// Priority of a Notification Class: the priorities of its transitions.
+  static const priority = BacnetWritableProperty<BacnetEventPriorities>(
+    BacnetPropertyId.priority,
+    BacnetEventPriorities.fromValue,
+    _encodePriorities,
+  );
+
+  /// Ack_Required of a Notification Class: the transitions that need an
+  /// acknowledgement.
+  static const ackRequired = BacnetWritableProperty<BacnetEventTransitionBits>(
+    BacnetPropertyId.ackRequired,
+    BacnetEventTransitionBits.fromValue,
+    _encodeTransitionBits,
+  );
+
+  /// Recipient_List of a Notification Class: where its notifications go.
+  ///
+  /// Add or remove single recipients with [BacnetClient.addListElements]
+  /// and [BacnetClient.removeListElements] instead of writing the whole
+  /// list, which would drop recipients other clients added meanwhile.
+  static const recipientList = BacnetWritableProperty<List<BacnetDestination>>(
+    BacnetPropertyId.recipientList,
+    BacnetDestination.listFromValue,
+    BacnetDestination.listToValue,
+  );
+
   // ---- device ----------------------------------------------------------------
 
   /// Object_List of the Device object.
@@ -678,6 +729,9 @@ BacnetObjectType _objectType(BacnetValue value) =>
 BacnetEventState _eventState(BacnetValue value) =>
     BacnetEventState(_enumerated(value));
 
+BacnetNotifyType _notifyType(BacnetValue value) =>
+    BacnetNotifyType(_enumerated(value));
+
 BacnetReliability _reliability(BacnetValue value) =>
     BacnetReliability(_enumerated(value));
 
@@ -742,3 +796,5 @@ BacnetValue _encodeDateTime(BacnetDateTime value) => value.toValue();
 
 BacnetValue _encodeReference(BacnetDeviceObjectPropertyReference value) =>
     value.toValue();
+
+BacnetValue _encodePriorities(BacnetEventPriorities value) => value.toValue();

@@ -70,7 +70,15 @@ sealed class WorkerCommand {
 }
 
 /// How the worker decodes the answer of a confirmed request.
-enum AckDecoding { none, raw, readProperty, readPropertyMultiple, readRange }
+enum AckDecoding {
+  none,
+  raw,
+  readProperty,
+  readPropertyMultiple,
+  readRange,
+  getEventInformation,
+  getAlarmSummary,
+}
 
 /// A confirmed request with pre-encoded service data.
 class ConfirmedRequestCommand extends WorkerCommand {

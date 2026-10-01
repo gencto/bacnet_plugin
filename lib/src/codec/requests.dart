@@ -2,7 +2,11 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../constants/enumerations.dart';
+import '../constants/object_types.dart';
 import '../models/bacnet_value.dart';
+import '../models/complex_values.dart';
+import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/wpm_models.dart';
 import 'value_encoding.dart';
@@ -302,3 +306,87 @@ Uint8List encodeTimeSynchronization(DateTime time) =>
           ..appDate(BacnetDate.fromDateTime(time))
           ..appTime(BacnetTime.fromDateTime(time)))
         .toBytes();
+
+/// Encodes a (Un)ConfirmedEventNotification request (ASHRAE 135 clause
+/// 13.8).
+Uint8List encodeEventNotification(EventNotificationEvent notification) {
+  final n = notification;
+  final w = BacnetWriter()
+    ..ctxUnsigned(0, n.processId)
+    ..ctxObjectId(1, BacnetObjectType.device, n.deviceId)
+    ..ctxObjectId(2, n.object.type, n.object.instance);
+  _timeStamp(w, 3, n.timeStamp);
+  w
+    ..ctxUnsigned(4, n.notificationClass)
+    ..ctxUnsigned(5, n.priority)
+    ..ctxUnsigned(6, n.eventType);
+  if (n.messageText case final text?) w.ctxCharacterString(7, text);
+  w.ctxUnsigned(8, n.notifyType);
+  if (!n.isAckNotification) {
+    w
+      ..ctxBoolean(9, n.ackRequired)
+      ..ctxUnsigned(10, n.fromState ?? BacnetEventState.normal);
+  }
+  w.ctxUnsigned(11, n.toState);
+  if (n.eventValues case final values?) {
+    w.opening(12);
+    encodeApplicationValue(w, values.toValue());
+    w.closing(12);
+  }
+  return w.toBytes();
+}
+
+/// Encodes an AcknowledgeAlarm request (ASHRAE 135 clause 13.5).
+Uint8List encodeAcknowledgeAlarm({
+  required int processId,
+  required BacnetObject object,
+  required BacnetEventState eventState,
+  required BacnetTimeStamp timeStamp,
+  required String source,
+  required BacnetTimeStamp timeOfAcknowledgment,
+}) {
+  final w = BacnetWriter()
+    ..ctxUnsigned(0, processId)
+    ..ctxObjectId(1, object.type, object.instance)
+    ..ctxUnsigned(2, eventState);
+  _timeStamp(w, 3, timeStamp);
+  w.ctxCharacterString(4, source);
+  _timeStamp(w, 5, timeOfAcknowledgment);
+  return w.toBytes();
+}
+
+void _timeStamp(BacnetWriter w, int tag, BacnetTimeStamp timeStamp) {
+  w.opening(tag);
+  encodeApplicationValue(w, timeStamp.toValue());
+  w.closing(tag);
+}
+
+/// Encodes a GetEventInformation request (ASHRAE 135 clause 13.12) that
+/// continues after [lastReceived].
+Uint8List encodeGetEventInformation({BacnetObject? lastReceived}) {
+  final w = BacnetWriter(8);
+  if (lastReceived case final object?) {
+    w.ctxObjectId(0, object.type, object.instance);
+  }
+  return w.toBytes();
+}
+
+/// Encodes an AddListElement or RemoveListElement request (ASHRAE 135
+/// clauses 15.1 and 15.2); [elements] are the list elements one after
+/// another.
+Uint8List encodeListElements(
+  int objectType,
+  int instance,
+  int propertyId,
+  BacnetValue elements, {
+  int arrayIndex = -1,
+}) {
+  final w = BacnetWriter()
+    ..ctxObjectId(0, objectType, instance)
+    ..ctxUnsigned(1, propertyId);
+  if (arrayIndex >= 0) w.ctxUnsigned(2, arrayIndex);
+  w.opening(3);
+  encodeApplicationValue(w, elements);
+  w.closing(3);
+  return w.toBytes();
+}
