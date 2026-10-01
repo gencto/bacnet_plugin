@@ -38,7 +38,7 @@ Dart programs such as headless gateways and supervisory services.
 
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.1.0
+  bacnet_plugin: ^0.2.0
 ```
 
 Requirements:
@@ -426,28 +426,38 @@ client.latency = const Duration(milliseconds: 200);
 expect(client.requests.where((r) => r.service == 'writeProperty'), isEmpty);
 ```
 
-## Migrating from 0.0.x
+## Migrating from 0.1.x
 
-- The package is a pure Dart package with a build hook: remove platform
-  specific setup; Dart 3.11/Flutter 3.44 are required.
 - Object types, property identifiers and other enumerations are typed:
   replace numbers such as `readProperty(id, 2, 1, 85)` with constants
   (`BacnetObjectType.analogValue`, `BacnetPropertyId.presentValue`) or
   `BacnetObjectType(2)`. `getName(value)` still works; prefer `.label`.
 - Values are typed (see [Values](#values)): `readProperty` returns a
-  `BacnetValue` instead of `dynamic`, `writeProperty`, `BacnetPropertyValue`
+  `BacnetValue` instead of `dynamic`; `writeProperty`, `BacnetPropertyValue`
   and the server's `setPresentValue`, `setProperty`, `addObject` and
-  `BacnetPresentValueUpdate` take one (the `tag:` parameters are gone; use
-  `BacnetValue.infer` for untyped input). `readMultiple` and
-  `DeviceScanner.scanDevice` return
+  `BacnetPresentValueUpdate` take one. The `tag:` parameters are gone: write
+  `const BacnetEnumerated(1)` instead of `1, tag: BacnetApplicationTag.enumerated`,
+  and use `BacnetValue.infer` for input whose type is only known at run
+  time. `null` becomes `const BacnetNull()`.
+- `readMultiple` and `DeviceScanner.scanDevice` return
   `Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>` instead
-  of maps keyed by `'type:instance'` strings and `int`s.
+  of maps keyed by `'type:instance'` strings and `int`s:
+  `results[object]?.valueOf(BacnetPropertyId.presentValue)`.
 - `BacnetObject` is only an identifier (it no longer has `properties`) and
   is the ObjectIdentifier value.
 - `PropertyUpdate` is sealed (`PropertyValueUpdate`/`PropertyErrorUpdate`);
   `TrendLogEntry` has a `datum` and `statusFlags` instead of `value` and a
   `status` string; `readRange` takes a `BacnetRange` instead of
   `type`/`reference`/`count`.
+- `scanDevice(endDeviceId:)` is removed; pass `background`/`cancelToken`.
+
+## Migrating from 0.0.x
+
+- The package is a pure Dart package with a build hook: remove platform
+  specific setup; Dart 3.11/Flutter 3.44 are required.
+- `readProperty` returns `BacnetObject` instead of `{'type', 'instance'}`
+  maps for object identifiers and complete lists for array properties.
+- `writeProperty(tag:)` defaults to datatype inference instead of REAL.
 - `BacnetClient.events` is a `Stream<BacnetEvent>`; use `iAmEvents` and
   `covEvents` for typed streams. COV notifications now include the
   initiating device and the values.
