@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import '../codec/services.dart';
+import '../codec/log_records.dart';
+import '../codec/requests.dart';
+import '../codec/responses.dart';
 import '../codec/values.dart';
 import '../constants/error_codes.dart';
 import '../constants/object_types.dart';
@@ -12,21 +14,12 @@ import '../core/logger.dart';
 import '../core/types.dart';
 import '../models/bacnet_object.dart';
 import '../models/bacnet_stats.dart';
-import '../models/internal/worker_message.dart';
+import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
 import '../models/wpm_models.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
-
-export '../core/exceptions.dart';
-export '../core/logger.dart';
-export '../core/types.dart';
-export '../models/bacnet_object.dart';
-export '../models/internal/worker_message.dart';
-export '../models/rpm_models.dart';
-export '../models/trend_log_data.dart';
-export '../models/wpm_models.dart';
 
 /// BACnet client for communication with BACnet devices.
 ///
@@ -74,14 +67,14 @@ class BacnetClient {
 
   /// Stream of all unsolicited events (I-Am, COV notifications, server
   /// writes, logs and errors).
-  Stream<WorkerResponse> get events => _system.events;
+  Stream<BacnetEvent> get events => _system.events;
 
   /// I-Am announcements.
-  Stream<IAmResponse> get iAmStream => events.whereType<IAmResponse>();
+  Stream<IAmEvent> get iAmEvents => events.whereType<IAmEvent>();
 
   /// Change-of-Value notifications.
-  Stream<COVNotificationResponse> get covNotifications =>
-      events.whereType<COVNotificationResponse>();
+  Stream<CovNotificationEvent> get covEvents =>
+      events.whereType<CovNotificationEvent>();
 
   /// Version of the native engine and bacnet-stack, once started.
   String? get nativeVersion => _system.nativeVersion;
@@ -109,7 +102,7 @@ class BacnetClient {
   ///
   /// [lowLimit] and [highLimit] limit the device instance range (-1 for no
   /// limit). [network] selects the broadcast: 0xFFFF global (default), 0
-  /// local network only, or a remote network number. Listen to [iAmStream]
+  /// local network only, or a remote network number. Listen to [iAmEvents]
   /// for the answers.
   Future<void> sendWhoIs({
     int lowLimit = -1,
@@ -411,7 +404,7 @@ class BacnetClient {
   /// value subscriptions use SubscribeCOV, other properties
   /// SubscribeCOVProperty. Subscriptions expire after [lifetime] and must be
   /// renewed ([PropertyMonitor] does this automatically). Listen to
-  /// [covNotifications] for the notifications.
+  /// [covEvents] for the notifications.
   Future<void> subscribeCOV(
     int deviceId,
     int objectType,
@@ -629,6 +622,6 @@ class BacnetClient {
   }
 }
 
-extension on Stream<WorkerResponse> {
+extension on Stream<BacnetEvent> {
   Stream<T> whereType<T>() => where((event) => event is T).cast<T>();
 }

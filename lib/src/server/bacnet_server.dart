@@ -4,17 +4,15 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
-import '../codec/codec.dart';
-import '../codec/services.dart';
+import '../codec/writer.dart';
+import '../codec/value_encoding.dart';
 import '../constants/property_ids.dart';
 import '../core/bacnet_config.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
-import '../models/internal/worker_message.dart';
+import '../models/events.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
-
-export '../core/logger.dart';
 
 /// One present value update for [BacnetServer.updatePresentValues].
 @immutable
@@ -79,9 +77,9 @@ class BacnetServer {
   BacnetConfig get config => _config;
 
   /// Writes performed by remote clients on objects of this server.
-  Stream<WriteNotificationResponse> get writeEvents => _system.events
-      .where((e) => e is WriteNotificationResponse)
-      .cast<WriteNotificationResponse>();
+  Stream<PropertyWriteEvent> get writeEvents => _system.events
+      .where((e) => e is PropertyWriteEvent)
+      .cast<PropertyWriteEvent>();
 
   /// Starts the BACnet stack (shared with [BacnetClient] instances).
   Future<void> start({String? interface, int? port}) async {

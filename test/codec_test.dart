@@ -2,7 +2,8 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:bacnet_plugin/bacnet_plugin.dart';
-import 'package:bacnet_plugin/src/codec/services.dart';
+import 'package:bacnet_plugin/src/codec/requests.dart';
+import 'package:bacnet_plugin/src/codec/responses.dart';
 import 'package:test/test.dart';
 
 Uint8List bytes(List<int> values) => Uint8List.fromList(values);

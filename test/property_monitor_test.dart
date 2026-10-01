@@ -12,7 +12,7 @@ void main() {
   const propertyId = BacnetPropertyId.presentValue;
 
   late MockBacnetClient client;
-  late StreamController<COVNotificationResponse> covController;
+  late StreamController<CovNotificationEvent> covController;
 
   void stubSubscribe({Object? error}) {
     when(
@@ -37,8 +37,8 @@ void main() {
 
   setUp(() {
     client = MockBacnetClient();
-    covController = StreamController<COVNotificationResponse>.broadcast();
-    when(() => client.covNotifications).thenAnswer((_) => covController.stream);
+    covController = StreamController<CovNotificationEvent>.broadcast();
+    when(() => client.covEvents).thenAnswer((_) => covController.stream);
     when(() => client.allocateProcessId()).thenReturn(42);
     when(
       () => client.readProperty(deviceId, 0, 1, propertyId),
@@ -86,7 +86,7 @@ void main() {
       covController
         // other subscription: ignored
         ..add(
-          const COVNotificationResponse(
+          const CovNotificationEvent(
             deviceId: deviceId,
             objectType: 0,
             instance: 1,
@@ -96,7 +96,7 @@ void main() {
           ),
         )
         ..add(
-          const COVNotificationResponse(
+          const CovNotificationEvent(
             deviceId: deviceId,
             objectType: 0,
             instance: 1,

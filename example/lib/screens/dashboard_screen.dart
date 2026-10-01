@@ -66,7 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _client.start(interface: _interfaceController.text, port: port);
     _log('BACnet Stack Started on ${_interfaceController.text}:$port');
 
-    _client.iAmStream.listen((event) {
+    _client.iAmEvents.listen((event) {
       final devId = event.deviceId;
       if (!_devices.contains(devId)) {
         setState(() => _devices.add(devId));

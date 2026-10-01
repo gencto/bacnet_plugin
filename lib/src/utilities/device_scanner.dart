@@ -5,8 +5,13 @@ import 'package:meta/meta.dart';
 import '../client/bacnet_client.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
+import '../core/exceptions.dart';
+import '../core/types.dart';
+import '../models/bacnet_object.dart';
 import '../models/device_metadata.dart';
 import '../models/discovered_device.dart';
+import '../models/events.dart';
+import '../models/rpm_models.dart';
 
 /// Runs [action] for every item with at most [concurrency] actions pending.
 Future<List<R>> mapConcurrent<T, R>(
@@ -96,9 +101,9 @@ class DeviceScanner {
     int? highLimit,
     bool readDetails = true,
   }) async {
-    final announcements = <int, IAmResponse>{};
+    final announcements = <int, IAmEvent>{};
     final subscription = client.events.listen((event) {
-      if (event is IAmResponse) {
+      if (event is IAmEvent) {
         announcements[event.deviceId] = event;
       }
     });
@@ -124,7 +129,7 @@ class DeviceScanner {
     return devices;
   }
 
-  DiscoveredDevice _fromAnnouncement(IAmResponse announcement) {
+  DiscoveredDevice _fromAnnouncement(IAmEvent announcement) {
     return DiscoveredDevice(
       deviceId: announcement.deviceId,
       vendorId: announcement.vendorId,
@@ -136,7 +141,7 @@ class DeviceScanner {
     );
   }
 
-  Future<DiscoveredDevice> _describe(IAmResponse announcement) async {
+  Future<DiscoveredDevice> _describe(IAmEvent announcement) async {
     final basic = _fromAnnouncement(announcement);
     try {
       final props = await _readDeviceProperties(

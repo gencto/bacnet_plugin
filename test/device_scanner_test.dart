@@ -9,11 +9,11 @@ class MockBacnetClient extends Mock implements BacnetClient {}
 void main() {
   late MockBacnetClient mockClient;
   late DeviceScanner scanner;
-  late StreamController<WorkerResponse> eventController;
+  late StreamController<BacnetEvent> eventController;
 
   setUp(() {
     mockClient = MockBacnetClient();
-    eventController = StreamController<WorkerResponse>.broadcast();
+    eventController = StreamController<BacnetEvent>.broadcast();
     when(() => mockClient.events).thenAnswer((_) => eventController.stream);
     scanner = DeviceScanner(mockClient);
   });
@@ -52,7 +52,7 @@ void main() {
 
         // Emit I-Am response
         eventController.add(
-          const IAmResponse(deviceId: 1234, len: 0, mac: [], net: 0),
+          const IAmEvent(deviceId: 1234, len: 0, mac: [], net: 0),
         );
 
         final devices = await future;
@@ -96,10 +96,10 @@ void main() {
 
         // Emit out of order
         eventController.add(
-          const IAmResponse(deviceId: 20, len: 0, mac: [], net: 0),
+          const IAmEvent(deviceId: 20, len: 0, mac: [], net: 0),
         );
         eventController.add(
-          const IAmResponse(deviceId: 10, len: 0, mac: [], net: 0),
+          const IAmEvent(deviceId: 10, len: 0, mac: [], net: 0),
         );
 
         final devices = await future;
@@ -133,10 +133,10 @@ void main() {
         );
 
         eventController.add(
-          const IAmResponse(deviceId: 10, len: 0, mac: [], net: 0),
+          const IAmEvent(deviceId: 10, len: 0, mac: [], net: 0),
         );
         eventController.add(
-          const IAmResponse(deviceId: 10, len: 0, mac: [], net: 0),
+          const IAmEvent(deviceId: 10, len: 0, mac: [], net: 0),
         );
 
         final devices = await future;

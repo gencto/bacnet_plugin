@@ -7,7 +7,7 @@ import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
 import '../models/bacnet_stats.dart';
-import '../models/internal/worker_message.dart';
+import '../models/events.dart';
 import 'bindings.g.dart' show bacnet_plugin_wakeup;
 import 'protocol.dart';
 import 'worker.dart';
@@ -39,8 +39,8 @@ class BacnetSystem {
   int _nextId = 0;
   final Map<int, Completer<Object?>> _pending = {};
 
-  StreamController<WorkerResponse> _events =
-      StreamController<WorkerResponse>.broadcast(sync: true);
+  StreamController<BacnetEvent> _events =
+      StreamController<BacnetEvent>.broadcast(sync: true);
 
   /// Active configuration.
   BacnetConfig get config => _config;
@@ -72,7 +72,7 @@ class BacnetSystem {
   }
 
   /// Stream of unsolicited events (I-Am, COV, writes, logs, errors).
-  Stream<WorkerResponse> get events => _events.stream;
+  Stream<BacnetEvent> get events => _events.stream;
 
   /// Starts the worker isolate and initializes the BACnet stack. When the
   /// stack is already running the call only takes a reference; the first
@@ -101,7 +101,7 @@ class BacnetSystem {
 
   Future<void> _spawn(BacnetConfig config) async {
     if (_events.isClosed) {
-      _events = StreamController<WorkerResponse>.broadcast(sync: true);
+      _events = StreamController<BacnetEvent>.broadcast(sync: true);
     }
     final responses = ReceivePort('BacnetWorkerResponses');
     final exitPort = ReceivePort('BacnetWorkerExit');
@@ -140,8 +140,8 @@ class BacnetSystem {
       interface: config.interface,
       port: config.port,
       deviceInstance: config.deviceInstance,
-      apduTimeoutMs: config.apduTimeout.inMilliseconds,
-      apduRetries: config.maxRetries,
+      apduTimeoutMs: config.apduTimeout.inMilliseconds.clamp(100, 0xFFFF),
+      apduRetries: config.maxRetries.clamp(0, 10),
       socketBufferSize: config.socketBufferSize,
       strictSourceCheck: config.strictSourceCheck,
       covScanIntervalMs: config.covScanInterval.inMilliseconds.clamp(1, 60000),
@@ -174,7 +174,7 @@ class BacnetSystem {
         _pending.remove(id)?.complete(value);
       case CommandFailure(:final id, :final error):
         _pending.remove(id)?.completeError(error);
-      case LogResponse():
+      case LogEvent():
         _logger.log(
           BacnetLogLevel.values[message.levelIndex],
           message.message,
@@ -184,7 +184,7 @@ class BacnetSystem {
               : StackTrace.fromString(message.stackTrace!),
         );
         if (_events.hasListener) _events.add(message);
-      case WorkerResponse():
+      case BacnetEvent():
         if (_events.hasListener) _events.add(message);
     }
   }
@@ -202,7 +202,7 @@ class BacnetSystem {
     }
     _pending.clear();
     if (wasRunning && _references > 0 && _events.hasListener) {
-      _events.add(const ErrorResponse('BACnet worker stopped unexpectedly'));
+      _events.add(const ErrorEvent('BACnet worker stopped unexpectedly'));
     }
   }
 
