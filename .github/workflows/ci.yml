@@ -179,4 +179,5 @@ jobs:
         with:
           sdk: stable
       - run: dart pub get --no-example
+      - run: dart run tool/check_package.dart
       - run: dart pub publish --force
