@@ -29,4 +29,6 @@ native/bacnet-stack/*
 native/bacnet-stack/ports/*
 !native/bacnet-stack/ports/win32/
 native/bacnet-stack/ports/win32/Microsoft Visual Studio*/
-native/bacnet-stack/src/bacnet/datalink/bsc/
+# BACnet/SC is not compiled (needs OpenSSL), but its headers are included
+# by bacapp.h (secure_connect.h) and datalink.h
+native/bacnet-stack/src/bacnet/datalink/bsc/*.c
