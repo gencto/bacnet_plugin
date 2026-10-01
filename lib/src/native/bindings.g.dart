@@ -378,6 +378,8 @@ const int BP_FLAG_COMPLEX = 2;
 
 const int BP_FLAG_LOCAL = 4;
 
+const int BP_FLAG_SEGMENTED = 8;
+
 const int BP_OK = 0;
 
 const int BP_OPTION_APDU_RETRIES = 5;
@@ -389,6 +391,8 @@ const int BP_OPTION_COV_SCAN_BUDGET = 6;
 const int BP_OPTION_COV_SCAN_INTERVAL_MS = 2;
 
 const int BP_OPTION_MAX_EVENT_BUFFER = 3;
+
+const int BP_OPTION_MAX_SEGMENTS = 7;
 
 const int BP_OPTION_STRICT_SOURCE = 1;
 
@@ -511,8 +515,9 @@ final class bp_stats_t extends ffi.Struct {
   @ffi.Uint32()
   external int event_buffer_capacity;
 
+  /// Complex ACKs received in segments and reassembled.
   @ffi.Uint32()
-  external int reserved;
+  external int segmented_replies;
 
   static ffi.Pointer<bp_stats_t> $allocate(
     ffi.Allocator $allocator, {
@@ -525,7 +530,7 @@ final class bp_stats_t extends ffi.Struct {
     required int tsm_idle,
     required int bound_devices,
     required int event_buffer_capacity,
-    required int reserved,
+    required int segmented_replies,
   }) => $allocator<bp_stats_t>()
     ..ref.packets_received = packets_received
     ..ref.requests_sent = requests_sent
@@ -536,5 +541,5 @@ final class bp_stats_t extends ffi.Struct {
     ..ref.tsm_idle = tsm_idle
     ..ref.bound_devices = bound_devices
     ..ref.event_buffer_capacity = event_buffer_capacity
-    ..ref.reserved = reserved;
+    ..ref.segmented_replies = segmented_replies;
 }

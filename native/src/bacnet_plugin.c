@@ -76,6 +76,7 @@ static void bp_timers(void)
             }
         }
     }
+    bp_segments_timer(now);
     bp_cov_scan(now);
 }
 
@@ -90,8 +91,7 @@ static bool bp_accept_reply(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
     uint8_t type;
     bp_transaction_t *tx;
 
-    if (!bp_state.strict_source || len < 2 ||
-        pdu[0] != BACNET_PROTOCOL_VERSION) {
+    if (len < 2 || pdu[0] != BACNET_PROTOCOL_VERSION) {
         return true;
     }
     bacnet_address_copy(&full_src, src);
@@ -102,6 +102,14 @@ static bool bp_accept_reply(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
         return true;
     }
     type = pdu[offset] & 0xF0;
+    if (type == PDU_TYPE_COMPLEX_ACK && (pdu[offset] & 0x08)) {
+        /* segmented: bacnet-stack cannot reassemble it */
+        bp_segment_received(&full_src, &pdu[offset], (uint16_t)(len - offset));
+        return false;
+    }
+    if (!bp_state.strict_source) {
+        return true;
+    }
     switch (type) {
         case PDU_TYPE_SIMPLE_ACK:
         case PDU_TYPE_COMPLEX_ACK:
@@ -117,6 +125,11 @@ static bool bp_accept_reply(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
             return true;
     }
     tx = bp_tx_for(pdu[offset + 1]);
+    if (tx && tx->segments && !bacnet_address_same(&tx->dest, &full_src)) {
+        /* the invoke id is held for the segments of our transaction */
+        bp_state.stats.replies_dropped++;
+        return false;
+    }
     if (tx && !bacnet_address_same(&tx->dest, &full_src)) {
         BACNET_ADDRESS tsm_dest;
         BACNET_NPDU_DATA tsm_npdu;
@@ -128,7 +141,7 @@ static bool bp_accept_reply(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
             !bacnet_address_same(&tsm_dest, &tx->dest)) {
             /* our transaction ended without notice: the invoke id now
                belongs to another transaction of the stack */
-            tx->active = false;
+            bp_tx_end(tx);
             return true;
         }
         /* reply for a recycled invoke id from another device: dropping it
@@ -190,6 +203,8 @@ BP_API int32_t bacnet_plugin_init(
     }
     memset(&bp_state.stats, 0, sizeof(bp_state.stats));
     memset(bp_state.tx, 0, sizeof(bp_state.tx));
+    bp_state.segmenting = 0;
+    bp_state.max_segments = BP_DEFAULT_MAX_SEGMENTS;
     bp_state.server_enabled = false;
     bp_state.strict_source = true;
     bp_state.suppress_write_events = false;
@@ -251,6 +266,7 @@ BP_API void bacnet_plugin_shutdown(void)
     }
     for (invoke_id = 1; invoke_id < 256; invoke_id++) {
         if (bp_state.tx[invoke_id].active) {
+            bp_tx_end(&bp_state.tx[invoke_id]);
             tsm_free_invoke_id((uint8_t)invoke_id);
         }
     }
@@ -307,6 +323,12 @@ BP_API int32_t bacnet_plugin_set_option(int32_t option, int64_t value)
                 return BP_ERR_INVALID_ARGUMENT;
             }
             bp_state.cov_scan_budget = (uint32_t)value;
+            return BP_OK;
+        case BP_OPTION_MAX_SEGMENTS:
+            if (value < 0 || value > 32) {
+                return BP_ERR_INVALID_ARGUMENT;
+            }
+            bp_state.max_segments = (uint8_t)value;
             return BP_OK;
         default:
             return BP_ERR_INVALID_ARGUMENT;

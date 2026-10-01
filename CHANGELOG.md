@@ -61,6 +61,11 @@ notes in the README.
   `maxCoalescedReads`, `coalescingWindow`); identical reads share one
   result, devices without RPM support are detected. 50 000 concurrent
   reads need 24× fewer requests and run 2× faster on loopback.
+- **Segmentation**: segmented ComplexACKs (large object lists, schedules,
+  RPM results) are acknowledged window by window, reassembled and decoded
+  like unsegmented answers; lost segments are requested again and stalled
+  transfers time out. Requests advertise `maxSegmentsAccepted` (default 32,
+  0 disables). `BacnetStats.segmentedReplies` counts them.
 - **Background requests**: `background: true` (default for
   `DeviceScanner`) queues requests behind interactive ones and limits them
   to 3/4 of the transaction slots and one slot less per device.

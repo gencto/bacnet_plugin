@@ -26,6 +26,7 @@ class WorkerStartup {
     required this.bindTimeoutMs,
     required this.offlineAfterTimeouts,
     required this.offlineRetryMs,
+    required this.maxSegments,
     required this.logLevel,
   });
 
@@ -45,6 +46,7 @@ class WorkerStartup {
   final int bindTimeoutMs;
   final int offlineAfterTimeouts;
   final int offlineRetryMs;
+  final int maxSegments;
   final BacnetLogLevel logLevel;
 }
 

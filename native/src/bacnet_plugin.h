@@ -77,6 +77,8 @@ extern "C" {
 #define BP_FLAG_ABORT_FROM_SERVER 0x01
 #define BP_FLAG_COMPLEX 0x02
 #define BP_FLAG_LOCAL 0x04
+/** The complex ACK was received in segments. */
+#define BP_FLAG_SEGMENTED 0x08
 
 #define BP_DEVICE_UNKNOWN 0xFFFFFFFFu
 
@@ -125,7 +127,8 @@ typedef struct {
     uint32_t tsm_idle;
     uint32_t bound_devices;
     uint32_t event_buffer_capacity;
-    uint32_t reserved;
+    /** Complex ACKs received in segments and reassembled. */
+    uint32_t segmented_replies;
 } bp_stats_t;
 
 /* ---- Tunable options for bacnet_plugin_set_option() ------------------- */
@@ -141,6 +144,9 @@ typedef struct {
 #define BP_OPTION_APDU_RETRIES 5
 /** Maximum number of TSM steps of the server COV scan per poll call. */
 #define BP_OPTION_COV_SCAN_BUDGET 6
+/** Segments accepted in answers to our requests (0..32, below 2 disables
+ *  segmented responses). */
+#define BP_OPTION_MAX_SEGMENTS 7
 
 /* ---- Lifecycle -------------------------------------------------------- */
 

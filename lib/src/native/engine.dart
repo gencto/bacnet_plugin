@@ -22,6 +22,7 @@ typedef NativeStats = ({
   int boundDevices,
   int freeTransactions,
   int pollCalls,
+  int segmentedReplies,
 });
 
 /// Typed facade over the native engine (`native/src/bacnet_plugin.h`).
@@ -66,6 +67,7 @@ class NativeEngine {
     required int apduRetries,
     required bool strictSourceCheck,
     required int covScanIntervalMs,
+    required int maxSegments,
   }) {
     checkNative(
       bacnet_plugin_set_option(BP_OPTION_APDU_TIMEOUT_MS, apduTimeoutMs),
@@ -83,6 +85,7 @@ class NativeEngine {
         covScanIntervalMs,
       ),
     );
+    checkNative(bacnet_plugin_set_option(BP_OPTION_MAX_SEGMENTS, maxSegments));
   }
 
   /// Waits up to [timeoutMs] for traffic and processes up to [maxPackets].
@@ -435,6 +438,7 @@ class NativeEngine {
         boundDevices: s.bound_devices,
         freeTransactions: s.tsm_idle,
         pollCalls: s.poll_calls,
+        segmentedReplies: s.segmented_replies,
       );
     } finally {
       calloc.free(stats);

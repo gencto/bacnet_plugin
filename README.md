@@ -13,6 +13,8 @@ Dart programs such as headless gateways and supervisory services.
 
 - **Client**: Who-Is/I-Am discovery, ReadProperty, ReadPropertyMultiple
   (split automatically when the answer exceeds the device's APDU),
+  segmented answers (large object lists, schedules, RPM results) reassembled
+  transparently,
   WriteProperty(Multiple) with datatype inference, SubscribeCOV(Property)
   with decoded notifications, ReadRange/Trend Logs, time synchronization,
   foreign device registration and raw confirmed services.
@@ -159,6 +161,7 @@ are free:
 | `bindTimeout` | 5 s | Time to resolve an unknown device with Who-Is. |
 | `offlineAfterTimeouts` | 3 | Consecutive timeouts after which requests to a device fail fast. |
 | `offlineRetryInterval` | 30 s | Pause before an offline device is probed again (doubles up to 8×). |
+| `maxSegmentsAccepted` | 32 | Segments accepted per answer (0 disables segmented answers). |
 | `socketBufferSize` | 4 MiB | Avoids drops during I-Am storms and bursts. |
 | `covScanInterval` | 50 ms | Server side change-of-value detection. |
 | `strictSourceCheck` | true | Drops replies whose source differs from the target. |
@@ -221,6 +224,11 @@ Run them yourself with `benchmark/load_test.dart` and
 - Services are encoded/decoded in Dart (`lib/src/codec`) with a bounds
   checked reader.
 - Server requests are answered by bacnet-stack without running Dart code.
+- Segmented answers to client requests are reassembled by the engine
+  (`native/src/bp_segments.c`), since the transaction state machine of
+  bacnet-stack does not implement segmentation. The server cannot send
+  segmented answers: requests whose answer exceeds the client's APDU are
+  aborted with segmentation-not-supported.
 
 ## Error handling
 

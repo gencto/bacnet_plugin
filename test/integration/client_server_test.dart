@@ -8,6 +8,8 @@ import 'dart:io';
 import 'package:bacnet_plugin/bacnet_plugin.dart';
 import 'package:test/test.dart';
 
+import '../support/segmenting_device.dart';
+
 /// Runs tool/demo_server.dart in a separate process (the native stack is
 /// process global, so client and server need separate processes).
 class ServerProcess {
@@ -62,6 +64,8 @@ void main() {
         interface: '127.0.0.1',
         port: 47862,
         requestTimeout: Duration(seconds: 10),
+        // short segment timeout (4 APDU timeouts) for the segmentation tests
+        apduTimeout: Duration(milliseconds: 500),
         bindTimeout: Duration(seconds: 1),
         logLevel: BacnetLogLevel.warning,
       ),
@@ -372,6 +376,69 @@ void main() {
     final stats = await client.stats();
     expect(stats.queuedRequests, 0);
     expect(stats.inFlightRequests, 0);
+  });
+
+  group('segmented answers', () {
+    var nextDevice = 7100;
+
+    Future<SegmentingDevice> device({
+      Set<int> dropOnce = const {},
+      int? stallAfter,
+    }) async {
+      final device = await SegmentingDevice.bind(
+        deviceId: nextDevice++,
+        dropOnce: dropOnce,
+        stallAfter: stallAfter,
+      );
+      addTearDown(device.close);
+      await client.addDeviceBinding(
+        device.deviceId,
+        '127.0.0.1',
+        port: device.port,
+      );
+      return device;
+    }
+
+    Future<Object?> readObjectList(SegmentingDevice device) =>
+        client.readProperty(
+          device.deviceId,
+          BacnetObjectType.device,
+          device.deviceId,
+          BacnetPropertyId.objectList,
+        );
+
+    test('are reassembled', () async {
+      final fake = await device();
+      final before = await client.stats();
+      final list = await readObjectList(fake);
+      expect(list, hasLength(300));
+      expect(
+        (list! as List<Object?>)[299],
+        const BacnetObject(type: BacnetObjectType.analogValue, instance: 299),
+      );
+      expect(fake.segmentationAccepted, [true]);
+      // first segment, then every window of 3, then the last one (8 segments)
+      expect(fake.acks, [(false, 0), (false, 3), (false, 6), (false, 7)]);
+      final after = await client.stats();
+      expect(after.segmentedReplies - before.segmentedReplies, 1);
+    });
+
+    test('ask again for lost segments', () async {
+      final fake = await device(dropOnce: {4});
+      final list = await readObjectList(fake);
+      expect(list, hasLength(300));
+      expect(fake.acks, contains((true, 3)));
+    });
+
+    test('time out when the device stops sending', () async {
+      final fake = await device(stallAfter: 2);
+      await expectLater(
+        readObjectList(fake),
+        throwsA(isA<BacnetTimeoutException>()),
+      );
+      final stats = await client.stats();
+      expect(stats.inFlightRequests, 0);
+    });
   });
 
   test('receives COV notifications with values', () async {

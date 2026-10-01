@@ -42,6 +42,7 @@ class BacnetConfig {
     this.bindTimeout = const Duration(seconds: 5),
     this.offlineAfterTimeouts = 3,
     this.offlineRetryInterval = const Duration(seconds: 30),
+    this.maxSegmentsAccepted = 32,
     this.socketBufferSize = 4 * 1024 * 1024,
     this.strictSourceCheck = true,
     this.covScanInterval = const Duration(milliseconds: 50),
@@ -52,7 +53,8 @@ class BacnetConfig {
        assert(maxConcurrentRequestsPerDevice > 0),
        assert(maxQueuedRequests > 0),
        assert(maxCoalescedReads > 0),
-       assert(offlineAfterTimeouts >= 0);
+       assert(offlineAfterTimeouts >= 0),
+       assert(maxSegmentsAccepted >= 0 && maxSegmentsAccepted <= 32);
 
   /// Default BACnet/IP port number (0xBAC0).
   static const int defaultPort = 47808;
@@ -142,6 +144,16 @@ class BacnetConfig {
   /// I-Am from the device ends the offline state immediately.
   final Duration offlineRetryInterval;
 
+  /// Number of segments accepted in an answer (0 or 1 disables segmented
+  /// answers, at most 32).
+  ///
+  /// Devices send answers that exceed their APDU size (large object lists,
+  /// schedules, ReadPropertyMultiple results) in segments; they are
+  /// reassembled transparently. Devices that cannot segment abort such
+  /// requests instead, which the client handles by splitting
+  /// ReadPropertyMultiple requests and reading arrays element by element.
+  final int maxSegmentsAccepted;
+
   /// Socket send/receive buffer size in bytes (0 keeps the OS default).
   /// Large buffers avoid packet loss during I-Am storms and bursts.
   final int socketBufferSize;
@@ -185,6 +197,7 @@ class BacnetConfig {
     Duration? bindTimeout,
     int? offlineAfterTimeouts,
     Duration? offlineRetryInterval,
+    int? maxSegmentsAccepted,
     int? socketBufferSize,
     bool? strictSourceCheck,
     Duration? covScanInterval,
@@ -210,6 +223,7 @@ class BacnetConfig {
       bindTimeout: bindTimeout ?? this.bindTimeout,
       offlineAfterTimeouts: offlineAfterTimeouts ?? this.offlineAfterTimeouts,
       offlineRetryInterval: offlineRetryInterval ?? this.offlineRetryInterval,
+      maxSegmentsAccepted: maxSegmentsAccepted ?? this.maxSegmentsAccepted,
       socketBufferSize: socketBufferSize ?? this.socketBufferSize,
       strictSourceCheck: strictSourceCheck ?? this.strictSourceCheck,
       covScanInterval: covScanInterval ?? this.covScanInterval,
