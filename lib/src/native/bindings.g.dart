@@ -77,6 +77,11 @@ external int bacnet_plugin_device_binding(
   ffi.Pointer<ffi.Uint16> max_apdu,
 );
 
+/// Changes the instance of the local Device object (e.g. as told by a
+/// You-Are) and broadcasts an I-Am.
+@ffi.Native<ffi.Int32 Function(ffi.Uint32)>()
+external int bacnet_plugin_device_set_instance(int device_instance);
+
 /// Sets the password DeviceCommunicationControl and ReinitializeDevice
 /// requests must carry (up to 20 characters). NULL or "" accepts requests
 /// without a password.
@@ -84,7 +89,8 @@ external int bacnet_plugin_device_binding(
 external int bacnet_plugin_device_set_password(ffi.Pointer<ffi.Char> password);
 
 /// Sets a string property of the local Device object
-/// (vendor name, model name, description, location, firmware, version).
+/// (name, vendor name, model name, description, location, firmware,
+/// application software version, serial number).
 @ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Char>)>()
 external int bacnet_plugin_device_set_string(
   int property,
@@ -393,6 +399,37 @@ external int bacnet_plugin_send_network(
 external int bacnet_plugin_send_unconfirmed(
   int device_id,
   int network,
+  int service,
+  ffi.Pointer<ffi.Uint8> data,
+  int data_len,
+);
+
+/// Sends an unconfirmed request to an address, e.g. the answer to a device
+/// without a device instance (You-Are to the sender of a Who-Am-I).
+/// @param mac BACnet/IP address (IPv4 address and UDP port, 6 bytes) of the
+/// device or of the router, NULL or mac_len 0 for a local broadcast.
+/// @param net destination network (DNET): 0 for the local network, 0xFFFF
+/// for a global broadcast.
+/// @param adr address on the destination network (DADR), adr_len 0 for a
+/// broadcast on it.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint8,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint16,
+  )
+>()
+external int bacnet_plugin_send_unconfirmed_to(
+  ffi.Pointer<ffi.Uint8> mac,
+  int mac_len,
+  int net,
+  ffi.Pointer<ffi.Uint8> adr,
+  int adr_len,
   int service,
   ffi.Pointer<ffi.Uint8> data,
   int data_len,

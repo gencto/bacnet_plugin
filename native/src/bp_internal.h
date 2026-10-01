@@ -188,6 +188,12 @@ void bp_apply_socket_buffer(int sock);
 /** Transaction of invoke_id, or NULL when it is not one of ours. */
 bp_transaction_t *bp_tx_for(uint8_t invoke_id);
 void bp_register_client_handlers(void);
+/** Queues a BP_EVENT_UNCONFIRMED event for a received request. */
+void bp_forward_unconfirmed(
+    uint8_t service,
+    uint8_t *service_request,
+    uint16_t service_len,
+    BACNET_ADDRESS *src);
 #include "bacnet/npdu.h"
 /** Queues a BP_EVENT_NETWORK event for a received network layer message. */
 void bp_network_received(

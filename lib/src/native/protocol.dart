@@ -126,12 +126,19 @@ class UnconfirmedRequestCommand extends WorkerCommand {
     required this.payload,
     this.deviceId,
     this.network = 0xFFFF,
+    this.mac,
+    this.adr = const [],
   });
 
   final int service;
   final Uint8List payload;
   final int? deviceId;
   final int network;
+
+  /// Sends to this MAC address (empty: a local broadcast that routers
+  /// forward to [network] and [adr]) instead of [deviceId].
+  final List<int>? mac;
+  final List<int> adr;
 }
 
 /// Sends a network layer message (a local broadcast when [mac] is empty).
@@ -233,6 +240,12 @@ class ServerEnableCommand extends WorkerCommand {
 class SetPasswordCommand extends WorkerCommand {
   const SetPasswordCommand(super.id, this.password);
   final String? password;
+}
+
+/// Changes the instance of the local Device object.
+class SetDeviceInstanceCommand extends WorkerCommand {
+  const SetDeviceInstanceCommand(super.id, this.deviceId);
+  final int deviceId;
 }
 
 /// Broadcasts an I-Am of the local device.

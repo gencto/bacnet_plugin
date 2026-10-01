@@ -1,5 +1,7 @@
 // Exercises the client against bacnet-stack's reference server (bacserv).
 // Usage: dart run tool/interop_client.dart <port> <device> [backup]
+//        dart run tool/interop_client.dart 0 <device> supervisor
+//          (answers the Who-Am-I of bacwhoami with You-Are <device>)
 // ignore_for_file: avoid_print
 import 'dart:io';
 
@@ -18,6 +20,24 @@ Future<void> main(List<String> args) async {
     ),
   );
   await client.start();
+  if (args.contains('supervisor')) {
+    print('READY supervisor');
+    await client.whoAmIRequests
+        .asyncMap((request) async {
+          print('WHO-AM-I $request from ${request.source}');
+          await client.sendYouAre(
+            vendorId: request.vendorId,
+            modelName: request.modelName,
+            serialNumber: request.serialNumber,
+            deviceId: device,
+            destination: request.source,
+          );
+        })
+        .first
+        .timeout(const Duration(seconds: 30));
+    await client.close();
+    exit(0);
+  }
   await client.addDeviceBinding(device, '127.0.0.1', port: port);
   if (args.contains('backup')) {
     // bacserv built with BACNET_BACKUP_RESTORE

@@ -14,6 +14,7 @@
 #include "bacnet/basic/object/av.h"
 #include "bacnet/basic/object/bacfile.h"
 #include "bacnet/basic/object/calendar.h"
+#include "bacnet/basic/object/channel.h"
 #include "bacnet/basic/object/schedule.h"
 #include "bacnet/basic/object/bi.h"
 #include "bacnet/basic/object/bo.h"
@@ -81,6 +82,10 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
             return description ? Calendar_Description_Set : Calendar_Name_Set;
         case OBJECT_TRENDLOG:
             return bp_tl_text_set;
+#if (BACNET_PROTOCOL_REVISION >= 14)
+        case OBJECT_CHANNEL:
+            return description ? Channel_Description_Set : Channel_Name_Set;
+#endif
         default:
             return NULL;
     }

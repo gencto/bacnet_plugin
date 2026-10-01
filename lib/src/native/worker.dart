@@ -204,6 +204,8 @@ final class _Worker implements RequestTransport {
           command.payload,
           deviceId: command.deviceId,
           network: command.network,
+          mac: command.mac,
+          adr: command.adr,
         );
       case NetworkMessageCommand():
         _engine.sendNetworkMessage(
@@ -244,6 +246,8 @@ final class _Worker implements RequestTransport {
           _engine.setVendorId(vendorId);
         }
         _engine.setPassword(_password(command.password));
+      case SetDeviceInstanceCommand(:final deviceId):
+        _engine.setDeviceInstance(deviceId);
       case SetPasswordCommand(:final password):
         _engine.setPassword(_password(password));
       case SendIAmCommand():
@@ -564,6 +568,38 @@ final class _Worker implements RequestTransport {
             urgent: t.urgent,
             classNumber: t.classNumber,
             classText: t.classText,
+          );
+        case BacnetUnconfirmedService.whoAmI:
+          final w = decodeWhoAmI(event.data);
+          return WhoAmIEvent(
+            vendorId: w.vendorId,
+            modelName: w.modelName,
+            serialNumber: w.serialNumber,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+            adr: event.sourceAdr,
+          );
+        case BacnetUnconfirmedService.youAre:
+          final y = decodeYouAre(event.data);
+          return YouAreEvent(
+            vendorId: y.vendorId,
+            modelName: y.modelName,
+            serialNumber: y.serialNumber,
+            deviceId: y.deviceId,
+            macAddress: y.macAddress,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+            adr: event.sourceAdr,
+          );
+        case BacnetUnconfirmedService.writeGroup:
+          final g = decodeWriteGroup(event.data);
+          return WriteGroupEvent(
+            groupNumber: g.groupNumber,
+            writePriority: g.writePriority,
+            changes: g.changes,
+            inhibitDelay: g.inhibitDelay,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
           );
         case BacnetUnconfirmedService.privateTransfer:
           final p = decodePrivateTransfer(event.data);

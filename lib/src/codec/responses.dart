@@ -4,11 +4,13 @@ import 'package:meta/meta.dart';
 
 import '../constants/enumerations.dart';
 import '../constants/errors.dart';
+import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../constants/services.dart';
 import '../core/exceptions.dart';
 import '../models/alarms.dart';
 import '../models/bacnet_value.dart';
+import '../models/channels.dart';
 import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../models/files.dart';
@@ -655,6 +657,122 @@ AtomicWriteFileRequest decodeAtomicWriteFile(Uint8List data) {
   final records = [for (var i = 0; i < count; i++) octets()];
   r.expectClosing(1);
   return (file: file, start: start, data: null, records: records);
+}
+
+/// Decoded Who-Am-I request.
+typedef WhoAmIData = ({int vendorId, String modelName, String serialNumber});
+
+/// Decodes a Who-Am-I request (ASHRAE 135 clause 16.11).
+WhoAmIData decodeWhoAmI(Uint8List data) {
+  final r = BacnetReader(data);
+  return (
+    vendorId: _identityUnsigned(r),
+    modelName: _identityString(r, 'model name'),
+    serialNumber: _identityString(r, 'serial number'),
+  );
+}
+
+/// Decoded You-Are request.
+typedef YouAreData = ({
+  int vendorId,
+  String modelName,
+  String serialNumber,
+  int? deviceId,
+  Uint8List? macAddress,
+});
+
+/// Decodes a You-Are request (ASHRAE 135 clause 16.12).
+YouAreData decodeYouAre(Uint8List data) {
+  final r = BacnetReader(data);
+  final vendorId = _identityUnsigned(r);
+  final modelName = _identityString(r, 'model name');
+  final serialNumber = _identityString(r, 'serial number');
+  int? deviceId;
+  Uint8List? macAddress;
+  if (!r.isAtEnd) {
+    switch (r.readApplicationValue()) {
+      case BacnetObject(:final type, :final instance)
+          when type == BacnetObjectType.device:
+        deviceId = instance;
+      case BacnetOctetString(:final value):
+        macAddress = value;
+      case final other:
+        throw BacnetDecodeException('malformed You-Are: $other');
+    }
+  }
+  if (macAddress == null && !r.isAtEnd) {
+    macAddress = switch (r.readApplicationValue()) {
+      BacnetOctetString(:final value) => value,
+      final other => throw BacnetDecodeException('malformed MAC: $other'),
+    };
+  }
+  if (deviceId == null && macAddress == null) {
+    throw const BacnetDecodeException('You-Are without device or MAC');
+  }
+  return (
+    vendorId: vendorId,
+    modelName: modelName,
+    serialNumber: serialNumber,
+    deviceId: deviceId,
+    macAddress: macAddress,
+  );
+}
+
+int _identityUnsigned(BacnetReader r) => switch (r.readApplicationValue()) {
+  BacnetUnsigned(:final value) when value <= 0xFFFF => value,
+  final other => throw BacnetDecodeException('malformed vendor id: $other'),
+};
+
+String _identityString(BacnetReader r, String what) =>
+    switch (r.readApplicationValue()) {
+      BacnetCharacterString(:final value) => value,
+      final other => throw BacnetDecodeException('malformed $what: $other'),
+    };
+
+/// Decoded WriteGroup request.
+typedef WriteGroupData = ({
+  int groupNumber,
+  int writePriority,
+  List<BacnetGroupChannelValue> changes,
+  bool? inhibitDelay,
+});
+
+/// Decodes a WriteGroup request (ASHRAE 135 clause 15.11).
+WriteGroupData decodeWriteGroup(Uint8List data) {
+  final r = BacnetReader(data);
+  final groupNumber = r.readContextUnsigned(0);
+  final writePriority = r.readContextUnsigned(1);
+  if (writePriority < 1 || writePriority > 16) {
+    throw BacnetDecodeException('write priority $writePriority');
+  }
+  r.expectOpening(2);
+  final changes = <BacnetGroupChannelValue>[];
+  while (!r.nextIsClosing(2)) {
+    final channel = r.readContextUnsigned(0);
+    final priority = r.readOptionalContextUnsigned(1);
+    r.expectOpening(2);
+    final values = r.readValuesUntilClosing(2);
+    if (values.length != 1 ||
+        channel > 0xFFFF ||
+        (priority != null && (priority < 1 || priority > 16))) {
+      throw const BacnetDecodeException('malformed BACnetGroupChannelValue');
+    }
+    changes.add(
+      BacnetGroupChannelValue(
+        channel,
+        values.single,
+        overridingPriority: priority,
+      ),
+    );
+  }
+  r.expectClosing(2);
+  final inhibitDelay = r.nextIsContext(3) ? r.readContextBoolean(3) : null;
+  return (
+    groupNumber: groupNumber,
+    writePriority: writePriority,
+    changes: List.unmodifiable(changes),
+    inhibitDelay: inhibitDelay,
+  );
 }
 
 /// Decoded DeviceCommunicationControl request.

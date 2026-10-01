@@ -23,6 +23,7 @@ import '../models/alarms.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
+import '../models/channels.dart';
 import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../models/files.dart';
@@ -664,6 +665,96 @@ class BacnetClient {
   Future<BacnetAddressRecipient> localAddress() => _system
       .call<List<int>>(LocalAddressCommand.new)
       .then((mac) => BacnetAddressRecipient(network: 0, mac: mac));
+
+  /// Who-Am-I requests of devices without a configured device instance;
+  /// a supervisor answers with [sendYouAre].
+  Stream<WhoAmIEvent> get whoAmIRequests => events.whereType<WhoAmIEvent>();
+
+  /// Assigns [deviceId] (and [macAddress]) to the device with [vendorId],
+  /// [modelName] and [serialNumber] (You-Are, the answer to a Who-Am-I).
+  /// Sent to [destination] (e.g. [WhoAmIEvent.source]), else broadcast on
+  /// [network] (0xFFFF: all networks, 0: the local one).
+  ///
+  /// ```dart
+  /// client.whoAmIRequests.listen((request) async {
+  ///   final id = await inventory.instanceFor(request.serialNumber);
+  ///   await client.sendYouAre(
+  ///     vendorId: request.vendorId,
+  ///     modelName: request.modelName,
+  ///     serialNumber: request.serialNumber,
+  ///     deviceId: id,
+  ///     destination: request.source,
+  ///   );
+  /// });
+  /// ```
+  Future<void> sendYouAre({
+    required int vendorId,
+    required String modelName,
+    required String serialNumber,
+    int? deviceId,
+    List<int>? macAddress,
+    BacnetAddressRecipient? destination,
+    int network = 0xFFFF,
+  }) => Future.sync(
+    () => _system.call<void>(
+      (id) => UnconfirmedRequestCommand(
+        id,
+        service: BacnetUnconfirmedService.youAre,
+        payload: encodeYouAre(
+          vendorId: vendorId,
+          modelName: modelName,
+          serialNumber: serialNumber,
+          deviceId: deviceId,
+          macAddress: macAddress,
+        ),
+        network: destination?.network ?? network,
+        mac: destination == null
+            ? null
+            : destination.network == 0
+            ? destination.mac
+            : const [],
+        adr: destination == null || destination.network == 0
+            ? const []
+            : destination.mac,
+      ),
+    ),
+  );
+
+  /// Writes [changes] to the Channel objects of all devices whose
+  /// Control_Groups contain [groupNumber] (WriteGroup, broadcast on
+  /// [network]) at [writePriority]; [inhibitDelay] makes the channels skip
+  /// their write delay.
+  ///
+  /// ```dart
+  /// // dim the lights of group 5 to 50 % and switch channel 3 off
+  /// await client.writeGroup(5, [
+  ///   BacnetGroupChannelValue(1, const BacnetReal(50)),
+  ///   BacnetGroupChannelValue(3, const BacnetUnsigned(0)),
+  /// ]);
+  /// ```
+  Future<void> writeGroup(
+    int groupNumber,
+    List<BacnetGroupChannelValue> changes, {
+    int writePriority = 16,
+    bool? inhibitDelay,
+    int? deviceId,
+    int network = 0xFFFF,
+  }) => Future.sync(
+    () => _system.call<void>(
+      (id) => UnconfirmedRequestCommand(
+        id,
+        service: BacnetUnconfirmedService.writeGroup,
+        payload: encodeWriteGroup(
+          groupNumber,
+          changes,
+          writePriority: writePriority,
+          inhibitDelay: inhibitDelay,
+        ),
+        deviceId: deviceId,
+        network: network,
+      ),
+    ),
+  );
 
   /// Network layer messages received from routers and other devices
   /// (I-Am-Router-To-Network, Network-Number-Is, Reject-Message-To-Network,

@@ -18,6 +18,7 @@
 #include "bacnet/basic/object/device.h"
 #include "bacnet/basic/object/ai.h"
 #include "bacnet/basic/object/av.h"
+#include "bacnet/basic/object/channel.h"
 #include "bacnet/basic/object/bi.h"
 #include "bacnet/basic/object/msv.h"
 #include "bacnet/basic/object/nc.h"
@@ -207,6 +208,19 @@ static void bp_on_reinitialize(
     bp_service_src_valid = false;
 }
 
+/* WriteGroup: the Channel objects write their members, the application
+   gets the request */
+static BACNET_WRITE_GROUP_NOTIFICATION bp_write_group_channels = {
+    NULL, Channel_Write_Group
+};
+
+static void
+bp_on_write_group(uint8_t *request, uint16_t len, BACNET_ADDRESS *src)
+{
+    handler_write_group(request, len, src);
+    bp_forward_unconfirmed(SERVICE_UNCONFIRMED_WRITE_GROUP, request, len, src);
+}
+
 BP_API int32_t bacnet_plugin_device_set_password(const char *password)
 {
     char *previous = NULL;
@@ -376,6 +390,18 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
             SERVICE_CONFIRMED_ADD_LIST_ELEMENT, bp_on_add_list_element);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_REMOVE_LIST_ELEMENT, bp_on_remove_list_element);
+        apdu_set_unconfirmed_handler(
+            SERVICE_UNCONFIRMED_WRITE_GROUP, bp_on_write_group);
+        {
+            /* the notification list of bacnet-stack lives as long as the
+               process: add the channels once */
+            static bool channels_added;
+            if (!channels_added) {
+                handler_write_group_notification_add(
+                    &bp_write_group_channels);
+                channels_added = true;
+            }
+        }
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_ATOMIC_READ_FILE, handler_atomic_read_file);
         apdu_set_confirmed_handler(
@@ -445,6 +471,9 @@ bacnet_plugin_device_set_string(uint32_t property, const char *value)
         case PROP_APPLICATION_SOFTWARE_VERSION:
             ok = Device_Set_Application_Software_Version(stored, len);
             break;
+        case PROP_SERIAL_NUMBER:
+            ok = Device_Serial_Number_Set(stored, len);
+            break;
         default:
             free(previous);
             return BP_ERR_UNSUPPORTED;
@@ -460,6 +489,24 @@ bacnet_plugin_device_set_string(uint32_t property, const char *value)
         return BP_ERR_INVALID_ARGUMENT;
     }
     free(previous);
+    return BP_OK;
+}
+
+BP_API int32_t bacnet_plugin_device_set_instance(uint32_t device_instance)
+{
+    if (!bp_state.initialized) {
+        return BP_ERR_NOT_INITIALIZED;
+    }
+    if (!bp_state.server_enabled) {
+        return BP_ERR_SERVER_DISABLED;
+    }
+    if (device_instance > BACNET_MAX_INSTANCE - 1 ||
+        !Device_Set_Object_Instance_Number(device_instance)) {
+        return BP_ERR_INVALID_ARGUMENT;
+    }
+    address_own_device_id_set(device_instance);
+    bp_device_remove(device_instance);
+    Send_I_Am(&Handler_Transmit_Buffer[0]);
     return BP_OK;
 }
 

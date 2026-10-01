@@ -240,6 +240,26 @@ BP_API int32_t bacnet_plugin_send_unconfirmed(
     uint16_t data_len);
 
 /**
+ * Sends an unconfirmed request to an address, e.g. the answer to a device
+ * without a device instance (You-Are to the sender of a Who-Am-I).
+ * @param mac BACnet/IP address (IPv4 address and UDP port, 6 bytes) of the
+ *        device or of the router, NULL or mac_len 0 for a local broadcast.
+ * @param net destination network (DNET): 0 for the local network, 0xFFFF
+ *        for a global broadcast.
+ * @param adr address on the destination network (DADR), adr_len 0 for a
+ *        broadcast on it.
+ */
+BP_API int32_t bacnet_plugin_send_unconfirmed_to(
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len,
+    uint8_t service,
+    const uint8_t *data,
+    uint16_t data_len);
+
+/**
  * Adds or replaces a static device address binding.
  * @param host IPv4 address or host name of the device (or of the router).
  * @param net remote network number (0 for local devices).
@@ -313,9 +333,14 @@ BP_API int32_t
 bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name);
 
 /** Sets a string property of the local Device object
- *  (vendor name, model name, description, location, firmware, version). */
+ *  (name, vendor name, model name, description, location, firmware,
+ *  application software version, serial number). */
 BP_API int32_t
 bacnet_plugin_device_set_string(uint32_t property, const char *value);
+
+/** Changes the instance of the local Device object (e.g. as told by a
+ *  You-Are) and broadcasts an I-Am. */
+BP_API int32_t bacnet_plugin_device_set_instance(uint32_t device_instance);
 
 /** Sets the vendor identifier of the local Device object. */
 BP_API int32_t bacnet_plugin_device_set_vendor_id(uint16_t vendor_id);

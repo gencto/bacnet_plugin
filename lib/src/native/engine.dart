@@ -116,14 +116,40 @@ class NativeEngine {
         bacnet_plugin_send_confirmed(deviceId, service, data, length, priority),
   );
 
-  /// Sends an unconfirmed request to [deviceId] or as broadcast on
-  /// [network] (0xFFFF global, 0 local).
+  /// Sends an unconfirmed request to [deviceId], to [mac] (and [adr] on
+  /// [network] behind a router) or as broadcast on [network] (0xFFFF
+  /// global, 0 local).
   void sendUnconfirmed(
     int service,
     Uint8List payload, {
     int? deviceId,
     int network = 0xFFFF,
+    List<int>? mac,
+    List<int> adr = const [],
   }) {
+    if (mac != null) {
+      // one buffer: _withBytes reuses the same scratch memory
+      final bytes = Uint8List(mac.length + adr.length + payload.length)
+        ..setAll(0, mac)
+        ..setAll(mac.length, adr)
+        ..setAll(mac.length + adr.length, payload);
+      checkNative(
+        _withBytes(
+          bytes,
+          (data, _) => bacnet_plugin_send_unconfirmed_to(
+            mac.isEmpty ? ffi.nullptr : data,
+            mac.length,
+            network,
+            adr.isEmpty ? ffi.nullptr : data + mac.length,
+            adr.length,
+            service,
+            payload.isEmpty ? ffi.nullptr : data + mac.length + adr.length,
+            payload.length,
+          ),
+        ),
+      );
+      return;
+    }
     checkNative(
       _withBytes(
         payload,
@@ -213,6 +239,10 @@ class NativeEngine {
   /// Sets Backup_And_Restore_State of the server.
   void setBackupState(int state) =>
       checkNative(bacnet_plugin_backup_set_state(state));
+
+  /// Changes the instance of the local Device object and sends an I-Am.
+  void setDeviceInstance(int deviceId) =>
+      checkNative(bacnet_plugin_device_set_instance(deviceId));
 
   /// Replaces the content of File object [instance] of the server.
   void setFileContent(int instance, Uint8List content) {

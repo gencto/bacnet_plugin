@@ -489,6 +489,12 @@ abstract final class BacnetProperties {
     _string,
   );
 
+  /// Serial_Number (the identity of Who-Am-I, with the vendor and model).
+  static const serialNumber = BacnetProperty<String>(
+    BacnetPropertyId.serialNumber,
+    _string,
+  );
+
   /// Location.
   static const location = BacnetWritableProperty<String>(
     BacnetPropertyId.location,
@@ -663,6 +669,21 @@ abstract final class BacnetProperties {
     _boolean,
   );
 
+  /// Channel_Number of a Channel object: WriteGroup addresses channels by
+  /// it.
+  static const channelNumber = BacnetWritableProperty<int>(
+    BacnetPropertyId.channelNumber,
+    _unsigned,
+    _encodeUnsigned,
+  );
+
+  /// Control_Groups of a Channel object: the WriteGroup group numbers it
+  /// follows (0: unused element).
+  static const controlGroups = BacnetProperty<List<int>>(
+    BacnetPropertyId.controlGroups,
+    _unsignedList,
+  );
+
   /// Date_List of a Calendar object.
   static const dateList = BacnetWritableProperty<List<BacnetCalendarEntry>>(
     BacnetPropertyId.dateList,
@@ -825,6 +846,9 @@ int _unsigned(BacnetValue value) => switch (value) {
   BacnetUnsigned(:final value) => value,
   _ => _wrongType('Unsigned', value),
 };
+
+List<int> _unsignedList(BacnetValue value) =>
+    List.unmodifiable(value.asList.map(_unsigned));
 
 int _signed(BacnetValue value) => switch (value) {
   BacnetSigned(:final value) => value,

@@ -974,4 +974,51 @@ void main() {
       expect(controller.restores, 0);
     });
   });
+
+  group('provisioning and groups', () {
+    test('answers Who-Am-I with You-Are', () async {
+      final assigned = client.whoAmIRequests.first.then(
+        (request) => client.sendYouAre(
+          vendorId: request.vendorId,
+          modelName: request.modelName,
+          serialNumber: request.serialNumber,
+          deviceId: 3001,
+        ),
+      );
+      client.receive(
+        const WhoAmIEvent(
+          vendorId: 260,
+          modelName: 'RC-1',
+          serialNumber: 'SN-0042',
+        ),
+      );
+      await assigned;
+      final request = client.requests.last;
+      expect(request.service, 'sendYouAre');
+      expect(request.deviceId, 3001);
+      expect(request.arguments, {
+        'vendorId': 260,
+        'modelName': 'RC-1',
+        'serialNumber': 'SN-0042',
+      });
+      expect(
+        () => client.sendYouAre(
+          vendorId: 260,
+          modelName: 'RC-1',
+          serialNumber: 'SN-0042',
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('records WriteGroup requests', () async {
+      final changes = [BacnetGroupChannelValue(7, const BacnetReal(80))];
+      await client.writeGroup(5, changes, writePriority: 9);
+      final request = client.requests.last;
+      expect(request.service, 'writeGroup');
+      expect(request.priority, 9);
+      expect(request.arguments, {'groupNumber': 5, 'changes': changes});
+      expect(() => client.writeGroup(0, changes), throwsRangeError);
+    });
+  });
 }

@@ -63,6 +63,9 @@ const _stackDefines = <String, String?>{
   // schedules of the server: members written and exceptions
   'BACNET_SCHEDULE_OBJ_PROP_REF_SIZE': '32',
   'BACNET_EXCEPTION_SCHEDULE_SIZE': '16',
+  // channels of the server: members and control groups
+  'CHANNEL_MEMBERS_MAX': '32',
+  'CONTROL_GROUPS_MAX': '16',
 };
 
 void main(List<String> args) async {

@@ -19,6 +19,7 @@ import '../models/alarms.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
+import '../models/channels.dart';
 import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../models/files.dart';
@@ -42,6 +43,7 @@ final class FakeBacnetRequest {
     this.objectName,
     this.source,
     this.networkMessage,
+    this.arguments = const {},
   });
 
   /// Client method, e.g. `readProperty`, `writeProperty`, `subscribeCOV`,
@@ -78,6 +80,10 @@ final class FakeBacnetRequest {
 
   /// Message of `sendNetworkMessage`.
   final BacnetNetworkMessage? networkMessage;
+
+  /// Other arguments by name, e.g. `serialNumber` of `sendYouAre` or
+  /// `changes` of `writeGroup`.
+  final Map<String, Object?> arguments;
 
   @override
   String toString() =>
@@ -979,6 +985,80 @@ class FakeBacnetClient implements BacnetClient {
   Stream<EventNotificationEvent> get eventNotifications => events
       .where((e) => e is EventNotificationEvent)
       .cast<EventNotificationEvent>();
+
+  @override
+  Stream<WhoAmIEvent> get whoAmIRequests =>
+      events.where((e) => e is WhoAmIEvent).cast<WhoAmIEvent>();
+
+  /// Delivers [event] to the listeners as if the network produced it, e.g.
+  /// a [WhoAmIEvent] of a new device.
+  void receive(BacnetEvent event) {
+    if (!_events.isClosed) _events.add(event);
+  }
+
+  @override
+  Future<void> sendYouAre({
+    required int vendorId,
+    required String modelName,
+    required String serialNumber,
+    int? deviceId,
+    List<int>? macAddress,
+    BacnetAddressRecipient? destination,
+    int network = 0xFFFF,
+  }) async {
+    _checkStarted();
+    // validates like the real client
+    encodeYouAre(
+      vendorId: vendorId,
+      modelName: modelName,
+      serialNumber: serialNumber,
+      deviceId: deviceId,
+      macAddress: macAddress,
+    );
+    requests.add(
+      FakeBacnetRequest(
+        'sendYouAre',
+        deviceId: deviceId,
+        arguments: {
+          'vendorId': vendorId,
+          'modelName': modelName,
+          'serialNumber': serialNumber,
+          'macAddress': ?macAddress,
+          'destination': ?destination,
+        },
+      ),
+    );
+  }
+
+  @override
+  Future<void> writeGroup(
+    int groupNumber,
+    List<BacnetGroupChannelValue> changes, {
+    int writePriority = 16,
+    bool? inhibitDelay,
+    int? deviceId,
+    int network = 0xFFFF,
+  }) async {
+    _checkStarted();
+    encodeWriteGroup(
+      groupNumber,
+      changes,
+      writePriority: writePriority,
+      inhibitDelay: inhibitDelay,
+    );
+    requests.add(
+      FakeBacnetRequest(
+        'writeGroup',
+        deviceId: deviceId,
+        priority: writePriority,
+        arguments: {
+          'groupNumber': groupNumber,
+          'changes': List<BacnetGroupChannelValue>.unmodifiable(changes),
+          'inhibitDelay': ?inhibitDelay,
+        },
+      ),
+    );
+  }
 
   @override
   Stream<NetworkMessageEvent> get networkMessages =>

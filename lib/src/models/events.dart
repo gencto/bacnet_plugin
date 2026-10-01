@@ -8,6 +8,7 @@ import '../constants/property_ids.dart';
 import '../core/types.dart';
 import 'alarms.dart';
 import 'bacnet_value.dart';
+import 'channels.dart';
 import 'complex_values.dart';
 import 'network.dart';
 
@@ -557,6 +558,150 @@ class ListElementEvent extends BacnetEvent {
   String toString() =>
       'ListElementEvent(${added ? 'added to' : 'removed from'} $object '
       '${propertyId.label}: $elements)';
+}
+
+/// A Who-Am-I: a device without a configured device instance asks a
+/// supervisor for one; answer with `BacnetClient.sendYouAre`.
+class WhoAmIEvent extends BacnetEvent {
+  /// Creates the event.
+  const WhoAmIEvent({
+    required this.vendorId,
+    required this.modelName,
+    required this.serialNumber,
+    this.mac = const [],
+    this.net = 0,
+    this.adr = const [],
+  });
+
+  /// Vendor of the device.
+  final int vendorId;
+
+  /// Model_Name of the device.
+  final String modelName;
+
+  /// Serial_Number of the device.
+  final String serialNumber;
+
+  /// Source MAC address (BACnet/IP: 4 bytes IPv4 + 2 bytes port).
+  final List<int> mac;
+
+  /// Source network number (0 = local network).
+  final int net;
+
+  /// Address of the device on network [net] (empty on the local network).
+  final List<int> adr;
+
+  /// IPv4 address of the device (or of its router), if BACnet/IP.
+  String? get ipAddress =>
+      mac.length >= 4 ? '${mac[0]}.${mac[1]}.${mac[2]}.${mac[3]}' : null;
+
+  /// The address of the device, to answer it directly with
+  /// `BacnetClient.sendYouAre`.
+  BacnetAddressRecipient get source => net == 0
+      ? BacnetAddressRecipient(network: 0, mac: mac)
+      : BacnetAddressRecipient(network: net, mac: adr);
+
+  @override
+  String toString() =>
+      'WhoAmIEvent(vendor $vendorId, $modelName, serial $serialNumber)';
+}
+
+/// A You-Are: a supervisor assigns a device instance (and MAC address) to
+/// the device with [vendorId], [modelName] and [serialNumber].
+class YouAreEvent extends BacnetEvent {
+  /// Creates the event.
+  const YouAreEvent({
+    required this.vendorId,
+    required this.modelName,
+    required this.serialNumber,
+    this.deviceId,
+    this.macAddress,
+    this.mac = const [],
+    this.net = 0,
+    this.adr = const [],
+  });
+
+  /// Vendor of the addressed device.
+  final int vendorId;
+
+  /// Model_Name of the addressed device.
+  final String modelName;
+
+  /// Serial_Number of the addressed device.
+  final String serialNumber;
+
+  /// The assigned device instance.
+  final int? deviceId;
+
+  /// The assigned MAC address.
+  final Uint8List? macAddress;
+
+  /// Source MAC address of the supervisor.
+  final List<int> mac;
+
+  /// Source network number of the supervisor.
+  final int net;
+
+  /// Address of the supervisor on network [net] (empty on the local
+  /// network).
+  final List<int> adr;
+
+  /// The address of the supervisor.
+  BacnetAddressRecipient get source => net == 0
+      ? BacnetAddressRecipient(network: 0, mac: mac)
+      : BacnetAddressRecipient(network: net, mac: adr);
+
+  /// True when the request addresses the device with [vendorId],
+  /// [modelName] and [serialNumber].
+  bool addresses({
+    required int vendorId,
+    required String modelName,
+    required String serialNumber,
+  }) =>
+      this.vendorId == vendorId &&
+      this.modelName == modelName &&
+      this.serialNumber == serialNumber;
+
+  @override
+  String toString() =>
+      'YouAreEvent(device $deviceId for vendor $vendorId, $modelName, '
+      'serial $serialNumber)';
+}
+
+/// A WriteGroup received by the server: values for the Channel objects
+/// whose Control_Groups contain [groupNumber].
+class WriteGroupEvent extends BacnetEvent {
+  /// Creates the event.
+  const WriteGroupEvent({
+    required this.groupNumber,
+    required this.writePriority,
+    required this.changes,
+    this.inhibitDelay,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// The control group.
+  final int groupNumber;
+
+  /// Priority of the writes (1..16).
+  final int writePriority;
+
+  /// The values per channel number.
+  final List<BacnetGroupChannelValue> changes;
+
+  /// Whether the channels skip their write delay, if given.
+  final bool? inhibitDelay;
+
+  /// Source MAC address of the client.
+  final List<int> mac;
+
+  /// Source network number of the client.
+  final int net;
+
+  @override
+  String toString() =>
+      'WriteGroupEvent(group $groupNumber @ $writePriority: $changes)';
 }
 
 /// A remote client wrote to a File object of the server (AtomicWriteFile,

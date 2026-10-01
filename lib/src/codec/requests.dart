@@ -5,6 +5,7 @@ import 'package:meta/meta.dart';
 import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../models/bacnet_value.dart';
+import '../models/channels.dart';
 import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../models/rpm_models.dart';
@@ -545,6 +546,75 @@ Uint8List encodePrivateTransfer(
     encodeApplicationValue(w, parameters);
     w.closing(2);
   }
+  return w.toBytes();
+}
+
+/// Encodes a Who-Am-I request: a device without a configured device
+/// instance asks a supervisor for one (ASHRAE 135 clause 16.11).
+Uint8List encodeWhoAmI({
+  required int vendorId,
+  required String modelName,
+  required String serialNumber,
+}) {
+  RangeError.checkValueInInterval(vendorId, 0, 0xFFFF, 'vendorId');
+  return (BacnetWriter(modelName.length + serialNumber.length + 16)
+        ..appUnsigned(vendorId)
+        ..appCharacterString(modelName)
+        ..appCharacterString(serialNumber))
+      .toBytes();
+}
+
+/// Encodes a You-Are request: assigns [deviceId] and [macAddress] to the
+/// device with [vendorId], [modelName] and [serialNumber] (ASHRAE 135
+/// clause 16.12).
+Uint8List encodeYouAre({
+  required int vendorId,
+  required String modelName,
+  required String serialNumber,
+  int? deviceId,
+  List<int>? macAddress,
+}) {
+  RangeError.checkValueInInterval(vendorId, 0, 0xFFFF, 'vendorId');
+  if (deviceId == null && macAddress == null) {
+    throw ArgumentError('give a deviceId, a macAddress or both');
+  }
+  final w = BacnetWriter(modelName.length + serialNumber.length + 32)
+    ..appUnsigned(vendorId)
+    ..appCharacterString(modelName)
+    ..appCharacterString(serialNumber);
+  if (deviceId != null) {
+    RangeError.checkValueInInterval(deviceId, 0, 0x3FFFFE, 'deviceId');
+    w.appObjectId(BacnetObjectType.device, deviceId);
+  }
+  if (macAddress != null) w.appOctetString(macAddress);
+  return w.toBytes();
+}
+
+/// Encodes a WriteGroup request (ASHRAE 135 clause 15.11): [changes] for
+/// the Channel objects whose Control_Groups contain [groupNumber].
+Uint8List encodeWriteGroup(
+  int groupNumber,
+  List<BacnetGroupChannelValue> changes, {
+  int writePriority = 16,
+  bool? inhibitDelay,
+}) {
+  RangeError.checkValueInInterval(groupNumber, 1, 0xFFFFFFFF, 'groupNumber');
+  RangeError.checkValueInInterval(writePriority, 1, 16, 'writePriority');
+  final w = BacnetWriter(32 + changes.length * 16)
+    ..ctxUnsigned(0, groupNumber)
+    ..ctxUnsigned(1, writePriority)
+    ..opening(2);
+  for (final change in changes) {
+    w.ctxUnsigned(0, change.channel);
+    if (change.overridingPriority case final priority?) {
+      w.ctxUnsigned(1, priority);
+    }
+    w.opening(2);
+    encodeApplicationValue(w, change.value);
+    w.closing(2);
+  }
+  w.closing(2);
+  if (inhibitDelay != null) w.ctxBoolean(3, inhibitDelay);
   return w.toBytes();
 }
 

@@ -3,6 +3,7 @@
 // Usage: dart run tool/demo_server.dart [port] [deviceId] [objects]
 // ignore_for_file: avoid_print
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -26,6 +27,8 @@ Future<void> main(List<String> args) async {
     deviceId,
     'DemoServer',
     vendorName: 'bacnet_plugin',
+    modelName: 'Demo',
+    serialNumber: 'DEMO-$deviceId',
     password: 'demo-password',
   );
   for (var i = 0; i < objects; i++) {
@@ -149,6 +152,45 @@ Future<void> main(List<String> args) async {
       print('RESTORED $settings');
     },
   );
+  // a Channel: WriteGroup of control group 5 with channel 7 writes AV 920
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    920,
+    name: 'Group-AV',
+    presentValue: const BacnetReal(0),
+  );
+  await server.addChannel(
+    1,
+    name: 'Lights',
+    channelNumber: 7,
+    controlGroups: [5],
+    members: const [
+      BacnetDeviceObjectPropertyReference(
+        object: BacnetObject(type: BacnetObjectType.analogValue, instance: 920),
+        property: BacnetPropertyId.presentValue,
+      ),
+    ],
+  );
+  server.writeGroupEvents.listen((e) => print('GROUP $e'));
+  // "provision <ip> <port>": asks the supervisor there for a device
+  // instance (Who-Am-I / You-Are)
+  stdin.transform(utf8.decoder).transform(const LineSplitter()).listen((
+    line,
+  ) async {
+    final words = line.trim().split(' ');
+    if (words.length == 3 && words[0] == 'provision') {
+      final port = int.parse(words[2]);
+      final instance = await server.requestDeviceInstance(
+        supervisor: BacnetAddressRecipient(
+          network: 0,
+          mac: [...words[1].split('.').map(int.parse), port >> 8, port & 0xFF],
+        ),
+        timeout: const Duration(seconds: 10),
+        retryInterval: const Duration(seconds: 1),
+      );
+      print('PROVISIONED $instance');
+    }
+  });
   server.fileWrites.listen((e) => print('FILE $e'));
   server.writeEvents.listen((e) async {
     print('WRITE $e');

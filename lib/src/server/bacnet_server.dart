@@ -8,12 +8,14 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../codec/requests.dart';
 import '../codec/value_encoding.dart';
 import '../codec/writer.dart';
 import '../constants/engineering_units.dart';
 import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
+import '../constants/services.dart';
 import '../core/bacnet_config.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
@@ -147,6 +149,17 @@ class BacnetServer {
       .where((e) => e is ListElementEvent)
       .cast<ListElementEvent>();
 
+  /// You-Are requests of supervisors: the device instance assigned to the
+  /// device with a vendor, model name and serial number (see
+  /// [requestDeviceInstance]).
+  Stream<YouAreEvent> get youAreRequests =>
+      _system.events.where((e) => e is YouAreEvent).cast<YouAreEvent>();
+
+  /// WriteGroup requests received by this server; the Channel objects of
+  /// [addChannel] in the group already wrote their members.
+  Stream<WriteGroupEvent> get writeGroupEvents =>
+      _system.events.where((e) => e is WriteGroupEvent).cast<WriteGroupEvent>();
+
   /// Writes of remote clients to the File objects of [addFile]
   /// (AtomicWriteFile). Changes of the size (writes of File_Size) arrive as
   /// [writeEvents].
@@ -185,6 +198,7 @@ class BacnetServer {
     String? location,
     String? firmwareRevision,
     String? applicationSoftwareVersion,
+    String? serialNumber,
     String? password,
   }) async {
     _checkPassword(password);
@@ -203,6 +217,7 @@ class BacnetServer {
           BacnetPropertyId.firmwareRevision: ?firmwareRevision,
           BacnetPropertyId.applicationSoftwareVersion:
               ?applicationSoftwareVersion,
+          BacnetPropertyId.serialNumber: ?serialNumber,
         },
       ),
     );
@@ -645,6 +660,205 @@ class BacnetServer {
         await removeObject(BacnetObjectType.calendar, created);
         rethrow;
       }
+    }
+    return created;
+  }
+
+  // ---- device instance ------------------------------------------------------
+
+  /// Changes the instance of the Device object (e.g. as a supervisor
+  /// assigned with You-Are) and announces it with an I-Am.
+  Future<void> setDeviceInstance(int deviceId) async {
+    RangeError.checkValueInInterval(deviceId, 0, 0x3FFFFE, 'deviceId');
+    await _system.call<void>((id) => SetDeviceInstanceCommand(id, deviceId));
+    _deviceId = deviceId;
+  }
+
+  /// Sends a Who-Am-I with the Vendor_Identifier, Model_Name and
+  /// Serial_Number of the Device object (see [init]) to [supervisor], or
+  /// broadcasts it: a supervisor answers with You-Are ([youAreRequests]).
+  Future<void> sendWhoAmI({BacnetAddressRecipient? supervisor}) async {
+    final identity = await _identity();
+    await _system.call<void>(
+      (id) => UnconfirmedRequestCommand(
+        id,
+        service: BacnetUnconfirmedService.whoAmI,
+        payload: encodeWhoAmI(
+          vendorId: identity.vendorId,
+          modelName: identity.modelName,
+          serialNumber: identity.serialNumber,
+        ),
+        network: supervisor?.network ?? 0xFFFF,
+        mac: supervisor == null
+            ? null
+            : supervisor.network == 0
+            ? supervisor.mac
+            : const [],
+        adr: supervisor == null || supervisor.network == 0
+            ? const []
+            : supervisor.mac,
+      ),
+    );
+  }
+
+  /// Asks a supervisor for the device instance of this server: sends
+  /// Who-Am-I (to [supervisor], or broadcast) every [retryInterval] and
+  /// applies the first You-Are that assigns an instance to this device
+  /// (same vendor, model name and serial number). Returns the instance, or
+  /// null when no supervisor answers within [timeout].
+  ///
+  /// ```dart
+  /// await server.init(4194302, 'Room controller',
+  ///     vendorId: 260, modelName: 'RC-1', serialNumber: serial);
+  /// final instance = await server.requestDeviceInstance();
+  /// ```
+  Future<int?> requestDeviceInstance({
+    BacnetAddressRecipient? supervisor,
+    Duration timeout = const Duration(seconds: 30),
+    Duration retryInterval = const Duration(seconds: 5),
+  }) async {
+    final identity = await _identity();
+    final assigned = Completer<int?>();
+    final subscription = youAreRequests.listen((request) {
+      if (!assigned.isCompleted &&
+          request.deviceId != null &&
+          request.addresses(
+            vendorId: identity.vendorId,
+            modelName: identity.modelName,
+            serialNumber: identity.serialNumber,
+          )) {
+        assigned.complete(request.deviceId);
+      }
+    });
+    final retry = Timer.periodic(retryInterval, (_) {
+      unawaited(sendWhoAmI(supervisor: supervisor).catchError((Object _) {}));
+    });
+    try {
+      await sendWhoAmI(supervisor: supervisor);
+      final deviceId = await assigned.future.timeout(
+        timeout,
+        onTimeout: () => null,
+      );
+      if (deviceId != null) await setDeviceInstance(deviceId);
+      return deviceId;
+    } finally {
+      retry.cancel();
+      await subscription.cancel();
+    }
+  }
+
+  Future<({int vendorId, String modelName, String serialNumber})>
+  _identity() async {
+    final deviceId = _deviceId;
+    if (deviceId == null) throw const BacnetNotInitializedException();
+    Future<BacnetValue> device(BacnetPropertyId property) =>
+        readProperty(BacnetObjectType.device, deviceId, property);
+    return (
+      vendorId: (await device(BacnetPropertyId.vendorIdentifier)).asInt ?? 0,
+      modelName: (await device(BacnetPropertyId.modelName)).asString ?? '',
+      serialNumber:
+          (await device(BacnetPropertyId.serialNumber)).asString ?? '',
+    );
+  }
+
+  // ---- channels -------------------------------------------------------------
+
+  /// Adds a Channel object and returns its instance: a WriteGroup of a
+  /// group in [controlGroups] (at most 16) with a value for
+  /// [channelNumber], or a write of its Present_Value, writes the value to
+  /// the [members] (properties of objects of this server, at most 32).
+  /// Those writes arrive as [writeEvents] with `internal` set, the requests
+  /// as [writeGroupEvents].
+  ///
+  /// ```dart
+  /// await server.addChannel(1,
+  ///     name: 'Lights floor 2',
+  ///     channelNumber: 7,
+  ///     controlGroups: [5],
+  ///     members: const [
+  ///       BacnetDeviceObjectPropertyReference(
+  ///         object: BacnetObject(type: BacnetObjectType.analogOutput,
+  ///             instance: 1),
+  ///         property: BacnetPropertyId.presentValue,
+  ///       ),
+  ///     ]);
+  /// ```
+  Future<int> addChannel(
+    int instance, {
+    required int channelNumber,
+    String? name,
+    String? description,
+    List<int> controlGroups = const [],
+    List<BacnetDeviceObjectPropertyReference> members = const [],
+  }) async {
+    RangeError.checkValueInInterval(channelNumber, 0, 0xFFFF, 'channelNumber');
+    if (controlGroups.length > 16) {
+      throw ArgumentError.value(controlGroups, 'controlGroups', 'at most 16');
+    }
+    for (final group in controlGroups) {
+      RangeError.checkValueInInterval(group, 1, 0xFFFFFFFF, 'controlGroups');
+    }
+    if (members.length > 32) {
+      throw ArgumentError.value(members, 'members', 'at most 32');
+    }
+    final deviceId = _deviceId;
+    if (deviceId == null) throw const BacnetNotInitializedException();
+    final device = BacnetObject(
+      type: BacnetObjectType.device,
+      instance: deviceId,
+    );
+    for (final member in members) {
+      if (member.device != null && member.device != device) {
+        throw ArgumentError.value(
+          member,
+          'members',
+          'channels write objects of this server only',
+        );
+      }
+    }
+    final created = await addObject(
+      BacnetObjectType.channel,
+      instance,
+      name: name,
+      description: description,
+    );
+    try {
+      await setProperty(
+        BacnetObjectType.channel,
+        created,
+        BacnetPropertyId.channelNumber,
+        BacnetUnsigned(channelNumber),
+      );
+      // fixed size arrays: written element by element
+      for (final (index, group) in controlGroups.indexed) {
+        await setProperty(
+          BacnetObjectType.channel,
+          created,
+          BacnetPropertyId.controlGroups,
+          BacnetUnsigned(group),
+          arrayIndex: index + 1,
+        );
+      }
+      for (final (index, member) in members.indexed) {
+        await setProperty(
+          BacnetObjectType.channel,
+          created,
+          BacnetPropertyId.listOfObjectPropertyReferences,
+          // the stack writes the members that name the device
+          BacnetDeviceObjectPropertyReference.listToValue([
+            BacnetDeviceObjectPropertyReference(
+              object: member.object,
+              property: member.property,
+              arrayIndex: member.arrayIndex,
+              device: device,
+            ),
+          ]),
+          arrayIndex: index + 1,
+        );
+      }
+    } on Object {
+      await removeObject(BacnetObjectType.channel, created);
+      rethrow;
     }
     return created;
   }

@@ -46,6 +46,9 @@ class ServerProcess {
     return ServerProcess._(process, lines);
   }
 
+  /// Writes a command line to the server (see tool/demo_server.dart).
+  void send(String line) => process.stdin.writeln(line);
+
   Future<void> stop() async {
     process.kill();
     await process.exitCode;
@@ -153,7 +156,7 @@ void main() {
       deviceObject,
       BacnetProperties.objectList,
     );
-    expect(objects, hasLength(117));
+    expect(objects, hasLength(119));
     expect(
       await client.read(device, deviceObject, BacnetProperties.vendorName),
       'bacnet_plugin',
@@ -164,8 +167,8 @@ void main() {
     final objects = await client.scanDevice(device);
     // device, network port, 100 AV, BV, MSV, alarms: NC, AV, BV, 2 files,
     // scheduled AV, calendar, schedule, 2 logged AVs, 2 trend logs,
-    // settings file
-    expect(objects, hasLength(117));
+    // settings file, grouped AV, channel
+    expect(objects, hasLength(119));
     final scanner = DeviceScanner(client);
     final details = await scanner.getDeviceDetails(device);
     expect(details.deviceName, 'DemoServer');
@@ -1563,6 +1566,171 @@ void main() {
         await client.whatIsNetworkNumber(timeout: const Duration(seconds: 2)),
         BacnetNetworkNumberIs(network: 3, configured: true),
       );
+    });
+  });
+
+  group('provisioning and channels', () {
+    Future<String> serverLine(String prefix, String text) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 15));
+      while (DateTime.now().isBefore(deadline)) {
+        for (final line in server.lines) {
+          if (line.startsWith(prefix) && line.contains(text)) return line;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      throw TimeoutException('no "$prefix ... $text" line from the server');
+    }
+
+    test('describes the channel', () async {
+      const channel = BacnetObject(type: BacnetObjectType.channel, instance: 1);
+      expect(
+        await client.read(device, channel, BacnetProperties.channelNumber),
+        7,
+      );
+      expect(
+        (await client.read(
+          device,
+          channel,
+          BacnetProperties.controlGroups,
+        )).first,
+        5,
+      );
+      final members = BacnetDeviceObjectPropertyReference.listFromValue(
+        await client.readProperty(
+          device,
+          BacnetObjectType.channel,
+          1,
+          BacnetPropertyId.listOfObjectPropertyReferences,
+          arrayIndex: 1,
+        ),
+      );
+      expect(members, [
+        const BacnetDeviceObjectPropertyReference(
+          object: BacnetObject(
+            type: BacnetObjectType.analogValue,
+            instance: 920,
+          ),
+          property: BacnetPropertyId.presentValue,
+          device: BacnetObject(type: BacnetObjectType.device, instance: device),
+        ),
+      ]);
+    });
+
+    test('WriteGroup writes the members of the channels', () async {
+      await client.writeGroup(
+        5,
+        [
+          BacnetGroupChannelValue(7, const BacnetReal(42.5)),
+          // no channel 8 in the device
+          BacnetGroupChannelValue(8, const BacnetBoolean(true)),
+        ],
+        writePriority: 10,
+        deviceId: device,
+      );
+      expect(
+        await serverLine('GROUP', 'group 5 @ 10'),
+        contains('channel 7 = BacnetReal(42.5)'),
+      );
+      expect(
+        await serverLine('WRITE', '2:920'),
+        'WRITE PropertyWriteEvent(2:920 property 85 = BacnetReal(42.5) @ 10, '
+        'internal)',
+      );
+      expect(
+        await client.readProperty(
+          device,
+          BacnetObjectType.analogValue,
+          920,
+          BacnetPropertyId.presentValue,
+        ),
+        const BacnetReal(42.5),
+      );
+      const channel = BacnetObject(type: BacnetObjectType.channel, instance: 1);
+      expect(
+        await client.readProperty(
+          device,
+          channel.type,
+          channel.instance,
+          BacnetPropertyId.lastPriority,
+        ),
+        const BacnetUnsigned(10),
+      );
+      // other groups leave the channel alone
+      await client.writeGroup(6, [
+        BacnetGroupChannelValue(7, const BacnetReal(1)),
+      ], deviceId: device);
+      await client.writeGroup(5, [
+        BacnetGroupChannelValue(7, const BacnetReal(2), overridingPriority: 9),
+      ], deviceId: device);
+      await serverLine('GROUP', 'group 5 @ 16');
+      await _waitFor(
+        () => server.lines.any((l) => l.contains('2:920') && l.contains('@ 9')),
+      );
+      expect(
+        server.lines.where(
+          (l) => l.startsWith('WRITE') && l.contains('BacnetReal(1.0)'),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('assigns the device instance with Who-Am-I / You-Are', () async {
+      const assigned = device + 100;
+      Future<void> provision(int instance) async {
+        final request = client.whoAmIRequests.first.timeout(
+          const Duration(seconds: 10),
+        );
+        server.send('provision 127.0.0.1 47862');
+        final whoAmI = await request;
+        expect(whoAmI.modelName, 'Demo');
+        expect(whoAmI.serialNumber, 'DEMO-$device');
+        expect(whoAmI.source.port, serverPort);
+        await client.sendYouAre(
+          vendorId: whoAmI.vendorId,
+          modelName: whoAmI.modelName,
+          serialNumber: whoAmI.serialNumber,
+          deviceId: instance,
+          destination: whoAmI.source,
+        );
+        await serverLine('PROVISIONED', '$instance');
+      }
+
+      await provision(assigned);
+      addTearDown(() async {
+        server.lines.removeWhere((l) => l.startsWith('PROVISIONED'));
+        await provision(device);
+      });
+      await client.addDeviceBinding(assigned, '127.0.0.1', port: serverPort);
+      expect(
+        await client.read(
+          assigned,
+          const BacnetObject(type: BacnetObjectType.device, instance: assigned),
+          BacnetProperties.serialNumber,
+        ),
+        'DEMO-$device',
+      );
+      // You-Are of other devices are ignored
+      server.lines.removeWhere((l) => l.startsWith('PROVISIONED'));
+      final request = client.whoAmIRequests.first.timeout(
+        const Duration(seconds: 10),
+      );
+      server.send('provision 127.0.0.1 47862');
+      final whoAmI = await request;
+      await client.sendYouAre(
+        vendorId: whoAmI.vendorId,
+        modelName: whoAmI.modelName,
+        serialNumber: 'OTHER',
+        deviceId: 1,
+        destination: whoAmI.source,
+      );
+      await client.sendYouAre(
+        vendorId: whoAmI.vendorId,
+        modelName: whoAmI.modelName,
+        serialNumber: whoAmI.serialNumber,
+        deviceId: assigned,
+        destination: whoAmI.source,
+      );
+      await serverLine('PROVISIONED', '$assigned');
     });
   });
 }

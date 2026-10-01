@@ -9,6 +9,12 @@ import 'package:test/test.dart';
 import '../support/alarm_vectors.dart';
 import '../support/codec_helpers.dart';
 
+const _youAre =
+    '220104751000526f6f6d20436f6e74726f6c6c6572750800534e2d30303432'
+    'c4020004d26506c0a80114bac0';
+const _writeGroup =
+    '091719082e09012e44429700002f090219042e21032f09032e002f09042e112f2f3901';
+
 void main() {
   group('robustness', () {
     final samples = <Uint8List>[
@@ -63,6 +69,9 @@ void main() {
         vectorGetAlarmSummaryAck,
         vectorDestinationAddress + vectorDestinationDevice,
         vectorAddListElement,
+        // You-Are and WriteGroup of bacnet-stack
+        _youAre,
+        _writeGroup,
       ])
         hexBytes(hex),
     ];
@@ -82,6 +91,9 @@ void main() {
         decodeListElements,
         decodeAtomicWriteFile,
         decodeAtomicReadFileAck,
+        decodeWhoAmI,
+        decodeYouAre,
+        decodeWriteGroup,
         (data) => BacnetDestination.listFromValue(decodeApplicationData(data)),
       ]) {
         try {
