@@ -200,6 +200,11 @@ void bp_tx_end(bp_transaction_t *tx);
 /** Runs the COV detection when the scan interval elapsed. */
 void bp_cov_scan(uint32_t now);
 void bp_event_reporting(uint32_t seconds);
+void bp_alarm_ack_hooks(void);
+#include "bacnet/list_element.h"
+/* reports a successful Add/RemoveListElement of a remote client */
+void bp_list_element_changed(
+    uint8_t service, const BACNET_LIST_ELEMENT_DATA *list_element);
 
 /* ---- Notification Class objects of the application (bp_nc.c) ---------- */
 
@@ -216,6 +221,8 @@ bool bp_nc_description_set(uint32_t instance, const char *description);
 int bp_nc_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
 uint32_t bp_nc_create(uint32_t instance);
 bool bp_nc_delete(uint32_t instance);
+int bp_nc_add_list_element(BACNET_LIST_ELEMENT_DATA *list_element);
+int bp_nc_remove_list_element(BACNET_LIST_ELEMENT_DATA *list_element);
 #endif
 
 #endif

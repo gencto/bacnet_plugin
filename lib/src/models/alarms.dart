@@ -975,20 +975,46 @@ final class BacnetEventSummary {
   /// Priorities of the transitions to off-normal, fault and normal.
   final List<int> eventPriorities;
 
-  /// When [eventState] was entered: the time stamp to acknowledge it with
-  /// [BacnetClient.acknowledgeAlarm].
-  BacnetTimeStamp? get stateTimeStamp {
-    final index = BacnetEventTransition.into(eventState).index;
-    return index < eventTimeStamps.length ? eventTimeStamps[index] : null;
-  }
+  /// When [eventState] was entered.
+  BacnetTimeStamp? get stateTimeStamp =>
+      timeStampOf(BacnetEventTransition.into(eventState));
 
-  /// True when the transition into [eventState] still waits for an
-  /// acknowledgement.
-  bool get isUnacknowledged => switch (BacnetEventTransition.into(eventState)) {
-    BacnetEventTransition.toOffNormal => !acknowledgedTransitions.toOffNormal,
-    BacnetEventTransition.toFault => !acknowledgedTransitions.toFault,
-    BacnetEventTransition.toNormal => !acknowledgedTransitions.toNormal,
-  };
+  /// When [transition] happened last.
+  BacnetTimeStamp? timeStampOf(BacnetEventTransition transition) =>
+      transition.index < eventTimeStamps.length
+      ? eventTimeStamps[transition.index]
+      : null;
+
+  /// The event state to acknowledge [transition] with: [eventState] for
+  /// the transition into it, otherwise the state the transition leads to
+  /// (off-normal for an earlier alarm).
+  BacnetEventState stateOf(BacnetEventTransition transition) =>
+      BacnetEventTransition.into(eventState) == transition
+      ? eventState
+      : switch (transition) {
+          BacnetEventTransition.toOffNormal => BacnetEventState.offNormal,
+          BacnetEventTransition.toFault => BacnetEventState.fault,
+          BacnetEventTransition.toNormal => BacnetEventState.normal,
+        };
+
+  /// The transitions that wait for an acknowledgement, e.g. an alarm that
+  /// returned to normal but was not acknowledged.
+  ///
+  /// ```dart
+  /// for (final transition in summary.unacknowledgedTransitions) {
+  ///   await client.acknowledgeAlarm(deviceId, summary.object,
+  ///       summary.stateOf(transition), summary.timeStampOf(transition)!,
+  ///       source: 'operator');
+  /// }
+  /// ```
+  List<BacnetEventTransition> get unacknowledgedTransitions => [
+    if (!acknowledgedTransitions.toOffNormal) BacnetEventTransition.toOffNormal,
+    if (!acknowledgedTransitions.toFault) BacnetEventTransition.toFault,
+    if (!acknowledgedTransitions.toNormal) BacnetEventTransition.toNormal,
+  ];
+
+  /// True when a transition waits for an acknowledgement.
+  bool get isUnacknowledged => unacknowledgedTransitions.isNotEmpty;
 
   @override
   bool operator ==(Object other) =>

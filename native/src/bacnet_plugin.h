@@ -73,6 +73,11 @@ extern "C" {
 #define BP_EVENT_WRITE 9
 /** Diagnostic message, data = UTF-8 text, a = level (0 debug .. 3 error) */
 #define BP_EVENT_LOG 10
+/** A confirmed service request of a remote client changed the server and
+ *  was answered with success: AcknowledgeAlarm, AddListElement or
+ *  RemoveListElement. service = confirmed service choice, data = the
+ *  service request. */
+#define BP_EVENT_SERVICE 11
 
 #define BP_FLAG_ABORT_FROM_SERVER 0x01
 #define BP_FLAG_COMPLEX 0x02
@@ -250,6 +255,14 @@ BP_API int32_t bacnet_plugin_device_binding(
     uint8_t *mac_len,
     uint16_t *net,
     uint16_t *max_apdu);
+
+/**
+ * Copies the own BACnet/IP address (IPv4 address and UDP port, 6 bytes) to
+ * `mac`, which must hold at least 6 bytes: where devices send
+ * notifications to this engine.
+ * @return the number of bytes copied or a negative BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_local_address(uint8_t *mac);
 
 /** Registers as foreign device with a BBMD and keeps the registration. */
 BP_API int32_t bacnet_plugin_register_foreign_device(

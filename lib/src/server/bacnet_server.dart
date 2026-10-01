@@ -95,6 +95,17 @@ class BacnetServer {
       .where((e) => e is PropertyWriteEvent)
       .cast<PropertyWriteEvent>();
 
+  /// Alarm acknowledgements of remote clients (AcknowledgeAlarm).
+  Stream<AlarmAcknowledgedEvent> get alarmAcknowledgements => _system.events
+      .where((e) => e is AlarmAcknowledgedEvent)
+      .cast<AlarmAcknowledgedEvent>();
+
+  /// Changes of list properties by remote clients (Add/RemoveListElement),
+  /// e.g. clients subscribing to the alarms of a Notification Class.
+  Stream<ListElementEvent> get listElementEvents => _system.events
+      .where((e) => e is ListElementEvent)
+      .cast<ListElementEvent>();
+
   /// Starts the BACnet stack (shared with [BacnetClient] instances).
   Future<void> start({String? interface, int? port}) async {
     if (_started) return;

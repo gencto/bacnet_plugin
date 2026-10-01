@@ -136,6 +136,9 @@ jobs:
           java-version: "21"
       - run: flutter pub get
       - run: flutter analyze
+      - name: Widget tests
+        if: matrix.build == 'linux'
+        run: flutter test test
       - name: Integration test (flutter-tester, native asset via build hook)
         if: matrix.build == 'linux'
         run: flutter test integration_test/app_test.dart -d flutter-tester

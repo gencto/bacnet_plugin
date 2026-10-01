@@ -5,12 +5,12 @@ import 'package:flutter/foundation.dart';
 ///
 /// Manages the BACnet client lifecycle, device discovery, and error states.
 class AppState extends ChangeNotifier {
-  AppState() {
+  /// Creates the state; tests pass a `FakeBacnetClient` as [client].
+  AppState({BacnetClient? client})
     // Enable logging to see what's happening
-    _client = BacnetClient(logger: const DeveloperBacnetLogger());
-  }
+    : _client = client ?? BacnetClient(logger: const DeveloperBacnetLogger());
 
-  late final BacnetClient _client;
+  final BacnetClient _client;
 
   /// The BACnet client instance.
   BacnetClient get client => _client;

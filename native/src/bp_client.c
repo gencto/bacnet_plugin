@@ -586,6 +586,24 @@ BP_API int32_t bacnet_plugin_device_binding(
     return 1;
 }
 
+BP_API int32_t bacnet_plugin_local_address(uint8_t *mac)
+{
+    BACNET_ADDRESS address;
+
+    if (!bp_state.initialized) {
+        return BP_ERR_NOT_INITIALIZED;
+    }
+    if (!mac) {
+        return BP_ERR_INVALID_ARGUMENT;
+    }
+    datalink_get_my_address(&address);
+    if (address.mac_len != 6) {
+        return BP_ERR_DATALINK;
+    }
+    memcpy(mac, address.mac, 6);
+    return 6;
+}
+
 BP_API int32_t bacnet_plugin_register_foreign_device(
     const char *host, uint16_t port, uint16_t ttl_seconds)
 {

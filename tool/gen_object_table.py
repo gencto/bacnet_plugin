@@ -50,6 +50,9 @@ REPLACED = {
         "Notification_Class_Valid_Instance,": "bp_nc_valid_instance,",
         "Notification_Class_Object_Name,": "bp_nc_object_name,",
         "Notification_Class_Read_Property,": "bp_nc_read_property,",
+        # report changes of the recipients to the application
+        "Notification_Class_Add_List_Element,": "bp_nc_add_list_element,",
+        "Notification_Class_Remove_List_Element,": "bp_nc_remove_list_element,",
         "NULL /* Create */": "bp_nc_create",
         "NULL /* Delete */": "bp_nc_delete",
     },

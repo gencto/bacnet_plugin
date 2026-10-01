@@ -6,49 +6,8 @@ import 'package:bacnet_plugin/src/codec/responses.dart';
 import 'package:bacnet_plugin/src/codec/value_encoding.dart' show contextValue;
 import 'package:test/test.dart';
 
+import '../support/alarm_vectors.dart';
 import '../support/codec_helpers.dart';
-
-// Reference encodings produced by the encoders of bacnet-stack
-// (event_notify_encode_service_request, alarm_ack_encode_service_request,
-// getevent_information_ack_encode, get_alarm_summary_ack_encode_apdu_data,
-// bacnet_destination_encode and list_element_encode_service_request).
-const _outOfRange =
-    '09011c020000042c000000023e19103f49045964690589009901a900b903ce5e0c42a0'
-    '33331a04802c3f8000003c42a000005fcf';
-const _changeOfState =
-    '09071c020004d22c014000033e2ea47e0a0104b40c1e2d002f3f4901593269017d0c00'
-    '50756d70206661696c656489019900a900b902ce1e0e19010f1a04801fcf';
-const _ackNotification =
-    '09071c020004d22c008000013e2ea47e0a0104b40c1e2d002f3f4901596469058902b9'
-    '03';
-const _bufferReady =
-    '09031c020004d22c050000013e19053f490259c8690a89019900a900b900ceae0e0c05'
-    '00000119833c020004d20f190a2914afcf';
-const _changeOfValue =
-    '09091c020004d22c008000073e0c080f00003f49015978690289019900a900b900ce2e'
-    '0e1c3fc000000f1a04002fcf';
-const _unsignedRange =
-    '09091c020004d22c0c0000023e1a012c3f4901590a690b89009901a900b903cebe0a03'
-    'e81a04802a0384bfcf';
-const _acknowledgeAlarm =
-    '09071c0000000229033e19103f4d09006f70657261746f725e2ea47e0a0104b40d0000'
-    '002f5f';
-const _getEventInformationAck =
-    '0e0c0000000219032a05603e2ea47e0a0104b40c1e2d002f190019003f49005a05e06e'
-    '2164216421c86f0c0140000319002a05c03e0c0100000019022ea47e0a0104b40e0000'
-    '002f3f49015a05a06e2101210221036f0f1901';
-const _getAlarmSummaryAck = 'c4000000029103820560c400c0000991028205e0';
-const _destinationAddress =
-    '8201feb400000000b4173b3b631e21006506c0a8010abac01f2105108205e0';
-const _destinationDevice = '8201f8b406000000b4121e00000c020004d2214d11820580';
-const _addListElement =
-    '0c03c0000119663e8201feb400000000b4173b3b631e21006506c0a8010abac01f2105'
-    '108205e03f';
-
-Uint8List _bytes(String hex) => Uint8List.fromList([
-  for (var i = 0; i < hex.length; i += 2)
-    int.parse(hex.substring(i, i + 2), radix: 16),
-]);
 
 String _hex(Uint8List data) =>
     data.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
@@ -61,7 +20,7 @@ const _inAlarm = BacnetStatusFlags(inAlarm: true);
 
 /// Decodes [hex], checks it re-encodes to the same octets and returns it.
 EventNotificationEvent _notification(String hex) {
-  final event = decodeEventNotification(_bytes(hex));
+  final event = decodeEventNotification(hexBytes(hex));
   expect(_hex(encodeEventNotification(event)), hex);
   return event;
 }
@@ -69,7 +28,7 @@ EventNotificationEvent _notification(String hex) {
 void main() {
   group('event notifications', () {
     test('out of range with a sequence time stamp', () {
-      final event = _notification(_outOfRange);
+      final event = _notification(vectorOutOfRange);
       expect(event.processId, 1);
       expect(event.deviceId, 4);
       expect(
@@ -94,7 +53,7 @@ void main() {
     });
 
     test('change of state with a date-time stamp and a message', () {
-      final event = _notification(_changeOfState);
+      final event = _notification(vectorChangeOfState);
       expect(event.timeStamp, _octoberFirst);
       expect(event.messageText, 'Pump failed');
       expect(event.notifyType, BacnetNotifyType.event);
@@ -112,7 +71,7 @@ void main() {
     });
 
     test('acknowledgement notification without values', () {
-      final event = _notification(_ackNotification);
+      final event = _notification(vectorAckNotification);
       expect(event.isAckNotification, isTrue);
       expect(event.toState, BacnetEventState.highLimit);
       expect(event.fromState, isNull);
@@ -121,7 +80,7 @@ void main() {
     });
 
     test('buffer ready', () {
-      final event = _notification(_bufferReady);
+      final event = _notification(vectorBufferReady);
       expect(
         event.eventValues,
         const BacnetBufferReadyValues(
@@ -138,7 +97,7 @@ void main() {
     });
 
     test('change of value with a time of day stamp', () {
-      final event = _notification(_changeOfValue);
+      final event = _notification(vectorChangeOfValue);
       expect(
         event.timeStamp,
         const BacnetTimeStampTime(
@@ -155,7 +114,7 @@ void main() {
     });
 
     test('unsigned range', () {
-      final event = _notification(_unsignedRange);
+      final event = _notification(vectorUnsignedRange);
       expect(event.timeStamp, const BacnetTimeStampSequence(300));
       expect(
         event.eventValues,
@@ -169,16 +128,18 @@ void main() {
 
     test('malformed event values are kept as other values', () {
       // out of range whose deadband is an Unsigned instead of a REAL
-      final data = _bytes(_outOfRange.replaceFirst('2c3f800000', '2901'));
+      final data = hexBytes(
+        vectorOutOfRange.replaceFirst('2c3f800000', '2901'),
+      );
       final event = decodeEventNotification(data);
       expect(event.eventValues, isA<BacnetOtherEventValues>());
       expect(event.eventValues!.eventType, BacnetEventType.outOfRange);
     });
 
     test('truncated notifications are rejected', () {
-      final data = _bytes(_outOfRange);
+      final data = hexBytes(vectorOutOfRange);
       // the event values [12] are optional: the notification ends before
-      final withoutValues = _outOfRange.indexOf('ce5e') ~/ 2;
+      final withoutValues = vectorOutOfRange.indexOf('ce5e') ~/ 2;
       for (var length = 0; length < data.length; length++) {
         final prefix = Uint8List.sublistView(data, 0, length);
         if (length == withoutValues) {
@@ -379,7 +340,44 @@ void main() {
           BacnetDateTime.fromDateTime(DateTime(2026, 10, 1, 13)),
         ),
       );
-      expect(_hex(data), _acknowledgeAlarm);
+      expect(_hex(data), vectorAcknowledgeAlarm);
+    });
+
+    test('AcknowledgeAlarm requests decode', () {
+      final ack = decodeAcknowledgeAlarm(hexBytes(vectorAcknowledgeAlarm));
+      expect(ack.processId, 7);
+      expect(
+        ack.object,
+        const BacnetObject(type: BacnetObjectType.analogInput, instance: 2),
+      );
+      expect(ack.eventState, BacnetEventState.highLimit);
+      expect(ack.timeStamp, const BacnetTimeStampSequence(16));
+      expect(ack.source, 'operator');
+      expect(
+        ack.timeOfAcknowledgment,
+        BacnetTimeStampDateTime(
+          BacnetDateTime.fromDateTime(DateTime(2026, 10, 1, 13)),
+        ),
+      );
+    });
+
+    test('AddListElement requests decode', () {
+      final list = decodeListElements(hexBytes(vectorAddListElement));
+      expect(
+        list.object,
+        const BacnetObject(
+          type: BacnetObjectType.notificationClass,
+          instance: 1,
+        ),
+      );
+      expect(list.propertyId, BacnetPropertyId.recipientList);
+      expect(list.arrayIndex, -1);
+      expect(BacnetProperties.recipientList.decode(list.elements), [
+        BacnetDestination(
+          recipient: BacnetRecipient.ip('192.168.1.10', 47808),
+          processId: 5,
+        ),
+      ]);
     });
 
     test('GetEventInformation', () {
@@ -399,7 +397,7 @@ void main() {
 
     test('GetEventInformation-ACK', () {
       final result = decodeGetEventInformationAck(
-        _bytes(_getEventInformationAck),
+        hexBytes(vectorGetEventInformationAck),
       );
       expect(result.moreEvents, isTrue);
       expect(result.summaries, hasLength(2));
@@ -440,7 +438,9 @@ void main() {
     });
 
     test('GetAlarmSummary-ACK', () {
-      final summaries = decodeGetAlarmSummaryAck(_bytes(_getAlarmSummaryAck));
+      final summaries = decodeGetAlarmSummaryAck(
+        hexBytes(vectorGetAlarmSummaryAck),
+      );
       expect(summaries, [
         const BacnetAlarmSummary(
           object: BacnetObject(type: BacnetObjectType.analogInput, instance: 2),
@@ -462,7 +462,7 @@ void main() {
       ]);
       expect(decodeGetAlarmSummaryAck(Uint8List(0)), isEmpty);
       expect(
-        () => decodeGetAlarmSummaryAck(_bytes('c400000002')),
+        () => decodeGetAlarmSummaryAck(hexBytes('c400000002')),
         throwsA(isA<BacnetDecodeException>()),
       );
     });
@@ -496,13 +496,15 @@ void main() {
     }
 
     test('encode like bacnet-stack', () {
-      expect(hexOf(address.toValue()), _destinationAddress);
-      expect(hexOf(device.toValue()), _destinationDevice);
+      expect(hexOf(address.toValue()), vectorDestinationAddress);
+      expect(hexOf(device.toValue()), vectorDestinationDevice);
     });
 
     test('decode a Recipient_List', () {
       final list = BacnetDestination.listFromValue(
-        decodeApplicationData(_bytes(_destinationAddress + _destinationDevice)),
+        decodeApplicationData(
+          hexBytes(vectorDestinationAddress + vectorDestinationDevice),
+        ),
       );
       expect(list, [address, device]);
       final [first, second] = list;
@@ -528,7 +530,9 @@ void main() {
     test('reject malformed lists', () {
       expect(
         () => BacnetDestination.listFromValue(
-          decodeApplicationData(_bytes(_destinationAddress.substring(2))),
+          decodeApplicationData(
+            hexBytes(vectorDestinationAddress.substring(2)),
+          ),
         ),
         throwsA(isA<BacnetDecodeException>()),
       );
@@ -541,7 +545,7 @@ void main() {
         BacnetPropertyId.recipientList,
         BacnetDestination.listToValue([address]),
       );
-      expect(_hex(data), _addListElement);
+      expect(_hex(data), vectorAddListElement);
     });
 
     test('IP recipients are validated', () {

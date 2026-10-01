@@ -393,6 +393,102 @@ class EventNotificationEvent extends BacnetEvent {
       '${ackRequired ? ', ack required' : ''}, $eventValues)';
 }
 
+/// A remote client acknowledged an alarm of an object of the local server
+/// (AcknowledgeAlarm; only successful acknowledgements).
+class AlarmAcknowledgedEvent extends BacnetEvent {
+  /// Creates the event.
+  const AlarmAcknowledgedEvent({
+    required this.processId,
+    required this.object,
+    required this.eventState,
+    required this.timeStamp,
+    required this.source,
+    required this.timeOfAcknowledgment,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// Acknowledging process of the client.
+  final int processId;
+
+  /// The object whose transition was acknowledged.
+  final BacnetObject object;
+
+  /// The state of the acknowledged transition.
+  final BacnetEventState eventState;
+
+  /// When the acknowledged transition happened.
+  final BacnetTimeStamp timeStamp;
+
+  /// Who acknowledged, e.g. the operator.
+  final String source;
+
+  /// When the client acknowledged.
+  final BacnetTimeStamp timeOfAcknowledgment;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  @override
+  String toString() =>
+      'AlarmAcknowledgedEvent($object ${eventState.label} by "$source")';
+}
+
+/// A remote client added elements to or removed elements from a list
+/// property of the local server (AddListElement/RemoveListElement), e.g.
+/// the Recipient_List of a Notification Class.
+///
+/// Servers that keep their configuration persist the changed list:
+///
+/// ```dart
+/// server.listElementEvents
+///     .where((e) => e.propertyId == BacnetPropertyId.recipientList)
+///     .listen((e) async => save(
+///         e.object, await server.read(e.object, BacnetProperties.recipientList)));
+/// ```
+class ListElementEvent extends BacnetEvent {
+  /// Creates the event.
+  const ListElementEvent({
+    required this.object,
+    required this.propertyId,
+    required this.added,
+    required this.elements,
+    this.arrayIndex = -1,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// The object.
+  final BacnetObject object;
+
+  /// The list property.
+  final BacnetPropertyId propertyId;
+
+  /// Array index of a list in an array, or -1.
+  final int arrayIndex;
+
+  /// True for AddListElement, false for RemoveListElement.
+  final bool added;
+
+  /// The added or removed elements, one after another (decode them with
+  /// the typed property, e.g. `BacnetProperties.recipientList.decode`).
+  final BacnetValue elements;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  @override
+  String toString() =>
+      'ListElementEvent(${added ? 'added to' : 'removed from'} $object '
+      '${propertyId.label}: $elements)';
+}
+
 /// Any other unconfirmed service request, and requests that could not be
 /// decoded.
 class UnconfirmedServiceEvent extends BacnetEvent {

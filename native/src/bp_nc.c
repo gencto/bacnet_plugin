@@ -153,6 +153,30 @@ int bp_nc_read_property(BACNET_READ_PROPERTY_DATA *rpdata)
     return Notification_Class_Read_Property(rpdata);
 }
 
+/* Device_Add_List_Element() calls its success callback only for failures
+   (status != BACNET_STATUS_OK), so the changes are reported here */
+int bp_nc_add_list_element(BACNET_LIST_ELEMENT_DATA *list_element)
+{
+    int status = Notification_Class_Add_List_Element(list_element);
+
+    if (status == BACNET_STATUS_OK) {
+        bp_list_element_changed(
+            SERVICE_CONFIRMED_ADD_LIST_ELEMENT, list_element);
+    }
+    return status;
+}
+
+int bp_nc_remove_list_element(BACNET_LIST_ELEMENT_DATA *list_element)
+{
+    int status = Notification_Class_Remove_List_Element(list_element);
+
+    if (status == BACNET_STATUS_OK) {
+        bp_list_element_changed(
+            SERVICE_CONFIRMED_REMOVE_LIST_ELEMENT, list_element);
+    }
+    return status;
+}
+
 uint32_t bp_nc_create(uint32_t instance)
 {
     unsigned i;
