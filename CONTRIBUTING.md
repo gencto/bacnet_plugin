@@ -146,10 +146,11 @@ bacnet-stack internals stay private to the native library.
 ## Releases
 
 1. Update `version` in `pubspec.yaml` and `CHANGELOG.md`.
-2. Check the package: `dart pub publish --dry-run`. The file list must
-   contain `native/bacnet-stack/src/` (archive of about 1 MB): `pub` packs
-   only files that exist in the checkout, and without the bacnet-stack
-   sources the build hook fails in every application.
+2. Check the package: `dart run tool/check_package.dart` copies the files
+   `dart pub publish --dry-run` would upload and builds an application
+   from that copy. `pub` packs only files that exist in the checkout and
+   that `.pubignore` keeps; without the bacnet-stack sources or a header
+   they include the build hook fails in every application.
 3. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`. CI checks out
    the submodule and publishes to pub.dev with OIDC. Publishing by hand
    needs `git submodule update --init` first.
