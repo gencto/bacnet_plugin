@@ -1,167 +1,242 @@
 import 'dart:async';
 
 import 'package:bacnet_plugin/bacnet_plugin.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
 
 class MockBacnetClient extends Mock implements BacnetClient {}
 
 void main() {
-  late MockBacnetClient mockClient;
-  late StreamController<dynamic> eventController;
-  late PropertyMonitor monitor;
+  const deviceId = 1234;
+  const object = BacnetObject(type: 0, instance: 1);
+  const propertyId = BacnetPropertyId.presentValue;
+
+  late MockBacnetClient client;
+  late StreamController<COVNotificationResponse> covController;
+
+  void stubSubscribe({Object? error}) {
+    when(
+      () => client.subscribeCOV(
+        any(),
+        any(),
+        any(),
+        propId: any(named: 'propId'),
+        processId: any(named: 'processId'),
+        lifetime: any(named: 'lifetime'),
+        confirmed: any(named: 'confirmed'),
+      ),
+    ).thenAnswer((_) async {
+      if (error != null) throw error;
+    });
+  }
+
+  setUpAll(() {
+    registerFallbackValue(Duration.zero);
+    registerFallbackValue(BacnetLogLevel.info);
+  });
 
   setUp(() {
-    mockClient = MockBacnetClient();
-    eventController = StreamController<dynamic>.broadcast();
-    when(() => mockClient.events).thenAnswer((_) => eventController.stream);
-    monitor = PropertyMonitor(mockClient);
+    client = MockBacnetClient();
+    covController = StreamController<COVNotificationResponse>.broadcast();
+    when(() => client.covNotifications).thenAnswer((_) => covController.stream);
+    when(() => client.allocateProcessId()).thenReturn(42);
+    when(
+      () => client.readProperty(deviceId, 0, 1, propertyId),
+    ).thenAnswer((_) async => 100.0);
+    when(
+      () => client.unsubscribeCOV(
+        any(),
+        any(),
+        any(),
+        propId: any(named: 'propId'),
+        processId: any(named: 'processId'),
+      ),
+    ).thenAnswer((_) async {});
+    when(() => client.log(any(), any(), any(), any())).thenReturn(null);
   });
 
-  tearDown(() {
-    eventController.close();
-  });
+  tearDown(() => covController.close());
 
   group('PropertyMonitor', () {
-    test('monitor emits initial value immediately', () async {
-      // Arrange
-      const deviceId = 1234;
-      const object = BacnetObject(type: 0, instance: 1);
-      const propertyId = 85;
-      const initialValue = 100.0;
+    test('emits the current value first', () async {
+      stubSubscribe();
+      final monitor = PropertyMonitor(client);
 
-      when(
-        () => mockClient.readProperty(deviceId, 0, 1, 85),
-      ).thenAnswer((_) async => initialValue);
+      final update = await monitor
+          .monitor(deviceId: deviceId, object: object, propertyId: propertyId)
+          .first;
 
-      when(
-        () => mockClient.subscribeCOV(
-          any(),
-          any(),
-          any(),
-          propId: any(named: 'propId'),
-        ),
-      ).thenAnswer((_) async {});
-
-      // Act
-      final stream = monitor.monitor(
-        deviceId: deviceId,
-        object: object,
-        propertyId: propertyId,
-      );
-
-      // Assert
-      final update = await stream.first;
-      expect(update.value, initialValue);
+      expect(update.value, 100.0);
       expect(update.source, UpdateSource.manual);
     });
 
-    test('monitor falls back to polling if preferPolling is true', () async {
-      // Arrange
-      const deviceId = 1234;
-      const object = BacnetObject(type: 0, instance: 1);
-      const propertyId = 85;
-      const polledValue = 200.0;
-
-      when(
-        () => mockClient.readProperty(deviceId, 0, 1, 85),
-      ).thenAnswer((_) async => polledValue);
-
-      // Act
-      final stream = monitor.monitor(
-        deviceId: deviceId,
-        object: object,
-        propertyId: propertyId,
-        preferPolling: true,
-        pollingInterval: const Duration(milliseconds: 10),
-      );
-
-      // Assert
-      // Wait for at least one polled value (skipping initial)
-      final updates = stream.take(2);
-      final list = await updates.toList();
-
-      // First is initial manual read
-      expect(list[0].value, polledValue);
-
-      // Second is from polling loop
-      expect(list[1].value, polledValue);
-      expect(list[1].source, UpdateSource.manual);
-
-      // Verify subscribeCOV was NOT called
-      verifyNever(
-        () => mockClient.subscribeCOV(
-          any(),
-          any(),
-          any(),
-          propId: any(named: 'propId'),
-        ),
-      );
-    });
-
-    test('monitor triggers read on COV notification', () async {
-      // Arrange
-      const deviceId = 1234;
-      const object = BacnetObject(type: 0, instance: 1);
-      const propertyId = 85;
-      const initialValue = 100.0;
-      const newValue = 150.0;
-
-      // Setup readProperty to return initial then new value
-      var callCount = 0;
-      when(() => mockClient.readProperty(deviceId, 0, 1, 85)).thenAnswer((
-        _,
-      ) async {
-        callCount++;
-        return callCount == 1 ? initialValue : newValue;
-      });
-
-      when(
-        () => mockClient.subscribeCOV(
-          any(),
-          any(),
-          any(),
-          propId: any(named: 'propId'),
-        ),
-      ).thenAnswer((_) async {});
-
-      // Act
+    test('emits COV values without additional reads', () async {
+      stubSubscribe();
+      final monitor = PropertyMonitor(client);
       final stream = monitor.monitor(
         deviceId: deviceId,
         object: object,
         propertyId: propertyId,
       );
 
-      // 1. Initial value
-      // 2. Emit COV notification
-      // 3. Should trigger read and emit new value
+      final updates = <PropertyUpdate>[];
+      final subscription = stream.listen(updates.add);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(
-        stream,
-        emitsInOrder([
-          predicate<PropertyUpdate>(
-            (update) =>
-                update.value == initialValue &&
-                update.source == UpdateSource.manual,
-          ),
-          predicate<PropertyUpdate>(
-            (update) =>
-                update.value == newValue && update.source == UpdateSource.cov,
-          ),
-        ]),
-      );
-
-      // Trigger COV after a short delay to allow stream to start listening
-      Future.delayed(const Duration(milliseconds: 50), () {
-        eventController.add(
+      covController
+        // other subscription: ignored
+        ..add(
           const COVNotificationResponse(
             deviceId: deviceId,
             objectType: 0,
             instance: 1,
             timestamp: 'now',
+            subscriberProcessId: 7,
+            values: {propertyId: 1.0},
+          ),
+        )
+        ..add(
+          const COVNotificationResponse(
+            deviceId: deviceId,
+            objectType: 0,
+            instance: 1,
+            timestamp: 'now',
+            subscriberProcessId: 42,
+            values: {propertyId: 150.0},
           ),
         );
-      });
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await subscription.cancel();
+
+      expect(updates.map((u) => u.value), [100.0, 150.0]);
+      expect(updates.last.source, UpdateSource.cov);
+      verify(() => client.readProperty(deviceId, 0, 1, propertyId)).called(1);
+      verify(
+        () => client.subscribeCOV(
+          deviceId,
+          0,
+          1,
+          propId: propertyId,
+          processId: 42,
+          lifetime: any(named: 'lifetime'),
+          confirmed: false,
+        ),
+      ).called(1);
+      verify(
+        () => client.unsubscribeCOV(
+          deviceId,
+          0,
+          1,
+          propId: propertyId,
+          processId: 42,
+        ),
+      ).called(1);
+    });
+
+    test('polls when polling is preferred', () async {
+      final monitor = PropertyMonitor(client);
+
+      final list = await monitor
+          .monitor(
+            deviceId: deviceId,
+            object: object,
+            propertyId: propertyId,
+            preferPolling: true,
+            pollingInterval: const Duration(milliseconds: 10),
+          )
+          .take(3)
+          .toList();
+
+      expect(list, hasLength(3));
+      expect(list.every((u) => u.source == UpdateSource.manual), isTrue);
+      verifyNever(
+        () => client.subscribeCOV(
+          any(),
+          any(),
+          any(),
+          propId: any(named: 'propId'),
+          processId: any(named: 'processId'),
+          lifetime: any(named: 'lifetime'),
+          confirmed: any(named: 'confirmed'),
+        ),
+      );
+    });
+
+    test('falls back to polling when the subscription fails', () async {
+      stubSubscribe(
+        error: const BacnetProtocolException(
+          'not supported',
+          errorClass: BacnetErrorClass.services,
+          errorCode: BacnetErrorCode.covSubscriptionFailed,
+        ),
+      );
+      final monitor = PropertyMonitor(client);
+
+      final list = await monitor
+          .monitor(
+            deviceId: deviceId,
+            object: object,
+            propertyId: propertyId,
+            pollingInterval: const Duration(milliseconds: 10),
+          )
+          .take(2)
+          .toList();
+
+      expect(list.last.source, UpdateSource.missingCovFallback);
+      verifyNever(
+        () => client.unsubscribeCOV(
+          any(),
+          any(),
+          any(),
+          propId: any(named: 'propId'),
+          processId: any(named: 'processId'),
+        ),
+      );
+    });
+
+    test('renews the subscription before it expires', () async {
+      stubSubscribe();
+      final monitor = PropertyMonitor(
+        client,
+        subscriptionLifetime: const Duration(milliseconds: 40),
+      );
+      final subscription = monitor
+          .monitor(deviceId: deviceId, object: object, propertyId: propertyId)
+          .listen((_) {});
+
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await subscription.cancel();
+
+      final calls = verify(
+        () => client.subscribeCOV(
+          any(),
+          any(),
+          any(),
+          propId: any(named: 'propId'),
+          processId: any(named: 'processId'),
+          lifetime: any(named: 'lifetime'),
+          confirmed: any(named: 'confirmed'),
+        ),
+      ).callCount;
+      expect(calls, greaterThanOrEqualTo(3));
+      expect(monitor.activeCount, 0);
+    });
+
+    test('shares one stream per property', () {
+      stubSubscribe();
+      final monitor = PropertyMonitor(client);
+      final a = monitor.monitor(
+        deviceId: deviceId,
+        object: object,
+        propertyId: propertyId,
+      );
+      final b = monitor.monitor(
+        deviceId: deviceId,
+        object: object,
+        propertyId: propertyId,
+      );
+      expect(a, equals(b));
+      expect(monitor.activeCount, 1);
     });
   });
 }

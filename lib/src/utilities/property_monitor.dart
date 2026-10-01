@@ -1,184 +1,219 @@
+// Monitor controllers are closed in onCancel when the last listener leaves.
+// ignore_for_file: close_sinks
+
 import 'dart:async';
 
-import 'package:bacnet_plugin/bacnet_plugin.dart';
+import '../client/bacnet_client.dart';
+import '../constants/property_ids.dart';
+import '../models/property_update.dart';
 
-/// Monitors BACnet properties for changes using COV or Polling.
+/// Monitors BACnet properties using COV subscriptions with polling fallback.
 ///
-/// Provides a unified stream of property updates, abstracting away the underlying
-/// mechanism (COV subscription vs. active polling).
+/// Subscriptions are renewed before their lifetime expires and cancelled
+/// when the last listener of a stream goes away. COV notifications carry
+/// the new value, so no extra read is needed per change. When a device
+/// rejects the subscription the monitor polls with `pollingInterval`.
+///
+/// ```dart
+/// final monitor = PropertyMonitor(client);
+/// monitor
+///     .monitor(
+///       deviceId: 1234,
+///       object: const BacnetObject(type: 0, instance: 1),
+///       propertyId: BacnetPropertyId.presentValue,
+///     )
+///     .listen((update) => print('${update.value} (${update.source.name})'));
+/// ```
 class PropertyMonitor {
   /// Creates a property monitor using the provided BACnet client.
-  PropertyMonitor(this.client);
+  PropertyMonitor(
+    this.client, {
+    this.subscriptionLifetime = const Duration(minutes: 5),
+  });
 
   /// The BACnet client used for communication.
   final BacnetClient client;
 
-  // Active monitors keyed by "deviceId:objectType:instance:propertyId"
+  /// Lifetime requested for COV subscriptions (renewed at 75 %).
+  final Duration subscriptionLifetime;
+
   final _activeMonitors = <String, StreamController<PropertyUpdate>>{};
 
-  /// Monitors a specific property for changes.
+  /// Number of active monitors.
+  int get activeCount => _activeMonitors.length;
+
+  /// Monitors a property and returns a broadcast stream of updates.
   ///
-  /// Attempts to subscribe to Change Of Value (COV) notifications.
-  /// If [preferPolling] is true, or if COV is not reliable (logic to be enhanced),
-  /// it runs a polling loop with the specified [pollingInterval].
-  ///
-  /// Returns a stream of [PropertyUpdate] events.
+  /// Calling [monitor] again for the same property returns the same stream.
   Stream<PropertyUpdate> monitor({
     required int deviceId,
     required BacnetObject object,
     required int propertyId,
     Duration pollingInterval = const Duration(seconds: 2),
     bool preferPolling = false,
+    bool confirmed = false,
   }) {
-    final key = _generateKey(deviceId, object, propertyId);
-
-    // Return existing stream if already monitoring
-    if (_activeMonitors.containsKey(key)) {
-      return _activeMonitors[key]!.stream;
-    }
+    final key = '$deviceId:${object.type}:${object.instance}:$propertyId';
+    final existing = _activeMonitors[key];
+    if (existing != null) return existing.stream;
 
     final controller = StreamController<PropertyUpdate>.broadcast();
     _activeMonitors[key] = controller;
 
+    final processId = client.allocateProcessId();
     Timer? pollingTimer;
-    StreamSubscription<dynamic>? eventSubscription;
+    Timer? renewTimer;
+    StreamSubscription<COVNotificationResponse>? covSubscription;
+    var subscribed = false;
+    var polling = false;
+    var closed = false;
 
-    void startPolling() {
-      pollingTimer?.cancel();
-      pollingTimer = Timer.periodic(pollingInterval, (_) async {
-        if (controller.isClosed) return;
-        try {
-          final val = await client.readProperty(
-            deviceId,
-            object.type,
-            object.instance,
-            propertyId,
-          );
-          if (!controller.isClosed) {
-            controller.add(
-              PropertyUpdate(
-                deviceId: deviceId,
-                objectIdentifier: object,
-                propertyIdentifier: propertyId,
-                value: val,
-                timestamp: DateTime.now(),
-                source: preferPolling
-                    ? UpdateSource.manual
-                    : UpdateSource.missingCovFallback,
-              ),
-            );
-          }
-        } on Object catch (_) {
-          if (!controller.isClosed) {
-            // Don't error the stream on polling failure, just log or add error update
-            // controller.addError(e); // Optional: decide if we want to terminate stream
-          }
-        }
-      });
+    void emit(Object? value, UpdateSource source, [Object? error]) {
+      if (closed || controller.isClosed) return;
+      controller.add(
+        PropertyUpdate(
+          deviceId: deviceId,
+          objectIdentifier: object,
+          propertyIdentifier: propertyId,
+          value: value,
+          timestamp: DateTime.now(),
+          source: source,
+          error: error,
+        ),
+      );
     }
 
-    void stopPolling() {
-      pollingTimer?.cancel();
-      pollingTimer = null;
-    }
-
-    // Handle stream lifecycle
-    controller.onListen = () async {
-      // 1. Initial read to get current value immediately
+    Future<void> poll(UpdateSource source) async {
       try {
-        final val = await client.readProperty(
+        final value = await client.readProperty(
           deviceId,
           object.type,
           object.instance,
           propertyId,
         );
-        controller.add(
-          PropertyUpdate(
-            deviceId: deviceId,
-            objectIdentifier: object,
-            propertyIdentifier: propertyId,
-            value: val,
-            timestamp: DateTime.now(),
-            source: UpdateSource.manual,
-          ),
-        );
-      } on Object catch (e) {
-        // Only error if initial read fails? Or just continue?
-        controller.addError(e);
+        emit(value, source);
+      } on BacnetException catch (e) {
+        emit(null, source, e);
       }
+    }
 
-      // 2. Subscribe to COV if not strictly polling preferred
-      if (!preferPolling) {
+    void startPolling() {
+      if (polling || closed) return;
+      polling = true;
+      final source = preferPolling
+          ? UpdateSource.manual
+          : UpdateSource.missingCovFallback;
+      var busy = false;
+      pollingTimer = Timer.periodic(pollingInterval, (_) async {
+        if (busy) return; // never stack reads on a slow device
+        busy = true;
         try {
-          await client.subscribeCOV(
+          await poll(source);
+        } finally {
+          busy = false;
+        }
+      });
+    }
+
+    Future<bool> subscribe() async {
+      try {
+        await client.subscribeCOV(
+          deviceId,
+          object.type,
+          object.instance,
+          propId: propertyId,
+          processId: processId,
+          lifetime: subscriptionLifetime,
+          confirmed: confirmed,
+        );
+        return true;
+      } on BacnetException catch (e) {
+        client.log(
+          BacnetLogLevel.info,
+          'COV subscription to $deviceId/${object.type}:${object.instance} '
+          'failed, polling instead',
+          e,
+        );
+        return false;
+      }
+    }
+
+    void scheduleRenewal() {
+      final renewIn = Duration(
+        milliseconds: subscriptionLifetime.inMilliseconds * 3 ~/ 4,
+      );
+      renewTimer = Timer(renewIn, () async {
+        if (closed) return;
+        if (await subscribe()) {
+          scheduleRenewal();
+        } else {
+          subscribed = false;
+          startPolling();
+        }
+      });
+    }
+
+    controller.onListen = () async {
+      covSubscription = client.covNotifications.listen((event) {
+        if (event.deviceId != deviceId ||
+            event.objectType != object.type ||
+            event.instance != object.instance ||
+            event.subscriberProcessId != processId) {
+          return;
+        }
+        if (event.values.containsKey(propertyId)) {
+          emit(event.values[propertyId], UpdateSource.cov);
+        }
+      });
+
+      await poll(UpdateSource.manual);
+      if (closed) return;
+
+      if (preferPolling) {
+        startPolling();
+        return;
+      }
+      subscribed = await subscribe();
+      if (closed) return;
+      if (subscribed) {
+        scheduleRenewal();
+      } else {
+        startPolling();
+      }
+    };
+
+    controller.onCancel = () async {
+      closed = true;
+      pollingTimer?.cancel();
+      renewTimer?.cancel();
+      await covSubscription?.cancel();
+      _activeMonitors.remove(key);
+      if (subscribed) {
+        try {
+          await client.unsubscribeCOV(
             deviceId,
             object.type,
             object.instance,
             propId: propertyId,
+            processId: processId,
           );
-        } on Object catch (_) {
-          // If subscription fails, fallback to polling immediately
-          startPolling();
+        } on BacnetException {
+          // the subscription expires on its own
         }
-      } else {
-        startPolling();
       }
-
-      // 3. Listen for COV notifications
-      eventSubscription = client.events.listen((event) {
-        if (event is COVNotificationResponse) {
-          if (event.deviceId == deviceId &&
-              event.objectType == object.type &&
-              event.instance == object.instance) {
-            // Note: COVNotificationResponse in current model might not carry propertyId/value
-            // Depending on the implementation of COVNotificationResponse.
-            // Let's check the model definition.
-            // If the event doesn't have the value, we might need to read it.
-
-            // Assuming for now we trigger a read or if the event has data.
-            // Checking COVNotificationResponse definition...
-            // It has objectType, instance, timestamp, deviceId.
-            // It DOES NOT seem to have propertyId or value in the current definition seen previously?
-            // Wait, I need to check COVNotificationResponse definition again.
-
-            // If it doesn't have value, we must read it.
-            client
-                .readProperty(
-                  deviceId,
-                  object.type,
-                  object.instance,
-                  propertyId,
-                )
-                .then((val) {
-                  if (!controller.isClosed) {
-                    controller.add(
-                      PropertyUpdate(
-                        deviceId: deviceId,
-                        objectIdentifier: object,
-                        propertyIdentifier: propertyId,
-                        value: val,
-                        timestamp: DateTime.now(), // or parse event.timestamp
-                        source: UpdateSource.cov,
-                      ),
-                    );
-                  }
-                });
-          }
-        }
-      });
-    };
-
-    controller.onCancel = () async {
-      stopPolling();
-      await eventSubscription?.cancel();
-      _activeMonitors.remove(key);
       await controller.close();
     };
 
     return controller.stream;
   }
 
-  String _generateKey(int deviceId, BacnetObject object, int propertyId) {
-    return '$deviceId:${object.type}:${object.instance}:$propertyId';
-  }
+  /// Monitors the present value of an object.
+  Stream<PropertyUpdate> monitorPresentValue(
+    int deviceId,
+    BacnetObject object,
+  ) => monitor(
+    deviceId: deviceId,
+    object: object,
+    propertyId: BacnetPropertyId.presentValue,
+  );
 }

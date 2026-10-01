@@ -34,6 +34,6 @@ BacnetReadAccessSpecification _$BacnetReadAccessSpecificationFromJson(
 Map<String, dynamic> _$BacnetReadAccessSpecificationToJson(
   BacnetReadAccessSpecification instance,
 ) => <String, dynamic>{
-  'objectIdentifier': instance.objectIdentifier,
-  'properties': instance.properties,
+  'objectIdentifier': instance.objectIdentifier.toJson(),
+  'properties': instance.properties.map((e) => e.toJson()).toList(),
 };

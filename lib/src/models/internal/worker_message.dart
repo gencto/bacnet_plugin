@@ -1,239 +1,42 @@
-import '../rpm_models.dart';
-import '../wpm_models.dart';
+import 'dart:typed_data';
 
-/// Base class for all requests sent from main isolate to worker isolate.
-sealed class WorkerRequest {
-  const WorkerRequest();
-}
+import 'package:meta/meta.dart';
 
-/// Base class for all responses sent from worker isolate to main isolate.
+import '../bacnet_object.dart';
+
+/// Base class of all events delivered by the BACnet worker.
+///
+/// Subscribe to [BacnetClient.events] (all events) or to the typed streams
+/// such as [BacnetClient.iAmStream] and [BacnetClient.covNotifications].
 sealed class WorkerResponse {
   const WorkerResponse();
 }
 
-// --- Requests (Main -> Worker) ---
-
-/// Request to broadcast a Who-Is message to discover BACnet devices.
-class WhoIsRequest extends WorkerRequest {
-  /// Lower device ID limit (-1 for no limit).
-  final int lowLimit;
-
-  /// Upper device ID limit (-1 for no limit).
-  final int highLimit;
-
-  /// Creates a Who-Is request.
-  const WhoIsRequest({this.lowLimit = -1, this.highLimit = -1});
-}
-
-/// Request to read a single property from a BACnet object.
-class ReadPropertyRequest extends WorkerRequest {
-  /// Internal tracking ID for request-response matching.
-  final int trackingId;
-
-  /// Target device ID.
-  final int deviceId;
-
-  /// BACnet object type.
-  final int objectType;
-
-  /// Object instance number.
-  final int instance;
-
-  /// Property identifier to read.
-  final int propertyId;
-
-  /// Array index (-1 for entire property).
-  final int arrayIndex;
-
-  /// Creates a ReadProperty request.
-  const ReadPropertyRequest({
-    required this.trackingId,
-    required this.deviceId,
-    required this.objectType,
-    required this.instance,
-    required this.propertyId,
-    this.arrayIndex = -1,
-  });
-}
-
-/// Request to write a value to a BACnet object property.
-class WritePropertyRequest extends WorkerRequest {
-  /// Target device ID.
-  final int deviceId;
-
-  /// BACnet object type.
-  final int objectType;
-
-  /// Object instance number.
-  final int instance;
-
-  /// Property identifier to write.
-  final int propertyId;
-
-  /// Value to write.
-  final dynamic value;
-
-  /// Write priority (16 = no priority).
-  final int priority;
-
-  /// BACnet application tag for the value.
-  final int tag;
-
-  /// Creates a WriteProperty request.
-  const WritePropertyRequest({
-    required this.deviceId,
-    required this.objectType,
-    required this.instance,
-    required this.propertyId,
-    required this.value,
-    this.priority = 16,
-    this.tag = 4,
-  });
-}
-
-/// Request to register as a foreign device with a BBMD.
-class RegisterFdrRequest extends WorkerRequest {
-  /// BBMD IP address.
-  final String ip;
-
-  /// BBMD port.
-  final int port;
-
-  /// Registration time-to-live in seconds.
-  final int ttl;
-
-  /// Creates a foreign device registration request.
-  const RegisterFdrRequest({
-    required this.ip,
-    this.port = 47808,
-    this.ttl = 120,
-  });
-}
-
-/// Request to manually add a device address binding.
-class AddDeviceBindingRequest extends WorkerRequest {
-  /// Device ID to bind.
-  final int deviceId;
-
-  /// Device IP address.
-  final String ip;
-
-  /// Device BACnet port.
-  final int port;
-
-  /// Creates a device binding request.
-  const AddDeviceBindingRequest({
-    required this.deviceId,
-    required this.ip,
-    this.port = 47808,
-  });
-}
-
-/// Request to subscribe to Change of Value (COV) notifications.
-class SubscribeCOVRequest extends WorkerRequest {
-  /// Target device ID.
-  final int deviceId;
-
-  /// BACnet object type to monitor.
-  final int objectType;
-
-  /// Object instance to monitor.
-  final int instance;
-
-  /// Property to monitor.
-  final int propertyId;
-
-  /// Creates a COV subscription request.
-  const SubscribeCOVRequest({
-    required this.deviceId,
-    required this.objectType,
-    required this.instance,
-    this.propertyId = 65, // default prop PresentValue
-  });
-}
-
-/// Request to initialize the BACnet server.
-class InitServerRequest extends WorkerRequest {
-  /// Server device ID.
-  final int deviceId;
-
-  /// Server device name.
-  final String deviceName;
-
-  /// Creates a server initialization request.
-  const InitServerRequest(this.deviceId, this.deviceName);
-}
-
-/// Request to add an object to the BACnet server.
-class AddObjectRequest extends WorkerRequest {
-  /// Object type to create.
-  final int objectType;
-
-  /// Object instance number.
-  final int instance;
-
-  /// Creates an add object request.
-  const AddObjectRequest(this.objectType, this.instance);
-}
-
-/// Request to read multiple properties from multiple objects.
-class ReadPropertyMultipleRequest extends WorkerRequest {
-  /// Creates a ReadPropertyMultiple request.
-  const ReadPropertyMultipleRequest({
-    required this.deviceId,
-    required this.readAccessSpecs,
-    this.trackingId,
-  });
-
-  /// Target device ID.
-  final int deviceId;
-
-  /// List of object/property specifications to read.
-  final List<BacnetReadAccessSpecification> readAccessSpecs;
-
-  /// Optional tracking ID.
-  final int? trackingId;
-}
-
-/// Request to write multiple values to multiple objects.
-class WritePropertyMultipleRequest extends WorkerRequest {
-  /// Creates a WritePropertyMultiple request.
-  const WritePropertyMultipleRequest({
-    required this.deviceId,
-    required this.writeAccessSpecs,
-    this.trackingId,
-  });
-
-  /// Target device ID.
-  final int deviceId;
-
-  /// List of object/property/value specifications to write.
-  final List<BacnetWriteAccessSpecification> writeAccessSpecs;
-
-  /// Optional tracking ID.
-  final int? trackingId;
-}
-
-// --- Responses (Worker -> Main) ---
-
-/// Response indicating successful server initialization.
-class InitSuccessResponse extends WorkerResponse {
-  /// Creates a successful initialization response.
-  const InitSuccessResponse();
-}
-
-/// Response indicating an error occurred in the worker.
+/// An unexpected error reported by the worker (not tied to a request).
+@immutable
 class ErrorResponse extends WorkerResponse {
+  /// Creates an error response.
+  const ErrorResponse(this.error);
+
   /// Error message.
   final String error;
 
-  /// Creates an error response.
-  const ErrorResponse(this.error);
+  @override
+  String toString() => 'ErrorResponse($error)';
 }
 
-/// Response containing a log message from the worker.
+/// A log message from the worker isolate.
+@immutable
 class LogResponse extends WorkerResponse {
-  /// Log level index.
+  /// Creates a log response.
+  const LogResponse({
+    required this.levelIndex,
+    required this.message,
+    this.errorObj,
+    this.stackTrace,
+  });
+
+  /// Log level index (see [BacnetLogLevel]).
   final int levelIndex;
 
   /// Log message.
@@ -244,118 +47,123 @@ class LogResponse extends WorkerResponse {
 
   /// Stack trace string if present.
   final String? stackTrace;
-
-  /// Creates a log response.
-  const LogResponse({
-    required this.levelIndex,
-    required this.message,
-    this.errorObj,
-    this.stackTrace,
-  });
 }
 
-/// Response indicating a ReadProperty request was sent successfully.
-class ReadPropertySentResponse extends WorkerResponse {
-  /// Original tracking ID.
-  final int trackingId;
-
-  /// Invoke ID assigned by the stack.
-  final int invokeId;
-
-  /// Creates a ReadProperty sent confirmation.
-  const ReadPropertySentResponse({
-    required this.trackingId,
-    required this.invokeId,
-  });
-}
-
-/// Response containing a ReadProperty acknowledgment.
-class ReadPropertyAckResponse extends WorkerResponse {
-  /// Invoke ID from the request.
-  final int invokeId;
-
-  /// Decoded property value.
-  final dynamic value;
-
-  /// Creates a ReadProperty acknowledgment response.
-  const ReadPropertyAckResponse({required this.invokeId, this.value});
-}
-
-/// Response containing a ReadPropertyMultiple acknowledgment.
-class ReadPropertyMultipleAckResponse extends WorkerResponse {
-  /// Invoke ID from the request.
-  final int invokeId;
-
-  /// Map of object IDs to property values.
-  final dynamic values;
-
-  /// Creates a ReadPropertyMultiple acknowledgment response.
-  const ReadPropertyMultipleAckResponse({required this.invokeId, this.values});
-}
-
-/// Response indicating a WritePropertyMultiple request was sent successfully.
-class WritePropertyMultipleSentResponse extends WorkerResponse {
-  /// Original tracking ID.
-  final int trackingId;
-
-  /// Invoke ID assigned by the stack.
-  final int invokeId;
-
-  /// Creates a WritePropertyMultiple sent confirmation.
-  const WritePropertyMultipleSentResponse({
-    required this.trackingId,
-    required this.invokeId,
-  });
-}
-
-/// Response containing an I-Am announcement from a device.
+/// An I-Am announcement from a device.
+@immutable
 class IAmResponse extends WorkerResponse {
-  /// Announced device ID.
-  final int deviceId;
-
-  /// Network number.
-  final int net;
-
-  /// MAC address bytes.
-  final List<int> mac;
-
-  /// Message length.
-  final int len;
-
   /// Creates an I-Am response.
   const IAmResponse({
     required this.deviceId,
     required this.net,
     required this.mac,
     required this.len,
+    this.maxApdu = 1476,
+    this.vendorId = 0,
+    this.segmentation = 3,
+    this.adr = const [],
   });
-}
 
-/// Response containing a Change of Value notification.
-class COVNotificationResponse extends WorkerResponse {
-  /// Object type that changed.
-  final int objectType;
-
-  /// Object instance that changed.
-  final int instance;
-
-  /// Timestamp of the notification.
-  final String timestamp;
-
-  /// Source device ID (-1 if unknown).
+  /// Announced device instance.
   final int deviceId;
 
+  /// Source network number (0 = local network).
+  final int net;
+
+  /// Source MAC address (BACnet/IP: 4 bytes IPv4 + 2 bytes port).
+  final List<int> mac;
+
+  /// Length of the I-Am service data.
+  final int len;
+
+  /// Maximum APDU length accepted by the device.
+  final int maxApdu;
+
+  /// Vendor identifier.
+  final int vendorId;
+
+  /// Segmentation supported (0 both, 1 transmit, 2 receive, 3 none).
+  final int segmentation;
+
+  /// MAC address of the device behind a router (empty for local devices).
+  final List<int> adr;
+
+  /// IPv4 address of the device (or of its router), if BACnet/IP.
+  String? get ipAddress =>
+      mac.length >= 4 ? '${mac[0]}.${mac[1]}.${mac[2]}.${mac[3]}' : null;
+
+  /// UDP port of the device (or of its router), if BACnet/IP.
+  int? get port => mac.length >= 6 ? (mac[4] << 8) | mac[5] : null;
+
+  @override
+  String toString() =>
+      'IAmResponse(device: $deviceId, ip: $ipAddress, '
+      'port: $port, net: $net, maxApdu: $maxApdu, vendor: $vendorId)';
+}
+
+/// A Change-of-Value notification.
+@immutable
+class COVNotificationResponse extends WorkerResponse {
   /// Creates a COV notification response.
   const COVNotificationResponse({
     required this.objectType,
     required this.instance,
     required this.timestamp,
     this.deviceId = -1,
+    this.subscriberProcessId = 0,
+    this.timeRemaining = 0,
+    this.values = const {},
+    this.confirmed = false,
   });
+
+  /// Object type of the monitored object.
+  final int objectType;
+
+  /// Instance of the monitored object.
+  final int instance;
+
+  /// Reception time (ISO 8601).
+  final String timestamp;
+
+  /// Initiating device instance.
+  final int deviceId;
+
+  /// Subscriber process identifier of the subscription.
+  final int subscriberProcessId;
+
+  /// Remaining subscription lifetime in seconds (0 = indefinite).
+  final int timeRemaining;
+
+  /// Reported property values (property id → value), typically
+  /// present-value and status-flags.
+  final Map<int, Object?> values;
+
+  /// True for a confirmed notification.
+  final bool confirmed;
+
+  /// The monitored object.
+  BacnetObject get object => BacnetObject(type: objectType, instance: instance);
+
+  @override
+  String toString() =>
+      'COVNotification(device: $deviceId, '
+      'object: $objectType:$instance, values: $values)';
 }
 
-/// Response containing a WriteProperty notification from the server.
+/// A remote client wrote to an object of the local server.
+@immutable
 class WriteNotificationResponse extends WorkerResponse {
+  /// Creates a WriteProperty notification response.
+  const WriteNotificationResponse({
+    required this.objectType,
+    required this.instance,
+    required this.propertyId,
+    this.value,
+    this.index = -1,
+    this.priority = 16,
+    this.rawValue,
+  });
+
   /// Object type written to.
   final int objectType;
 
@@ -365,92 +173,50 @@ class WriteNotificationResponse extends WorkerResponse {
   /// Property identifier written.
   final int propertyId;
 
-  /// Written value (null if complex).
-  final dynamic value;
+  /// Decoded written value.
+  final Object? value;
 
-  /// Array index written.
+  /// Array index written (-1 for the whole property).
   final int index;
 
   /// Write priority used.
   final int priority;
 
-  /// Creates a WriteProperty notification response.
-  const WriteNotificationResponse({
-    required this.objectType,
-    required this.instance,
-    required this.propertyId,
-    this.value,
-    this.index = -1,
-    this.priority = 16,
-  });
+  /// Application encoded value as received.
+  final Uint8List? rawValue;
+
+  @override
+  String toString() =>
+      'WriteNotification($objectType:$instance '
+      'property $propertyId = $value @ $priority)';
 }
 
-/// Request to read a range of items from a list property (e.g. TrendLog).
-class ReadRangeRequest extends WorkerRequest {
-  /// Target device ID.
-  final int deviceId;
-
-  /// Object type (usually trendLog).
-  final int objectType;
-
-  /// Object instance number.
-  final int instance;
-
-  /// Property identifier (usually logBuffer).
-  final int propertyId;
-
-  /// Array index.
-  final int arrayIndex;
-
-  /// Request type: 1=Position, 2=Sequence, 4=Time, 8=All.
-  final int requestType;
-
-  /// Reference value (Index, Sequence Number, or DateTime string).
-  final dynamic reference;
-
-  /// Number of items to read (positive for forward, negative for backward).
-  final int count;
-
-  /// Optional tracking ID.
-  final int? trackingId;
-
-  /// Creates a ReadRange request.
-  const ReadRangeRequest({
-    required this.deviceId,
-    required this.objectType,
-    required this.instance,
-    required this.propertyId,
-    this.arrayIndex = -1,
-    this.requestType = 1, // RR_BY_POSITION
-    this.reference = 1, // Start index 1
-    this.count = 0, // All? or specific count
-    this.trackingId,
+/// Any other unconfirmed service request or confirmed notification
+/// (I-Have, event notifications, text messages, private transfers).
+@immutable
+class UnconfirmedServiceResponse extends WorkerResponse {
+  /// Creates an unconfirmed service response.
+  const UnconfirmedServiceResponse({
+    required this.service,
+    required this.data,
+    required this.mac,
+    required this.net,
+    this.confirmed = false,
   });
-}
 
-/// Response containing a ReadRange acknowledgment.
-class ReadRangeAckResponse extends WorkerResponse {
-  /// Invoke ID.
-  final int invokeId;
+  /// Service choice (see [BacnetUnconfirmedService], or
+  /// [BacnetConfirmedService] when [confirmed]).
+  final int service;
 
-  /// Result flags (first item, last item, more items).
-  final int resultFlags;
+  /// Encoded service request.
+  final Uint8List data;
 
-  /// Item count returned.
-  final int itemCount;
+  /// Source MAC address.
+  final List<int> mac;
 
-  /// List of items (raw data or parsed).
-  final dynamic data;
+  /// Source network number.
+  final int net;
 
-  /// Tracking ID associated with the request (if any).
-  final int? trackingId;
-
-  /// Creates a ReadRange acknowledgment.
-  const ReadRangeAckResponse({
-    required this.invokeId,
-    required this.resultFlags,
-    required this.itemCount,
-    this.data,
-    this.trackingId,
-  });
+  /// True for a confirmed notification (already acknowledged).
+  final bool confirmed;
 }

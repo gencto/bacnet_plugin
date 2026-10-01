@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:bacnet_plugin/bacnet_plugin.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockBacnetClient extends Mock implements BacnetClient {}

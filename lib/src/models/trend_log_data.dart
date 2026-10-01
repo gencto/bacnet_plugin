@@ -23,7 +23,7 @@ part 'trend_log_data.g.dart';
 /// );
 /// ```
 @immutable
-@JsonSerializable()
+@JsonSerializable(explicitToJson: true)
 class TrendLogData {
   /// Creates trend log data.
   ///

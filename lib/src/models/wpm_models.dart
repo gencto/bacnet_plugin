@@ -10,7 +10,7 @@ part 'wpm_models.g.dart';
 /// Used in WritePropertyMultiple requests to efficiently write multiple
 /// properties in a single network transaction.
 @immutable
-@JsonSerializable()
+@JsonSerializable(explicitToJson: true)
 class BacnetWriteAccessSpecification {
   /// Creates a write access specification.
   ///
@@ -91,8 +91,7 @@ class BacnetPropertyValue {
     this.propertyArrayIndex = -1,
     required this.value,
     this.priority = 16,
-    this.tag =
-        4, // Default to Real (4) or Unsigned (2)? Using 4 as placeholder.
+    this.tag,
   });
 
   /// The property identifier to write to.
@@ -117,8 +116,10 @@ class BacnetPropertyValue {
   /// Used for commandable properties with priority arrays.
   final int priority;
 
-  /// BACnet application tag (e.g. 4 for Real, 2 for Unsigned).
-  final int tag;
+  /// BACnet application tag forcing the datatype (see
+  /// [BacnetApplicationTag]); `null` infers it from the object type, the
+  /// property and the value.
+  final int? tag;
 
   /// Creates a property value from JSON.
   factory BacnetPropertyValue.fromJson(Map<String, dynamic> json) =>

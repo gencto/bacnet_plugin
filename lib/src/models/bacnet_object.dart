@@ -41,6 +41,9 @@ class BacnetObject {
     this.properties = const {},
   });
 
+  /// Largest object instance number (also the "unconfigured" wildcard).
+  static const int maxInstance = 4194303;
+
   /// The BACnet object type identifier.
   ///
   /// Use [BacnetObjectType] constants for standard object types.

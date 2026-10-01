@@ -23,7 +23,7 @@ part 'device_metadata.g.dart';
 /// );
 /// ```
 @immutable
-@JsonSerializable()
+@JsonSerializable(explicitToJson: true)
 class DeviceMetadata {
   /// Creates device metadata.
   const DeviceMetadata({

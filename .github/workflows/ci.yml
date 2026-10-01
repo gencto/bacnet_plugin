@@ -1,62 +1,137 @@
+# Proposed CI workflow. Move it to .github/workflows/ci.yml (pushing workflow
+# files needs the GitHub "workflow" permission, which this change could not use):
+#   git mv -f tool/ci/ci.yml .github/workflows/ci.yml
+
 name: CI/CD
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "v*" ]
+    branches: ["main"]
+    tags: ["v*"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
-  contents: write
-  id-token: write # Required for OIDC authentication with pub.dev
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v7
         with:
-          channel: 'stable'
-          
-      - name: Download Native Library
+          submodules: true
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get --no-example
+      - name: Verify generated code
         run: |
-          git clone --depth 1 https://github.com/bacnet-stack/bacnet-stack.git native/bacnet-stack
-          
-      - name: Install dependencies
-        run: flutter pub get
-        
-      - name: Code generation
-        run: flutter pub run build_runner build --delete-conflicting-outputs
-        
+          dart run build_runner build --delete-conflicting-outputs
+          python3 tool/gen_object_table.py
+          git diff --exit-code -- lib native/src
       - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed .
-        
-      - name: Analyze project
-        run: flutter analyze
-
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    # Only run deploy if it is a tag push
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          
-      - name: Download Native Library
+        run: dart format --output=none --set-exit-if-changed lib test hook benchmark tool
+      - run: dart analyze --fatal-infos lib test hook benchmark tool
+      - name: Compile native engine with warnings enabled
         run: |
-          git clone --depth 1 https://github.com/bacnet-stack/bacnet-stack.git native/bacnet-stack
-          
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Publish to Pub.dev
-        run: flutter pub publish --force
+          gcc -fsyntax-only -Wall -Wextra -Werror -Wno-unused-parameter \
+            -DBACDL_BIP=1 -DPRINT_ENABLED=0 -DBACNET_STACK_STATIC_DEFINE \
+            -Inative/bacnet-stack/src -Inative/src \
+            native/src/bacnet_plugin.c native/src/bp_port_posix.c
+
+  test:
+    needs: analyze
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get --no-example
+      - name: Unit tests
+        run: dart test --exclude-tags integration
+      - name: Client/server integration tests (loopback)
+        if: runner.os != 'Windows'
+        run: dart test --tags integration --reporter expanded
+
+  flutter-example:
+    needs: analyze
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            build: linux
+          - os: ubuntu-latest
+            build: apk
+          - os: macos-latest
+            build: macos
+          - os: macos-latest
+            build: ios
+          - os: windows-latest
+            build: windows
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: example
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Linux desktop dependencies
+        if: matrix.build == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev
+      - uses: actions/setup-java@v6
+        if: matrix.build == 'apk'
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: flutter pub get
+      - run: flutter analyze
+      - name: Integration test (flutter-tester, native asset via build hook)
+        if: matrix.build == 'linux'
+        run: flutter test integration_test/app_test.dart -d flutter-tester
+      - name: Build
+        run: |
+          case "${{ matrix.build }}" in
+            ios) flutter build ios --simulator --debug ;;
+            apk) flutter build apk --debug ;;
+            *) flutter build ${{ matrix.build }} --release ;;
+          esac
+        shell: bash
+
+  publish:
+    needs: [test, flutter-example]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pub.dev
+    permissions:
+      contents: read
+      id-token: write # OIDC authentication with pub.dev
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # the package ships the pinned bacnet-stack sources
+          submodules: true
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get --no-example
+      - run: dart pub publish --force

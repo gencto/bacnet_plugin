@@ -20,8 +20,8 @@ BacnetWriteAccessSpecification _$BacnetWriteAccessSpecificationFromJson(
 Map<String, dynamic> _$BacnetWriteAccessSpecificationToJson(
   BacnetWriteAccessSpecification instance,
 ) => <String, dynamic>{
-  'objectIdentifier': instance.objectIdentifier,
-  'listOfProperties': instance.listOfProperties,
+  'objectIdentifier': instance.objectIdentifier.toJson(),
+  'listOfProperties': instance.listOfProperties.map((e) => e.toJson()).toList(),
 };
 
 BacnetPropertyValue _$BacnetPropertyValueFromJson(Map<String, dynamic> json) =>
@@ -30,6 +30,7 @@ BacnetPropertyValue _$BacnetPropertyValueFromJson(Map<String, dynamic> json) =>
       propertyArrayIndex: (json['propertyArrayIndex'] as num?)?.toInt() ?? -1,
       value: json['value'],
       priority: (json['priority'] as num?)?.toInt() ?? 16,
+      tag: (json['tag'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$BacnetPropertyValueToJson(
@@ -39,4 +40,5 @@ Map<String, dynamic> _$BacnetPropertyValueToJson(
   'propertyArrayIndex': instance.propertyArrayIndex,
   'value': instance.value,
   'priority': instance.priority,
+  'tag': instance.tag,
 };

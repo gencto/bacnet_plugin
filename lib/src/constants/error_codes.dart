@@ -260,3 +260,211 @@ class BacnetErrorCode {
     }
   }
 }
+
+/// BACnet Abort reasons (ASHRAE 135 clause 21, BACnetAbortReason).
+class BacnetAbortReason {
+  const BacnetAbortReason._();
+
+  /// Other.
+  static const int other = 0;
+
+  /// Buffer overflow.
+  static const int bufferOverflow = 1;
+
+  /// Invalid APDU in this state.
+  static const int invalidApduInThisState = 2;
+
+  /// Preempted by higher priority task.
+  static const int preemptedByHigherPriorityTask = 3;
+
+  /// Segmentation not supported (the answer does not fit into one APDU).
+  static const int segmentationNotSupported = 4;
+
+  /// Security error.
+  static const int securityError = 5;
+
+  /// Insufficient security.
+  static const int insufficientSecurity = 6;
+
+  /// Window size out of range.
+  static const int windowSizeOutOfRange = 7;
+
+  /// Application exceeded reply time.
+  static const int applicationExceededReplyTime = 8;
+
+  /// Out of resources.
+  static const int outOfResources = 9;
+
+  /// TSM timeout.
+  static const int tsmTimeout = 10;
+
+  /// APDU too long.
+  static const int apduTooLong = 11;
+
+  static const _names = <int, String>{
+    other: 'Other',
+    bufferOverflow: 'Buffer Overflow',
+    invalidApduInThisState: 'Invalid APDU In This State',
+    preemptedByHigherPriorityTask: 'Preempted By Higher Priority Task',
+    segmentationNotSupported: 'Segmentation Not Supported',
+    securityError: 'Security Error',
+    insufficientSecurity: 'Insufficient Security',
+    windowSizeOutOfRange: 'Window Size Out Of Range',
+    applicationExceededReplyTime: 'Application Exceeded Reply Time',
+    outOfResources: 'Out Of Resources',
+    tsmTimeout: 'TSM Timeout',
+    apduTooLong: 'APDU Too Long',
+  };
+
+  /// Returns a human-readable name for the given abort reason.
+  static String getName(int reason) => _names[reason] ?? 'Abort Reason $reason';
+}
+
+/// BACnet Reject reasons (ASHRAE 135 clause 21, BACnetRejectReason).
+class BacnetRejectReason {
+  const BacnetRejectReason._();
+
+  /// Other.
+  static const int other = 0;
+
+  /// Buffer overflow.
+  static const int bufferOverflow = 1;
+
+  /// Inconsistent parameters.
+  static const int inconsistentParameters = 2;
+
+  /// Invalid parameter data type.
+  static const int invalidParameterDataType = 3;
+
+  /// Invalid tag.
+  static const int invalidTag = 4;
+
+  /// Missing required parameter.
+  static const int missingRequiredParameter = 5;
+
+  /// Parameter out of range.
+  static const int parameterOutOfRange = 6;
+
+  /// Too many arguments.
+  static const int tooManyArguments = 7;
+
+  /// Undefined enumeration.
+  static const int undefinedEnumeration = 8;
+
+  /// Unrecognized service.
+  static const int unrecognizedService = 9;
+
+  static const _names = <int, String>{
+    other: 'Other',
+    bufferOverflow: 'Buffer Overflow',
+    inconsistentParameters: 'Inconsistent Parameters',
+    invalidParameterDataType: 'Invalid Parameter Data Type',
+    invalidTag: 'Invalid Tag',
+    missingRequiredParameter: 'Missing Required Parameter',
+    parameterOutOfRange: 'Parameter Out Of Range',
+    tooManyArguments: 'Too Many Arguments',
+    undefinedEnumeration: 'Undefined Enumeration',
+    unrecognizedService: 'Unrecognized Service',
+  };
+
+  /// Returns a human-readable name for the given reject reason.
+  static String getName(int reason) =>
+      _names[reason] ?? 'Reject Reason $reason';
+}
+
+/// BACnet confirmed service choices (ASHRAE 135 clause 21).
+class BacnetConfirmedService {
+  const BacnetConfirmedService._();
+
+  /// AcknowledgeAlarm.
+  static const int acknowledgeAlarm = 0;
+
+  /// ConfirmedCOVNotification.
+  static const int covNotification = 1;
+
+  /// ConfirmedEventNotification.
+  static const int eventNotification = 2;
+
+  /// SubscribeCOV.
+  static const int subscribeCov = 5;
+
+  /// AtomicReadFile.
+  static const int atomicReadFile = 6;
+
+  /// AtomicWriteFile.
+  static const int atomicWriteFile = 7;
+
+  /// AddListElement.
+  static const int addListElement = 8;
+
+  /// RemoveListElement.
+  static const int removeListElement = 9;
+
+  /// CreateObject.
+  static const int createObject = 10;
+
+  /// DeleteObject.
+  static const int deleteObject = 11;
+
+  /// ReadProperty.
+  static const int readProperty = 12;
+
+  /// ReadPropertyMultiple.
+  static const int readPropertyMultiple = 14;
+
+  /// WriteProperty.
+  static const int writeProperty = 15;
+
+  /// WritePropertyMultiple.
+  static const int writePropertyMultiple = 16;
+
+  /// DeviceCommunicationControl.
+  static const int deviceCommunicationControl = 17;
+
+  /// ConfirmedPrivateTransfer.
+  static const int privateTransfer = 18;
+
+  /// ReinitializeDevice.
+  static const int reinitializeDevice = 20;
+
+  /// ReadRange.
+  static const int readRange = 26;
+
+  /// SubscribeCOVProperty.
+  static const int subscribeCovProperty = 28;
+}
+
+/// BACnet unconfirmed service choices (ASHRAE 135 clause 21).
+class BacnetUnconfirmedService {
+  const BacnetUnconfirmedService._();
+
+  /// I-Am.
+  static const int iAm = 0;
+
+  /// I-Have.
+  static const int iHave = 1;
+
+  /// UnconfirmedCOVNotification.
+  static const int covNotification = 2;
+
+  /// UnconfirmedEventNotification.
+  static const int eventNotification = 3;
+
+  /// UnconfirmedPrivateTransfer.
+  static const int privateTransfer = 4;
+
+  /// UnconfirmedTextMessage.
+  static const int textMessage = 5;
+
+  /// TimeSynchronization.
+  static const int timeSynchronization = 6;
+
+  /// Who-Has.
+  static const int whoHas = 7;
+
+  /// Who-Is.
+  static const int whoIs = 8;
+
+  /// UTCTimeSynchronization.
+  static const int utcTimeSynchronization = 9;
+}

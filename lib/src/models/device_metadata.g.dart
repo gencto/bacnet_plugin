@@ -26,6 +26,6 @@ Map<String, dynamic> _$DeviceMetadataToJson(DeviceMetadata instance) =>
     <String, dynamic>{
       'deviceId': instance.deviceId,
       'objectCount': instance.objectCount,
-      'objects': instance.objects,
+      'objects': instance.objects.map((e) => e.toJson()).toList(),
       'supportedServices': instance.supportedServices,
     };

@@ -1,44 +1,64 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
-
+import '../core/bacnet_config.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
+import '../models/bacnet_stats.dart';
 import '../models/internal/worker_message.dart';
-import '../models/rpm_models.dart';
-import '../models/wpm_models.dart';
-import 'worker/entry_point.dart';
+import 'bindings.g.dart' show bacnet_plugin_wakeup;
+import 'protocol.dart';
+import 'worker.dart';
 
 /// Low-level BACnet system interface managing the worker isolate.
 ///
-/// This singleton class manages communication with the BACnet worker isolate,
-/// handles request-response matching, and provides event streaming for
-/// unsolicited messages like I-Am and COV notifications.
+/// The bacnet-stack is process global, so one [BacnetSystem] (and one
+/// worker isolate) serves every [BacnetClient] and [BacnetServer] of the
+/// process. [start] and [release] are reference counted.
 class BacnetSystem {
+  BacnetSystem._internal();
+
   static final BacnetSystem _instance = BacnetSystem._internal();
 
   /// Gets the singleton instance of BacnetSystem.
   static BacnetSystem get instance => _instance;
 
-  BacnetSystem._internal();
+  BacnetConfig _config = const BacnetConfig();
+  BacnetLogger? _loggerOverride;
+  int _references = 0;
+  Future<void>? _starting;
+  Isolate? _isolate;
+  SendPort? _commands;
+  ReceivePort? _responses;
+  ReceivePort? _exitPort;
+  String? _version;
+  Completer<void>? _exited;
 
-  Isolate? _workerIsolate;
-  SendPort? _workerSendPort;
-  Completer<void> _initCompleter = Completer<void>();
-  StreamController<dynamic> _eventController =
-      StreamController<dynamic>.broadcast();
+  int _nextId = 0;
+  final Map<int, Completer<Object?>> _pending = {};
 
-  final Map<int, Completer<dynamic>> _pendingRequests = {};
-  int _trackingIdCounter = 0;
-  final Map<int, int> _invokeToTrackingMap = {};
+  StreamController<WorkerResponse> _events =
+      StreamController<WorkerResponse>.broadcast(sync: true);
 
-  BacnetLogger _logger = const DeveloperBacnetLogger();
+  /// Active configuration.
+  BacnetConfig get config => _config;
+
+  /// True while the worker isolate is running.
+  bool get isRunning => _commands != null;
+
+  /// Version of the native engine and bacnet-stack.
+  String? get nativeVersion => _version;
+
+  /// Number of requests awaiting an answer from the worker.
+  int get pendingCommands => _pending.length;
+
+  BacnetLogger get _logger => _loggerOverride ?? _config.logger;
 
   /// Sets the logger for BACnet system messages.
   void setLogger(BacnetLogger logger) {
-    _logger = logger;
+    _loggerOverride = logger;
   }
 
   /// Logs a message using the configured logger.
@@ -51,255 +71,246 @@ class BacnetSystem {
     _logger.log(level, message, error, stackTrace);
   }
 
-  /// Stream of unsolicited events from the BACnet network.
-  ///
-  /// Includes I-Am responses, COV notifications, and write notifications.
-  Stream<dynamic> get events => _eventController.stream;
+  /// Stream of unsolicited events (I-Am, COV, writes, logs, errors).
+  Stream<WorkerResponse> get events => _events.stream;
 
-  /// Starts the BACnet worker isolate and initializes the BACnet stack.
-  ///
-  /// [interface] - Optional network interface name to bind to.
-  /// [port] - UDP port to listen on (default 47808).
-  Future<void> start({String? interface, int port = 47808}) async {
-    // Idempotent: if already started, just return
-    if (_workerIsolate != null) {
-      return;
+  /// Starts the worker isolate and initializes the BACnet stack. When the
+  /// stack is already running the call only takes a reference; the first
+  /// caller's configuration wins.
+  Future<void> start(BacnetConfig config) async {
+    _references++;
+    try {
+      if (_commands != null) return;
+      if (_starting != null) {
+        await _starting;
+        return;
+      }
+      _config = config;
+      final starting = _spawn(config);
+      _starting = starting;
+      try {
+        await starting;
+      } finally {
+        _starting = null;
+      }
+    } on Object {
+      _references--;
+      rethrow;
     }
+  }
 
-    // Recreate completer and event controller if disposed
-    if (_initCompleter.isCompleted) {
-      _initCompleter = Completer<void>();
+  Future<void> _spawn(BacnetConfig config) async {
+    if (_events.isClosed) {
+      _events = StreamController<WorkerResponse>.broadcast(sync: true);
     }
-    if (_eventController.isClosed) {
-      _eventController = StreamController<dynamic>.broadcast();
-    }
+    final responses = ReceivePort('BacnetWorkerResponses');
+    final exitPort = ReceivePort('BacnetWorkerExit');
+    final ready = Completer<void>();
+    final exited = Completer<void>();
+    _responses = responses;
+    _exitPort = exitPort;
+    _exited = exited;
 
-    final receivePort = ReceivePort();
-    _workerIsolate = await Isolate.spawn(bacnetWorkerEntryPoint, {
-      'sendPort': receivePort.sendPort,
-      'interface': interface,
-      'port': port,
-    }, debugName: 'BacnetWorker');
-
-    receivePort.listen((message) {
-      if (message is SendPort) {
-        _workerSendPort = message;
-        if (!_initCompleter.isCompleted) {
-          _initCompleter.complete();
+    responses.listen((Object? message) {
+      if (message is List) {
+        for (final item in message) {
+          _onMessage(item);
         }
-      } else if (message is WorkerResponse) {
-        _handleWorkerMessage(message);
+      } else if (message is WorkerReady) {
+        _commands = message.commandPort;
+        _version = message.version;
+        if (!ready.isCompleted) ready.complete();
+      } else if (message is WorkerFailed) {
+        if (!ready.isCompleted) {
+          ready.completeError(BacnetException(message.message));
+        }
       }
     });
-  }
+    exitPort.listen((_) {
+      if (!ready.isCompleted) {
+        ready.completeError(
+          const BacnetException('BACnet worker exited during startup'),
+        );
+      }
+      _onWorkerExit();
+    });
 
-  void _handleWorkerMessage(WorkerResponse message) {
-    if (message is ErrorResponse) {
-      if (!_initCompleter.isCompleted) {
-        _initCompleter.completeError(message.error);
-      } else {
-        _eventController.add(message);
-      }
-      return;
-    }
-
-    if (message is ReadPropertySentResponse) {
-      _invokeToTrackingMap[message.invokeId] = message.trackingId;
-    } else if (message is ReadPropertyAckResponse) {
-      final trackingId = _invokeToTrackingMap.remove(message.invokeId);
-      if (trackingId != null) {
-        final completer = _pendingRequests.remove(trackingId);
-        if (completer != null && !completer.isCompleted) {
-          completer.complete(message.value);
-        }
-      }
-      _eventController.add(message);
-    } else if (message is ReadRangeAckResponse) {
-      final trackingId = _invokeToTrackingMap.remove(message.invokeId);
-      if (trackingId != null) {
-        final completer = _pendingRequests.remove(trackingId);
-        if (completer != null && !completer.isCompleted) {
-          completer.complete(message);
-        }
-      }
-      _eventController.add(message);
-    } else if (message is ReadPropertyMultipleAckResponse) {
-      final trackingId = _invokeToTrackingMap.remove(message.invokeId);
-      if (trackingId != null) {
-        final completer = _pendingRequests.remove(trackingId);
-        if (completer != null && !completer.isCompleted) {
-          completer.complete(message.values);
-        }
-      }
-      _eventController.add(message);
-    } else if (message is LogResponse) {
-      // Also print to console for debugging
-      debugPrint('[Worker] ${message.message}');
-      _logger.log(
-        BacnetLogLevel.values[message.levelIndex],
-        message.message,
-        message.errorObj,
-        message.stackTrace != null
-            ? StackTrace.fromString(message.stackTrace!)
-            : null,
+    final startup = WorkerStartup(
+      mainPort: responses.sendPort,
+      interface: config.interface,
+      port: config.port,
+      deviceInstance: config.deviceInstance,
+      apduTimeoutMs: config.apduTimeout.inMilliseconds,
+      apduRetries: config.maxRetries,
+      socketBufferSize: config.socketBufferSize,
+      strictSourceCheck: config.strictSourceCheck,
+      covScanIntervalMs: config.covScanInterval.inMilliseconds.clamp(1, 60000),
+      idlePollMs: config.idlePollInterval.inMilliseconds.clamp(1, 1000),
+      maxInFlight: config.maxConcurrentRequests,
+      maxInFlightPerDevice: config.maxConcurrentRequestsPerDevice,
+      maxQueued: config.maxQueuedRequests,
+      bindTimeoutMs: config.bindTimeout.inMilliseconds,
+      logLevel: config.logLevel,
+    );
+    try {
+      _isolate = await Isolate.spawn(
+        bacnetWorkerMain,
+        startup,
+        debugName: 'BacnetWorker',
+        onExit: exitPort.sendPort,
+        errorsAreFatal: false,
       );
-    } else {
-      _eventController.add(message);
+      await ready.future;
+    } on Object {
+      _isolate?.kill(priority: Isolate.immediate);
+      _cleanupPorts();
+      rethrow;
     }
   }
 
-  /// Sends a request to the worker isolate.
-  Future<void> send(WorkerRequest request) async {
-    await _initCompleter.future;
-    _workerSendPort?.send(request);
-  }
-
-  /// Sends a ReadProperty request and waits for the response.
-  Future<dynamic> sendReadProperty(
-    int deviceId,
-    int objectType,
-    int instance,
-    int propertyId, {
-    int arrayIndex = -1,
-  }) async {
-    await _initCompleter.future;
-    final trackingId = ++_trackingIdCounter;
-    final completer = Completer<dynamic>();
-    _pendingRequests[trackingId] = completer;
-
-    _workerSendPort?.send(
-      ReadPropertyRequest(
-        trackingId: trackingId,
-        deviceId: deviceId,
-        objectType: objectType,
-        instance: instance,
-        propertyId: propertyId,
-        arrayIndex: arrayIndex,
-      ),
-    );
-
-    return completer.future.timeout(
-      const Duration(seconds: 15),
-      onTimeout: () {
-        _pendingRequests.remove(trackingId);
-        throw const BacnetTimeoutException('ReadProperty timed out');
-      },
-    );
-  }
-
-  /// Sends a ReadPropertyMultiple request and waits for the response.
-  Future<Map<String, Map<int, dynamic>>> sendReadPropertyMultiple(
-    int deviceId,
-    List<BacnetReadAccessSpecification> specs,
-  ) async {
-    debugPrint('🟢 Main: sendReadPropertyMultiple called for device $deviceId');
-    debugPrint(
-      '🟢 Main: _workerSendPort is ${_workerSendPort == null ? "NULL" : "not null"}',
-    );
-
-    await _initCompleter.future;
-    final trackingId = ++_trackingIdCounter;
-    // The native layer returns a complex Map structure for RPM
-    final completer = Completer<Map<String, Map<int, dynamic>>>();
-    _pendingRequests[trackingId] = completer;
-
-    debugPrint('🟢 Main: Sending RPM to worker (trackingId: $trackingId)');
-
-    _workerSendPort?.send(
-      ReadPropertyMultipleRequest(
-        trackingId: trackingId,
-        deviceId: deviceId,
-        readAccessSpecs: specs,
-      ),
-    );
-
-    debugPrint('🟢 Main: RPM request sent to worker');
-
-    return completer.future.timeout(
-      const Duration(seconds: 15),
-      onTimeout: () {
-        _pendingRequests.remove(trackingId);
-        throw const BacnetTimeoutException('ReadPropertyMultiple timed out');
-      },
-    );
-  }
-
-  /// Sends a WritePropertyMultiple request.
-  Future<void> sendWritePropertyMultiple(
-    int deviceId,
-    List<BacnetWriteAccessSpecification> specs, {
-    int? trackingId,
-  }) async {
-    await send(
-      WritePropertyMultipleRequest(
-        deviceId: deviceId,
-        writeAccessSpecs: specs,
-        trackingId: trackingId,
-      ),
-    );
-  }
-
-  /// Sends a ReadRange request.
-  Future<ReadRangeAckResponse> sendReadRange(
-    int deviceId, {
-    required int objectType,
-    required int instance,
-    required int propertyId,
-    int arrayIndex = -1,
-    int requestType = 1, // RR_BY_POSITION
-    dynamic reference = 1, // Start index 1
-    int count = 0,
-  }) async {
-    await _initCompleter.future;
-    final trackingId = ++_trackingIdCounter;
-    final completer = Completer<dynamic>();
-    _pendingRequests[trackingId] = completer;
-
-    _workerSendPort?.send(
-      ReadRangeRequest(
-        deviceId: deviceId,
-        objectType: objectType,
-        instance: instance,
-        propertyId: propertyId,
-        arrayIndex: arrayIndex,
-        requestType: requestType,
-        reference: reference,
-        count: count,
-        trackingId: trackingId,
-      ),
-    );
-
-    final response = await completer.future.timeout(
-      const Duration(seconds: 5),
-      onTimeout: () {
-        _pendingRequests.remove(trackingId);
-        throw const BacnetTimeoutException('ReadRange timed out');
-      },
-    );
-
-    if (response is ReadRangeAckResponse) {
-      return response;
-    } else {
-      throw BacnetException('Unexpected response: $response');
+  void _onMessage(Object? message) {
+    switch (message) {
+      case CommandResult(:final id, :final value):
+        _pending.remove(id)?.complete(value);
+      case CommandFailure(:final id, :final error):
+        _pending.remove(id)?.completeError(error);
+      case LogResponse():
+        _logger.log(
+          BacnetLogLevel.values[message.levelIndex],
+          message.message,
+          message.errorObj,
+          message.stackTrace == null
+              ? null
+              : StackTrace.fromString(message.stackTrace!),
+        );
+        if (_events.hasListener) _events.add(message);
+      case WorkerResponse():
+        if (_events.hasListener) _events.add(message);
     }
   }
 
-  /// Stops the worker isolate and cleans up resources.
-  void dispose() {
-    _workerIsolate?.kill(priority: Isolate.immediate);
-    _workerIsolate = null;
-    _workerSendPort = null;
+  void _onWorkerExit() {
+    final exited = _exited;
+    if (exited != null && !exited.isCompleted) exited.complete();
+    final wasRunning = _commands != null;
+    _commands = null;
+    _isolate = null;
+    _cleanupPorts();
+    const error = BacnetException('BACnet worker stopped');
+    for (final completer in _pending.values) {
+      if (!completer.isCompleted) completer.completeError(error);
+    }
+    _pending.clear();
+    if (wasRunning && _references > 0 && _events.hasListener) {
+      _events.add(const ErrorResponse('BACnet worker stopped unexpectedly'));
+    }
+  }
 
-    // Close current event controller
-    _eventController.close();
+  void _cleanupPorts() {
+    _responses?.close();
+    _exitPort?.close();
+    _responses = null;
+    _exitPort = null;
+  }
 
-    // Clear pending requests
-    for (final completer in _pendingRequests.values) {
-      if (!completer.isCompleted) {
-        completer.completeError('BacnetSystem disposed');
+  /// Sends [build]'s command to the worker and waits for its result.
+  ///
+  /// [timeout] is a safety net on top of the worker side deadlines.
+  Future<T> call<T>(WorkerCommand Function(int id) build, {Duration? timeout}) {
+    final commands = _commands;
+    if (commands == null) {
+      return Future<T>.error(const BacnetNotInitializedException());
+    }
+    final id = ++_nextId;
+    final completer = Completer<Object?>();
+    _pending[id] = completer;
+    commands.send(build(id));
+    bacnet_plugin_wakeup();
+    var future = completer.future;
+    if (timeout != null) {
+      future = future.timeout(
+        timeout,
+        onTimeout: () {
+          _pending.remove(id);
+          throw BacnetTimeoutException(
+            'no answer from the BACnet worker within $timeout',
+          );
+        },
+      );
+    }
+    return future.then((value) => value as T);
+  }
+
+  /// Sends a confirmed request and returns the decoded answer.
+  Future<Object?> confirmed({
+    required int deviceId,
+    required int service,
+    required Uint8List payload,
+    AckDecoding decoding = AckDecoding.none,
+    Duration? timeout,
+  }) {
+    final effective = timeout ?? _config.requestTimeout;
+    return call<Object?>(
+      (id) => ConfirmedRequestCommand(
+        id,
+        deviceId: deviceId,
+        service: service,
+        payload: payload,
+        timeoutMs: effective.inMilliseconds,
+        decoding: decoding,
+      ),
+      // the worker enforces the deadline; this only guards a dead worker
+      timeout: effective + const Duration(seconds: 5),
+    );
+  }
+
+  /// Returns runtime statistics of the engine.
+  Future<BacnetStats> stats() => call<BacnetStats>(StatsCommand.new);
+
+  /// Releases one reference; the worker stops with the last one.
+  Future<void> release() async {
+    if (_references == 0) return;
+    _references--;
+    if (_references > 0) return;
+    await _stop();
+  }
+
+  Future<void> _stop() async {
+    final starting = _starting;
+    if (starting != null) {
+      try {
+        await starting;
+      } on Object {
+        // startup failed: nothing to stop
       }
     }
-    _pendingRequests.clear();
-    _invokeToTrackingMap.clear();
+    if (_commands == null) return;
+    final exited = _exited;
+    try {
+      await call<void>(
+        ShutdownCommand.new,
+        timeout: const Duration(seconds: 5),
+      );
+    } on Object {
+      _isolate?.kill(priority: Isolate.immediate);
+    }
+    // wait for the isolate to exit so that a restart can bind the port again
+    if (exited != null) {
+      await exited.future.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          _isolate?.kill(priority: Isolate.immediate);
+          _onWorkerExit();
+        },
+      );
+    }
+  }
+
+  /// Stops the worker isolate immediately, regardless of references.
+  void dispose() {
+    _references = 0;
+    if (_commands != null) {
+      unawaited(_stop());
+    }
   }
 }

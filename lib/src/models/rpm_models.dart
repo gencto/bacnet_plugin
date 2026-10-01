@@ -73,7 +73,7 @@ class BacnetPropertyReference {
 /// Used in ReadPropertyMultiple requests to efficiently read multiple
 /// properties in a single network transaction.
 @immutable
-@JsonSerializable()
+@JsonSerializable(explicitToJson: true)
 class BacnetReadAccessSpecification {
   /// Creates a read access specification.
   ///

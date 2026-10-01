@@ -1,484 +1,271 @@
 # BACnet Plugin
 
 [![pub package](https://img.shields.io/pub/v/bacnet_plugin.svg)](https://pub.dev/packages/bacnet_plugin)
+[![CI](https://github.com/gencto/bacnet_plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/gencto/bacnet_plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-A Flutter FFI plugin for BACnet protocol communication, supporting both client and server operations with an isolate-based architecture for optimal performance.
+High-throughput BACnet/IP **client and server** for Dart and Flutter, built
+on [bacnet-stack](https://github.com/bacnet-stack/bacnet-stack) 1.6.1 through
+FFI. Works in Flutter apps (Android, iOS, Linux, macOS, Windows) and in plain
+Dart programs such as headless gateways and supervisory services.
 
 ## Features
 
-✅ **BACnet Client** - Read and write properties, discover devices, subscribe to COV  
-✅ **BACnet Server** - Host BACnet objects and respond to client requests  
-✅ **Cross-Platform** - Windows, Linux, macOS, Android, iOS  
-✅ **Non-Blocking** - Isolate-based architecture prevents UI freezing  
-✅ **Type-Safe** - Named constants for all BACnet protocol values  
-✅ **Modern Logging** - DevTools integration with structured logging  
-✅ **JSON Serialization** - Easy API integration with JSON support  
-✅ **Fully Documented** - Comprehensive dartdoc for all public APIs
+- **Client**: Who-Is/I-Am discovery, ReadProperty, ReadPropertyMultiple
+  (split automatically when the answer exceeds the device's APDU),
+  WriteProperty(Multiple) with datatype inference, SubscribeCOV(Property)
+  with decoded notifications, ReadRange/Trend Logs, time synchronization,
+  foreign device registration and raw confirmed services.
+- **Server**: hosts Analog/Binary/Multi-state Input/Output/Value, Integer,
+  Positive Integer and CharacterString Value objects; answers Who-Is,
+  Read/WriteProperty(Multiple), SubscribeCOV(Property), ReadRange,
+  DeviceCommunicationControl and ReinitializeDevice natively; batch updates
+  of present values; write notifications.
+- **Built for load**: request scheduler with global and per-device
+  concurrency limits, back pressure, automatic address binding, batched
+  isolate messaging and zero-copy event processing.
+- **Robust**: bounds-checked decoder (fuzz tested), typed exceptions,
+  protection against late replies with recycled invoke ids, no
+  `exit()`/`longjmp` tricks in native code.
+- **Modern build**: native code is compiled by a
+  [build hook](https://dart.dev/tools/hooks) for every platform — no CMake,
+  Gradle or CocoaPods configuration in the package.
 
 ## Installation
 
-Add this to your `pubspec.yaml`:
-
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.0.1
+  bacnet_plugin: ^0.1.0
 ```
 
-Then run:
+Requirements:
 
-```bash
-flutter pub get
-```
+- Dart 3.11+ / Flutter 3.44+ (build hooks).
+- A C compiler on the build machine: Xcode (macOS/iOS), Visual Studio with
+  the C++ workload (Windows), clang or gcc (Linux), the Android NDK
+  installed by Flutter (Android).
+- Git dependencies must be fetched with submodules
+  (`native/bacnet-stack` is pinned to a bacnet-stack release); the pub.dev
+  package already contains the sources.
 
-## Quick Start
+Platform notes:
 
-### BACnet Client
+- **Android**: add `android.permission.INTERNET` to the app manifest. Some
+  devices drop broadcast packets in power saving mode; acquire a
+  `WifiManager.MulticastLock` if discovery is unreliable.
+- **iOS 14+**: add `NSLocalNetworkUsageDescription` to `Info.plist`.
+- **macOS**: enable `com.apple.security.network.client` and
+  `com.apple.security.network.server` entitlements.
+- **Interface**: pass an interface name (`eth0`, `en0`) or an IPv4
+  address. On Windows only IPv4 addresses are accepted.
+
+## Quick start
+
+### Client
 
 ```dart
 import 'package:bacnet_plugin/bacnet_plugin.dart';
 
-void main() async {
-  // Create client with DevTools logging
+Future<void> main() async {
   final client = BacnetClient(
-    logger: DeveloperBacnetLogger(name: 'my_app.bacnet'),
+    config: const BacnetConfig(interface: '192.168.1.100'),
   );
+  await client.start();
 
-  // Start the BACnet stack
-  await client.start(interface: '192.168.1.100');
-
-  // Discover devices on the network
+  client.iAmStream.listen((iAm) {
+    print('device ${iAm.deviceId} at ${iAm.ipAddress}:${iAm.port}');
+  });
   await client.sendWhoIs();
 
-  // Listen for I-Am responses
-  client.events.listen((event) {
-    if (event is IAmResponse) {
-      print('Found device: ${event.deviceId}');
-    }
-  });
-
-  // Read a property
+  // Unknown devices are bound automatically with a targeted Who-Is.
   final temperature = await client.readProperty(
-    1234,                              // Device ID
-    BacnetObjectType.analogInput,      // Object type
-    1,                                 // Instance
-    BacnetPropertyId.presentValue,     // Property ID
-  );
-  print('Temperature: $temperature°C');
-
-  // Write a property
-  await client.writeProperty(
-    1234,
-    BacnetObjectType.analogOutput,
-    1,
-    BacnetPropertyId.presentValue,
-    75.5,                              // Value
-    priority: 8,                       // Write priority
-  );
-
-  // Clean up
-  client.dispose();
-}
-```
-
-### BACnet Server
-
-```dart
-import 'package:bacnet_plugin/bacnet_plugin.dart';
-
-void main() async {
-  final server = BacnetServer(
-    logger: DeveloperBacnetLogger(),
-  );
-
-  // Start the server
-  await server.start(interface: '192.168.1.100');
-
-  // Initialize as a BACnet device
-  await server.init(
-    deviceId: 4194304,
-    deviceName: 'Flutter BACnet Server',
-  );
-
-  // Add objects to serve
-  await server.addObject(BacnetObjectType.analogInput, 1);
-  await server.addObject(BacnetObjectType.binaryValue, 1);
-
-  // Listen for write requests
-  server.writeEvents.listen((event) {
-    print('Property written: ${event.objectType}:${event.instance}');
-    print('Value: ${event.value}');
-  });
-}
-```
-
-## Core Concepts
-
-### BACnet Constants
-
-The plugin provides named constants for all BACnet protocol values:
-
-```dart
-// Object Types
-BacnetObjectType.analogInput        // 0
-BacnetObjectType.analogOutput       // 1
-BacnetObjectType.device             // 8
-BacnetObjectType.trendLog           // 20
-
-// Property IDs
-BacnetPropertyId.objectName         // 77
-BacnetPropertyId.presentValue       // 85
-BacnetPropertyId.description        // 28
-BacnetPropertyId.units              // 117
-
-// Error Codes
-BacnetErrorClass.device             // Device errors
-BacnetErrorCode.timeout             // Timeout error
-BacnetErrorCode.unknownObject       // Object not found
-```
-
-See the full list in:
-
-- [BacnetObjectType](lib/src/constants/object_types.dart)
-- [BacnetPropertyId](lib/src/constants/property_ids.dart)
-- [BacnetErrorClass/Code](lib/src/constants/error_codes.dart)
-
-### Logging Options
-
-Choose the logger that fits your needs:
-
-```dart
-// For production - integrates with Dart DevTools
-final client = BacnetClient(
-  logger: DeveloperBacnetLogger(name: 'my_app'),
-);
-
-// For simple console output
-final client = BacnetClient(
-  logger: ConsoleBacnetLogger(),
-);
-
-// Custom logger
-class MyLogger implements BacnetLogger {
-  @override
-  void log(BacnetLogLevel level, String message, [Object? error, StackTrace? stackTrace]) {
-    // Your custom logging logic
-  }
-}
-```
-
-### Data Models
-
-All models support JSON serialization:
-
-```dart
-// Create an object
-final sensor = BacnetObject(
-  type: BacnetObjectType.analogInput,
-  instance: 1,
-  properties: {
-    BacnetPropertyId.objectName: 'Temperature Sensor',
-    BacnetPropertyId.presentValue: 22.5,
-    BacnetPropertyId.units: 62,  // Celsius
-  },
-);
-
-// Serialize to JSON
-final json = sensor.toJson();
-
-// Deserialize from JSON
-final restored = BacnetObject.fromJson(json);
-
-// Immutable updates with copyWith
-final updated = sensor.copyWith(
-  properties: {
-    ...sensor.properties,
-    BacnetPropertyId.presentValue: 23.0,
-  },
-);
-
-// Helper getters
-print(sensor.name);              // 'Temperature Sensor'
-print(sensor.presentValue);      // 22.5
-print(sensor.description);       // null if not set
-```
-
-## Advanced Usage
-
-### Read Property Multiple (RPM)
-
-Efficiently read multiple properties in one request:
-
-```dart
-final specs = [
-  BacnetReadAccessSpecification(
-    objectIdentifier: BacnetObject(
-      type: BacnetObjectType.analogInput,
-      instance: 1,
-    ),
-    properties: [
-      BacnetPropertyReference(propertyIdentifier: BacnetPropertyId.presentValue),
-      BacnetPropertyReference(propertyIdentifier: BacnetPropertyId.objectName),
-      BacnetPropertyReference(propertyIdentifier: BacnetPropertyId.units),
-    ],
-  ),
-];
-
-final results = await client.readMultiple(1234, specs);
-```
-
-### Write Property Multiple (WPM)
-
-Write multiple properties in one request:
-
-```dart
-final specs = [
-  BacnetWriteAccessSpecification(
-    objectIdentifier: BacnetObject(
-      type: BacnetObjectType.analogOutput,
-      instance: 1,
-    ),
-    listOfProperties: [
-      BacnetPropertyValue(
-        propertyIdentifier: BacnetPropertyId.presentValue,
-        value: 75.5,
-        priority: 8,
-      ),
-    ],
-  ),
-];
-
-await client.writeMultiple(1234, specs);
-```
-
-### Change of Value (COV) Subscriptions
-
-Get notified when a property value changes:
-
-```dart
-// Subscribe to COV notifications
-await client.subscribeCOV(
-  1234,                              // Device ID
-  BacnetObjectType.analogInput,      // Object type
-  1,                                 // Instance
-  propId: BacnetPropertyId.presentValue,
-);
-
-// Listen for COV notifications
-client.events.listen((event) {
-  if (event is COVNotification) {
-    print('Value changed: ${event.value}');
-  }
-});
-```
-
-### High-Level Property Monitoring
-
-Simplify monitoring with automatic COV subscription and polling fallback:
-
-```dart
-final monitor = PropertyMonitor(client);
-
-// Monitor a property
-monitor.monitor(
-  deviceId: 1234,
-  object: BacnetObject(type: BacnetObjectType.analogInput, instance: 1),
-  propertyId: BacnetPropertyId.presentValue,
-).listen((update) {
-  print('Value: ${update.value} (from ${update.source.name})');
-});
-```
-
-### Foreign Device Registration
-
-Communicate across network boundaries:
-
-```dart
-// Register with BBMD (BACnet Broadcast Management Device)
-await client.registerForeignDevice(
-  '192.168.1.1',  // BBMD IP
-  port: 47808,
-  ttl: 120,       // Time-to-live in seconds
-);
-```
-
-### Device Discovery and Scanning
-
-```dart
-// Discover all devices
-await client.sendWhoIs();
-
-// Discover devices in a range
-await client.sendWhoIs(lowLimit: 1000, highLimit: 2000);
-
-// Scan a device for objects
-final objects = await client.scanDevice(1234);
-for (final obj in objects) {
-  print('Found: ${BacnetObjectType.getName(obj.type)} #${obj.instance}');
-}
-```
-
-## Architecture
-
-The plugin uses an **isolate-based architecture** to prevent blocking the UI thread:
-
-```
-┌─────────────────┐
-│   Flutter UI    │
-└────────┬────────┘
-         │
-    ┌───▼────┐
-    │ Client │  (Main Isolate)
-    │ Server │
-    └───┬────┘
-        │
-   ┌────▼─────────┐
-   │ BacnetSystem │  (Manages Worker)
-   └────┬─────────┘
-        │
-   ┌────▼──────────┐
-   │ Worker Isolate│  (Native BACnet Stack)
-   └───────────────┘
-```
-
-All native BACnet operations run in a separate isolate, ensuring:
-
-- ✅ Non-blocking network I/O
-- ✅ Smooth UI performance
-- ✅ Background processing
-- ✅ Efficient resource usage
-
-## Supported BACnet Services
-
-### Client Services
-
-- ✅ Who-Is / I-Am
-- ✅ Read-Property
-- ✅ Read-Property-Multiple
-- ✅ Write-Property
-- ✅ Write-Property-Multiple
-- ✅ Subscribe-COV
-- ✅ Register Foreign Device
-- ✅ Device and Object Discovery
-
-### Server Services
-
-- ✅ I-Am Response
-- ✅ Read-Property Response
-- ✅ Write-Property Handling
-- ✅ Object Hosting
-
-## Supported Platforms
-
-| Platform | Supported | Tested |
-| -------- | --------- | ------ |
-| Windows  | ✅        | ✅     |
-| Linux    | ✅        | ✅     |
-| macOS    | ✅        | ⚠️     |
-| Android  | ✅        | ⚠️     |
-| iOS      | ✅        | ⚠️     |
-
-Legend: ✅ Fully supported | ⚠️ Supported but not extensively tested
-
-## Error Handling
-
-```dart
-try {
-  final value = await client.readProperty(
     1234,
     BacnetObjectType.analogInput,
     1,
     BacnetPropertyId.presentValue,
   );
-} on BacnetTimeoutException catch (e) {
-  print('Request timed out: $e');
-} on BacnetProtocolException catch (e) {
-  print('Protocol error: ${e.errorClass}:${e.errorCode}');
-} on BacnetException catch (e) {
-  print('BACnet error: $e');
+
+  // REAL is inferred for analog present values; null relinquishes.
+  await client.writeProperty(
+    1234,
+    BacnetObjectType.analogOutput,
+    1,
+    BacnetPropertyId.presentValue,
+    21.5,
+    priority: 8,
+  );
+
+  await client.close();
 }
 ```
 
-## Configuration
+### Server
 
 ```dart
-final config = BacnetConfig(
-  interface: '192.168.1.100',        // Local interface
-  port: 47808,                       // BACnet/IP port
-  requestTimeout: Duration(seconds: 10),
-  maxRetries: 3,
-  logger: DeveloperBacnetLogger(),
+final server = BacnetServer(config: const BacnetConfig(interface: 'eth0'));
+await server.start();
+await server.init(4194300, 'Gateway', vendorName: 'ACME');
+
+await server.addObject(
+  BacnetObjectType.analogInput,
+  1,
+  name: 'Supply Air Temperature',
+  units: 62, // degrees Celsius
+  covIncrement: 0.1,
+);
+await server.addObject(
+  BacnetObjectType.multiStateValue,
+  1,
+  name: 'Mode',
+  stateTexts: ['Off', 'Heat', 'Cool'],
+  presentValue: 1,
 );
 
-// Note: Config class available for future use
-// Current API uses individual parameters
+// Push many values at once (one isolate message, one native call).
+await server.updatePresentValues([
+  for (final point in points)
+    BacnetPresentValueUpdate(
+      objectType: BacnetObjectType.analogInput,
+      instance: point.instance,
+      value: point.value,
+    ),
+]);
+
+server.writeEvents.listen((write) {
+  print('${write.objectType}:${write.instance} <- ${write.value}');
+});
 ```
 
-## Examples
+A process hosts one BACnet stack: clients and servers created in the same
+process share it (reference counted, the first configuration wins).
 
-Check out the [example](example/) directory for complete working examples:
+## High-load guide
 
-- **Client Example** - Basic client operations
-- **Server Example** - Hosting BACnet objects
-- **Advanced Usage** - RPM, WPM, COV subscriptions
+The worker isolate owns the native stack. It blocks in `poll()` on the
+sockets (no timer polling) and is woken up immediately when the main isolate
+sends work. Requests are queued per device and sent while transaction slots
+are free:
 
-Run the example:
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `maxConcurrentRequests` | 200 | Outstanding confirmed requests (≤ 250 invoke ids). |
+| `maxConcurrentRequestsPerDevice` | 4 | Protects small controllers and MS/TP routers. |
+| `maxQueuedRequests` | 10 000 | Back pressure: excess calls fail fast with `BacnetQueueFullException`. |
+| `requestTimeout` | 30 s | Deadline including queueing and retries. |
+| `apduTimeout` / `maxRetries` | 3 s / 3 | Per transmission timeout and retries. |
+| `bindTimeout` | 5 s | Time to resolve an unknown device with Who-Is. |
+| `socketBufferSize` | 4 MiB | Avoids drops during I-Am storms and bursts. |
+| `covScanInterval` | 50 ms | Server side change-of-value detection. |
+| `strictSourceCheck` | true | Drops replies whose source differs from the target. |
 
-```bash
-cd example
-flutter run
+Recommendations:
+
+- Fire requests concurrently (`Future.wait`, streams); the scheduler keeps
+  the network load within the limits.
+- Prefer `readMultiple` for many properties of one device; oversized
+  requests are split automatically.
+- Prefer COV (`PropertyMonitor`) over polling; subscriptions are renewed
+  and cancelled automatically, notifications carry the values.
+- On servers use `updatePresentValues` for bulk updates.
+- Watch `client.stats()` (queue length, in-flight requests, timeouts,
+  dropped replies) in production.
+
+### Benchmarks
+
+Measured on a 4 vCPU Linux VM over the loopback interface (servers are
+separate processes built with `dart build cli`):
+
+| Scenario | Result |
+| --- | --- |
+| Client, 50 000 ReadProperty to 8 devices | 52 500 requests/s, 0 errors |
+| Client, 10 000 ReadPropertyMultiple (20 values each) to 8 devices | 258 600 values/s |
+| One server, 4 clients × 40 000 ReadProperty | ~128 000 requests/s, 0 errors, 10 MB RSS |
+| Server, batch update of 10 000 present values | 2.5–3 ms (≈ 3.5 M values/s) |
+| Client vs bacnet-stack `bacserv`, 1 000 ReadProperty | 78 ms |
+
+Run them yourself with `benchmark/load_test.dart` and
+`benchmark/server_benchmark.dart`.
+
+## Architecture
+
+```
+ main isolate                       worker isolate                 native (C)
+┌──────────────────────┐  commands  ┌───────────────────────┐ FFI ┌────────────────────┐
+│ BacnetClient         │ ─────────► │ request scheduler     │ ──► │ engine             │
+│ BacnetServer         │  + wakeup  │ (per device queues,   │     │ (event buffer,     │
+│ DeviceScanner        │            │  limits, binding)     │     │  source checks,    │
+│ PropertyMonitor      │ ◄───────── │ event decoding        │ ◄── │  timers)           │
+└──────────────────────┘  batched   └───────────────────────┘     │ bacnet-stack 1.6.1 │
+                          results                                 └────────────────────┘
 ```
 
-## Testing
+- The C engine (`native/src`) wraps bacnet-stack: confirmed requests are
+  sent with pre-encoded service data, every network event is appended to an
+  event buffer which Dart drains after each poll — no callbacks cross the
+  FFI boundary.
+- Services are encoded/decoded in Dart (`lib/src/codec`) with a bounds
+  checked reader.
+- Server requests are answered by bacnet-stack without running Dart code.
 
-The plugin includes integration tests:
+## Error handling
 
-```bash
-# Run integration tests
-cd example
-flutter test integration_test/
+```dart
+try {
+  await client.readProperty(1234, BacnetObjectType.analogInput, 1,
+      BacnetPropertyId.presentValue);
+} on BacnetProtocolException catch (e) {
+  print('${BacnetErrorClass.getName(e.errorClass)}: '
+      '${BacnetErrorCode.getName(e.errorCode)}');
+} on BacnetRejectException catch (e) {
+  print('rejected: ${BacnetRejectReason.getName(e.reason)}');
+} on BacnetAbortException catch (e) {
+  print('aborted: ${BacnetAbortReason.getName(e.reason)}');
+} on BacnetDeviceNotFoundException catch (e) {
+  print('device ${e.deviceId} did not answer Who-Is');
+} on BacnetTimeoutException {
+  print('no answer');
+} on BacnetQueueFullException {
+  print('slow down');
+}
 ```
 
-## Contributing
+## Values
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
+`readProperty` returns `double` (REAL), `int` (Unsigned, Signed,
+Enumerated), `bool`, `String`, `BacnetObject` (object identifiers),
+`BacnetBitString`, `BacnetDate`, `BacnetTime`, `Uint8List` (octet strings),
+`null`, or a `List` for arrays and lists.
 
-### Development Setup
+Writes infer the datatype from the object type, the property and the Dart
+value. Force it with `tag:` or a `BacnetValue`:
 
-1. Clone the repository
-2. Install dependencies: `flutter pub get`
-3. Run code generation: `dart run build_runner build`
-4. Run tests: `flutter test`
-5. Check analysis: `flutter analyze`
+```dart
+await client.writeProperty(1234, BacnetObjectType.binaryOutput, 1,
+    BacnetPropertyId.presentValue, const BacnetValue.enumerated(1),
+    priority: 8);
+```
 
-## BACnet Protocol Information
+## Migrating from 0.0.x
 
-BACnet (Building Automation and Control Networks) is an ASHRAE, ANSI, and ISO standard protocol for building automation and control systems.
-
-**Resources:**
-
-- [BACnet International](https://bacnetinternational.org/)
-- [ASHRAE Standard 135](https://www.ashrae.org/technical-resources/bookstore/bacnet)
-- [Wikipedia: BACnet](https://en.wikipedia.org/wiki/BACnet)
+- The package is a pure Dart package with a build hook: remove platform
+  specific setup; Dart 3.11/Flutter 3.44 are required.
+- `readProperty` returns `BacnetObject` instead of `{'type', 'instance'}`
+  maps for object identifiers and complete lists for array properties.
+- `writeProperty(tag:)` defaults to datatype inference instead of REAL.
+- `BacnetClient.events` is a `Stream<WorkerResponse>`; use `iAmStream` and
+  `covNotifications` for typed streams. COV notifications now include the
+  initiating device and the values.
+- `subscribeCOV` completes when the device acknowledged the subscription;
+  pass `processId`/`lifetime` and cancel with `unsubscribeCOV`.
+- `WriteNotificationResponse.value` is decoded; the raw bytes are in
+  `rawValue`.
+- Internal request/response classes (`WhoIsRequest`, `ReadPropertyRequest`,
+  ...) were removed from the public API.
+- `dispose()` releases the shared stack; prefer `await close()`.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history.
-
-## Support
-
-- 📫 Issues: [GitHub Issues](https://github.com/gencto/bacnet_plugin/issues)
-- 📖 Documentation: [API Reference](https://pub.dev/documentation/bacnet_plugin/latest/)
-- 💬 Discussions: [GitHub Discussions](https://github.com/gencto/bacnet_plugin/discussions)
-
-## Acknowledgments
-
-Built with Flutter FFI and powered by the BACnet Stack library.
-
----
-
-**Made with ❤️ for the Flutter and BACnet communities**
+The plugin is MIT licensed. It bundles bacnet-stack, licensed
+GPL-2.0-or-later WITH GCC-exception-2.0, which allows linking it into
+proprietary applications; changes to bacnet-stack itself must be published.
+See `native/bacnet-stack/license`.

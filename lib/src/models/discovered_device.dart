@@ -38,6 +38,9 @@ class DiscoveredDevice {
     this.applicationSoftwareVersion,
     this.protocolVersion,
     this.protocolRevision,
+    this.ipAddress,
+    this.port,
+    this.networkNumber,
   });
 
   /// The unique BACnet device instance number.
@@ -79,6 +82,15 @@ class DiscoveredDevice {
   /// BACnet protocol revision number.
   final int? protocolRevision;
 
+  /// IPv4 address of the device (or of its router for remote networks).
+  final String? ipAddress;
+
+  /// UDP port of the device (or of its router).
+  final int? port;
+
+  /// Network number of the device (0 or null for the local network).
+  final int? networkNumber;
+
   /// Creates a copy of this device with updated values.
   DiscoveredDevice copyWith({
     int? deviceId,
@@ -94,6 +106,9 @@ class DiscoveredDevice {
     String? applicationSoftwareVersion,
     int? protocolVersion,
     int? protocolRevision,
+    String? ipAddress,
+    int? port,
+    int? networkNumber,
   }) {
     return DiscoveredDevice(
       deviceId: deviceId ?? this.deviceId,
@@ -111,6 +126,9 @@ class DiscoveredDevice {
           applicationSoftwareVersion ?? this.applicationSoftwareVersion,
       protocolVersion: protocolVersion ?? this.protocolVersion,
       protocolRevision: protocolRevision ?? this.protocolRevision,
+      ipAddress: ipAddress ?? this.ipAddress,
+      port: port ?? this.port,
+      networkNumber: networkNumber ?? this.networkNumber,
     );
   }
 
