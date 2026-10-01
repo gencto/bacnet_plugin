@@ -290,6 +290,43 @@ await client.writeProperty(1234, BacnetObjectType.binaryOutput, 1,
     priority: 8);
 ```
 
+## Testing your application
+
+`package:bacnet_plugin/testing.dart` provides `FakeBacnetClient`, a
+`BacnetClient` backed by in-memory devices. Code using the client,
+`DeviceScanner` or `PropertyMonitor` runs unchanged in unit and widget tests,
+without a network or the native stack:
+
+```dart
+import 'package:bacnet_plugin/bacnet_plugin.dart';
+import 'package:bacnet_plugin/testing.dart';
+
+final ahu = FakeBacnetDevice(1234, name: 'AHU-1')
+  ..addObject(
+    BacnetObjectType.analogInput,
+    1,
+    presentValue: 21.5,
+    units: BacnetEngineeringUnits.degreesCelsius,
+  )
+  ..addObject(BacnetObjectType.analogOutput, 1, presentValue: 0);
+final client = FakeBacnetClient(devices: [ahu]);
+await client.start();
+
+// discovery, reads, writes with priorities and COV work as with a device
+final devices = await DeviceScanner(client).discoverDevices(
+  timeout: const Duration(milliseconds: 50),
+);
+
+// simulate the field and the network
+ahu.object(BacnetObjectType.analogInput, 1)![BacnetPropertyId.presentValue] =
+    23.0; // COV notification to subscribers
+ahu.online = false; // requests time out
+client.latency = const Duration(milliseconds: 200);
+
+// assert what the application sent
+expect(client.requests.where((r) => r.service == 'writeProperty'), isEmpty);
+```
+
 ## Migrating from 0.0.x
 
 - The package is a pure Dart package with a build hook: remove platform

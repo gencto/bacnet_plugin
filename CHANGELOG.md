@@ -61,6 +61,11 @@ notes in the README.
   `maxCoalescedReads`, `coalescingWindow`); identical reads share one
   result, devices without RPM support are detected. 50 000 concurrent
   reads need 24× fewer requests and run 2× faster on loopback.
+- **Testing**: `package:bacnet_plugin/testing.dart` with
+  `FakeBacnetClient`, `FakeBacnetDevice` and `FakeBacnetObject`: in-memory
+  devices with discovery, real error codes, priority arrays, COV
+  notifications, trend log records, latency and offline simulation, and a
+  request log for assertions.
 - **Segmentation**: segmented ComplexACKs (large object lists, schedules,
   RPM results) are acknowledged window by window, reassembled and decoded
   like unsegmented answers; lost segments are requested again and stalled

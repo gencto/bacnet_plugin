@@ -26,6 +26,7 @@ Android NDK installed by Flutter for Android.
 ```
 lib/
   bacnet_plugin.dart     public API (everything else in lib/src is private)
+  testing.dart           FakeBacnetClient for application tests
   src/
     client/              BacnetClient
     server/              BacnetServer
@@ -33,6 +34,7 @@ lib/
     models/              value types and events
     core/                configuration, exceptions, logging
     constants/           BACnet enumerations (generated)
+    testing/             FakeBacnetClient and in-memory devices
     codec/               bounds checked BACnet encoder/decoder
       reader.dart, writer.dart       tags and primitive values
       value_encoding.dart            application values, datatype inference
