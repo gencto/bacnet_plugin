@@ -108,6 +108,8 @@ typedef struct {
     bool server_enabled;
     bool strict_source;
     bool suppress_write_events;
+    /* set while an object of the server writes another one */
+    bool internal_write;
     uint32_t last_ms;
     uint32_t second_acc;
     uint32_t object_acc;
@@ -225,6 +227,59 @@ void bp_service_reported(
     const uint8_t *request,
     int request_len,
     const BACNET_ADDRESS *src);
+
+/* ---- Schedules and internal writes (bp_schedule.c) -------------------- */
+
+#include "bacnet/rp.h"
+#include "bacnet/wp.h"
+void bp_internal_writes_init(void);
+bool bp_schedule_priority_set(uint32_t instance, uint8_t priority);
+int bp_schedule_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
+bool bp_schedule_write_property(BACNET_WRITE_PROPERTY_DATA *wp_data);
+void bp_schedule_timer(uint32_t object_instance, uint16_t milliseconds);
+bool bp_schedule_delete(uint32_t object_instance);
+bool bp_calendar_write_property(BACNET_WRITE_PROPERTY_DATA *wp_data);
+
+/* ---- backup and restore (bp_backup.c) --------------------------------- */
+
+#include "bacnet/apdu.h"
+
+/** Handles the backup and restore states of a ReinitializeDevice request;
+ *  false when bacnet-stack answers it. */
+bool bp_backup_reinitialize(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data);
+void bp_backup_activity(void);
+void bp_backup_timer(uint32_t seconds);
+void bp_backup_reset(void);
+int bp_device_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
+void bp_device_property_lists(
+    const int32_t **required,
+    const int32_t **optional,
+    const int32_t **proprietary);
+
+/* ---- Trend Log objects (bp_trendlog.c) -------------------------------- */
+
+#include "bacnet/readrange.h"
+void bp_tl_init(void);
+unsigned bp_tl_count(void);
+uint32_t bp_tl_index_to_instance(unsigned index);
+bool bp_tl_valid_instance(uint32_t instance);
+bool bp_tl_object_name(uint32_t instance, BACNET_CHARACTER_STRING *name);
+bool bp_tl_text_set(uint32_t instance, const char *text);
+int bp_tl_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
+bool bp_tl_write_property(BACNET_WRITE_PROPERTY_DATA *wp_data);
+void bp_tl_property_lists(
+    const int32_t **required,
+    const int32_t **optional,
+    const int32_t **proprietary);
+void bp_tl_writable_property_list(uint32_t instance, const int32_t **properties);
+bool bp_tl_rr_info(BACNET_READ_RANGE_DATA *request, RR_PROP_INFO *info);
+uint32_t bp_tl_create(uint32_t object_instance);
+bool bp_tl_delete(uint32_t object_instance);
+void bp_tl_timer(uint32_t instance, uint16_t milliseconds);
 
 /* ---- File objects with the content in memory (bp_files.c) ------------ */
 

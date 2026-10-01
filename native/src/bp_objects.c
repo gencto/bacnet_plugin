@@ -13,6 +13,8 @@
 #include "bacnet/basic/object/ao.h"
 #include "bacnet/basic/object/av.h"
 #include "bacnet/basic/object/bacfile.h"
+#include "bacnet/basic/object/calendar.h"
+#include "bacnet/basic/object/schedule.h"
 #include "bacnet/basic/object/bi.h"
 #include "bacnet/basic/object/bo.h"
 #include "bacnet/basic/object/bv.h"
@@ -73,6 +75,12 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
         case OBJECT_FILE:
             return description ? bp_file_description_set
                                : bacfile_object_name_set;
+        case OBJECT_SCHEDULE:
+            return description ? Schedule_Description_Set : Schedule_Name_Set;
+        case OBJECT_CALENDAR:
+            return description ? Calendar_Description_Set : Calendar_Name_Set;
+        case OBJECT_TRENDLOG:
+            return bp_tl_text_set;
         default:
             return NULL;
     }
@@ -225,6 +233,16 @@ BP_API int32_t bacnet_plugin_object_set_number(
     switch (property) {
         case PROP_PRESENT_VALUE:
             return bp_set_present_value(object_type, instance, value, priority);
+        case PROP_PRIORITY_FOR_WRITING:
+            if (object_type != OBJECT_SCHEDULE) {
+                return BP_ERR_UNSUPPORTED;
+            }
+            if (value < BACNET_MIN_PRIORITY || value > BACNET_MAX_PRIORITY) {
+                return BP_ERR_INVALID_ARGUMENT;
+            }
+            return bp_schedule_priority_set(instance, (uint8_t)value)
+                ? BP_OK
+                : BP_ERR_OBJECT;
         case PROP_OUT_OF_SERVICE:
             switch (object_type) {
                 case OBJECT_ANALOG_INPUT:

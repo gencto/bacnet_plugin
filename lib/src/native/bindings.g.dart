@@ -9,6 +9,30 @@ library;
 
 import 'dart:ffi' as ffi;
 
+/// Lets clients back up and restore the server (clause 19.1): `files` are
+/// the instances of the File objects (bacnet_plugin_object_create()) of
+/// Configuration_Files, at most 16; `flags` are BP_BACKUP_*. The procedure
+/// fails after `failure_timeout` seconds without requests (0: never).
+/// The requests are reported as BP_EVENT_SERVICE (ReinitializeDevice).
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Pointer<ffi.Uint32>,
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Uint16,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_backup_configure(
+  ffi.Pointer<ffi.Uint32> files,
+  int count,
+  int flags,
+  int failure_timeout,
+);
+
+/// Sets Backup_And_Restore_State (BACnetBackupState).
+@ffi.Native<ffi.Int32 Function(ffi.Uint8)>(isLeaf: true)
+external int bacnet_plugin_backup_set_state(int state);
+
 /// Adds or replaces a static device address binding.
 /// @param host IPv4 address or host name of the device (or of the router).
 /// @param net remote network number (0 for local devices).
@@ -209,7 +233,8 @@ external int bacnet_plugin_object_set_name(
 );
 
 /// Sets a numeric property locally (no network write semantics):
-/// present-value (85), out-of-service (81), units (117), cov-increment (22).
+/// present-value (85), out-of-service (81), units (117), cov-increment (22),
+/// priority-for-writing (88) of schedules.
 /// A NaN present value relinquishes the given priority of commandable objects.
 @ffi.Native<
   ffi.Int32 Function(ffi.Uint16, ffi.Uint32, ffi.Uint32, ffi.Double, ffi.Uint8)
@@ -394,6 +419,25 @@ external void bacnet_plugin_shutdown();
 @ffi.Native<ffi.Void Function(ffi.Pointer<bp_stats_t>)>(isLeaf: true)
 external void bacnet_plugin_stats(ffi.Pointer<bp_stats_t> out);
 
+/// Appends a record to Trend Log `instance` of the server (created with
+/// bacnet_plugin_object_create()) while it is enabled.
+/// @param data application encoded value (NULL, BOOLEAN, REAL, DOUBLE,
+/// ENUMERATED, Unsigned, INTEGER or a BIT STRING of up to 32 bits;
+/// others are logged as failures).
+/// @param status_flags Status_Flags (in-alarm 1, fault 2, overridden 4,
+/// out-of-service 8) or -1 to leave them out.
+/// @return 1 when appended, 0 while the log is disabled, or a negative
+/// BP_ERR_* code.
+@ffi.Native<
+  ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Uint8>, ffi.Uint16, ffi.Int32)
+>(isLeaf: true)
+external int bacnet_plugin_trend_log_append(
+  int instance,
+  ffi.Pointer<ffi.Uint8> data,
+  int length,
+  int status_flags,
+);
+
 /// Removes the address binding of a device.
 @ffi.Native<ffi.Void Function(ffi.Uint32)>(isLeaf: true)
 external void bacnet_plugin_unbind_device(int device_id);
@@ -405,6 +449,10 @@ external ffi.Pointer<ffi.Char> bacnet_plugin_version();
 /// Interrupts a blocking bacnet_plugin_poll(). Safe from any thread.
 @ffi.Native<ffi.Void Function()>(isLeaf: true)
 external void bacnet_plugin_wakeup();
+
+const int BP_BACKUP_APPLY = 2;
+
+const int BP_BACKUP_PREPARE = 1;
 
 const int BP_DEVICE_UNKNOWN = 4294967295;
 
@@ -461,6 +509,8 @@ const int BP_EVENT_WRITE = 9;
 const int BP_FLAG_ABORT_FROM_SERVER = 1;
 
 const int BP_FLAG_COMPLEX = 2;
+
+const int BP_FLAG_INTERNAL = 16;
 
 const int BP_FLAG_LOCAL = 4;
 

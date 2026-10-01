@@ -83,8 +83,86 @@ Future<void> main(List<String> args) async {
     readOnly: true,
     content: List.generate(3000, (i) => i & 0xFF),
   );
+  // a schedule writing AV 900 at priority 12, and a calendar it can refer
+  // to in its exception schedule
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    900,
+    name: 'Scheduled-AV',
+    presentValue: const BacnetReal(0),
+  );
+  await server.addCalendar(1, name: 'Holidays');
+  await server.addSchedule(
+    1,
+    name: 'Setpoint',
+    scheduleDefault: const BacnetReal(5),
+    weeklySchedule: BacnetWeeklySchedule([
+      for (var day = 0; day < 7; day++)
+        const [
+          BacnetTimeValue(
+            BacnetTime(hour: 0, minute: 0, second: 0, hundredths: 0),
+            BacnetReal(20),
+          ),
+        ],
+    ]),
+    references: const [
+      BacnetDeviceObjectPropertyReference(
+        object: BacnetObject(type: BacnetObjectType.analogValue, instance: 900),
+        property: BacnetPropertyId.presentValue,
+      ),
+    ],
+    priorityForWriting: 12,
+  );
+  // trend logs: one polls AV 910 every second, the application records
+  // the values clients write to AV 911 in the other
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    910,
+    name: 'Logged-AV',
+    presentValue: const BacnetReal(1),
+  );
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    911,
+    name: 'App-logged-AV',
+    presentValue: const BacnetReal(0),
+  );
+  await server.addTrendLog(
+    1,
+    name: 'AV 910 log',
+    source: const BacnetDeviceObjectPropertyReference(
+      object: BacnetObject(type: BacnetObjectType.analogValue, instance: 910),
+      property: BacnetPropertyId.presentValue,
+    ),
+    logInterval: const Duration(seconds: 1),
+    bufferSize: 100,
+  );
+  await server.addTrendLog(2, name: 'AV 911 writes', bufferSize: 10);
+  // backup and restore: the settings of the application in file 3
+  var settings = 'setpoint=21';
+  await server.addFile(3, name: 'settings.txt', fileType: 'text/plain');
+  await server.enableBackup(
+    files: [3],
+    prepareBackup: () => server.setFileContent(3, settings.codeUnits),
+    applyRestore: () async {
+      settings = String.fromCharCodes(await server.fileContent(3));
+      print('RESTORED $settings');
+    },
+  );
   server.fileWrites.listen((e) => print('FILE $e'));
-  server.writeEvents.listen((e) => print('WRITE $e'));
+  server.writeEvents.listen((e) async {
+    print('WRITE $e');
+    if (e.objectType == BacnetObjectType.analogValue &&
+        e.instance == 911 &&
+        e.propertyId == BacnetPropertyId.presentValue &&
+        e.value != null) {
+      await server.logValue(
+        2,
+        e.value!,
+        statusFlags: const BacnetStatusFlags(overridden: true),
+      );
+    }
+  });
   server.alarmAcknowledgements.listen((e) => print('ACK $e'));
   server.listElementEvents.listen((e) => print('LIST $e'));
   server.communicationControls.listen((e) => print('DCC $e'));

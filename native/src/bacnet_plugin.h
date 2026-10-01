@@ -93,6 +93,9 @@ extern "C" {
 #define BP_FLAG_LOCAL 0x04
 /** The complex ACK was received in segments. */
 #define BP_FLAG_SEGMENTED 0x08
+/** BP_EVENT_WRITE: an object of the server (a Schedule) wrote the value,
+ *  not a remote client. */
+#define BP_FLAG_INTERNAL 0x10
 
 #define BP_DEVICE_UNKNOWN 0xFFFFFFFFu
 
@@ -348,7 +351,8 @@ BP_API int32_t bacnet_plugin_object_set_description(
 
 /**
  * Sets a numeric property locally (no network write semantics):
- * present-value (85), out-of-service (81), units (117), cov-increment (22).
+ * present-value (85), out-of-service (81), units (117), cov-increment (22),
+ * priority-for-writing (88) of schedules.
  * A NaN present value relinquishes the given priority of commandable objects.
  */
 BP_API int32_t bacnet_plugin_object_set_number(
@@ -398,6 +402,52 @@ BP_API int32_t bacnet_plugin_object_read(
     uint16_t buffer_len,
     uint32_t *error_class,
     uint32_t *error_code);
+
+/* ---- Backup and restore of the server --------------------------------- */
+
+/** bacnet_plugin_backup_configure(): the application prepares the files of
+ *  a backup (PREPARING_FOR_BACKUP until bacnet_plugin_backup_set_state(),
+ *  else PERFORMING_A_BACKUP at once). */
+#define BP_BACKUP_PREPARE 0x01
+/** bacnet_plugin_backup_configure(): the application applies the files of
+ *  a restore (PERFORMING_A_RESTORE after END_RESTORE until
+ *  bacnet_plugin_backup_set_state(), else IDLE at once). */
+#define BP_BACKUP_APPLY 0x02
+
+/**
+ * Lets clients back up and restore the server (clause 19.1): `files` are
+ * the instances of the File objects (bacnet_plugin_object_create()) of
+ * Configuration_Files, at most 16; `flags` are BP_BACKUP_*. The procedure
+ * fails after `failure_timeout` seconds without requests (0: never).
+ * The requests are reported as BP_EVENT_SERVICE (ReinitializeDevice).
+ */
+BP_API int32_t bacnet_plugin_backup_configure(
+    const uint32_t *files,
+    uint32_t count,
+    uint32_t flags,
+    uint16_t failure_timeout);
+
+/** Sets Backup_And_Restore_State (BACnetBackupState). */
+BP_API int32_t bacnet_plugin_backup_set_state(uint8_t state);
+
+/* ---- Trend Log objects of the server ---------------------------------- */
+
+/**
+ * Appends a record to Trend Log `instance` of the server (created with
+ * bacnet_plugin_object_create()) while it is enabled.
+ * @param data application encoded value (NULL, BOOLEAN, REAL, DOUBLE,
+ *        ENUMERATED, Unsigned, INTEGER or a BIT STRING of up to 32 bits;
+ *        others are logged as failures).
+ * @param status_flags Status_Flags (in-alarm 1, fault 2, overridden 4,
+ *        out-of-service 8) or -1 to leave them out.
+ * @return 1 when appended, 0 while the log is disabled, or a negative
+ *         BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_trend_log_append(
+    uint32_t instance,
+    const uint8_t *data,
+    uint16_t length,
+    int32_t status_flags);
 
 /* ---- File objects of the server -------------------------------------- */
 

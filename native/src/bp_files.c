@@ -131,6 +131,7 @@ static size_t bp_file_read_stream(
     bp_file_t *file = bp_file_by_path(pathname, NULL);
     size_t count;
 
+    bp_backup_activity();
     if (!file || start < 0 || (uint32_t)start >= file->len) {
         return 0;
     }
@@ -149,6 +150,7 @@ static size_t bp_file_write_stream(
     bp_file_t *file = bp_file_by_path(pathname, &instance);
     uint64_t end;
 
+    bp_backup_activity();
     if (!file || size == 0) {
         return 0;
     }

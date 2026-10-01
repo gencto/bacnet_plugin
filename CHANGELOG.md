@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - Unreleased
+
+Schedules, calendars and trend logs on the server, backup and restore.
+See *Migrating from 0.5.x* in the README.
+
+### Added
+
+- **Server — schedules and calendars**: `addSchedule` evaluates the
+  exception schedule (dates, date ranges, week-n-days or calendars), the
+  weekly schedule and the default within the effective period and writes
+  its present value to objects of the server at its priority
+  (`priorityForWriting`, `setPriorityForWriting`); `addCalendar`.
+  `PropertyWriteEvent.internal` tells the writes of schedules from those
+  of clients.
+- **Server — trend logs**: `addTrendLog` records a property of an object
+  of the server every `logInterval`, or the values the application
+  records with `logValue`, in a buffer of `bufferSize` records (optionally
+  stopping when full, between a start and stop time) and answers
+  ReadRange by position, sequence number and time; clients enable it,
+  purge it (Record_Count 0) and resize it.
+- **Backup and restore** (ASHRAE 135 clause 19.1): `client.backupDevice`
+  and `client.restoreDevice` (`BacnetDeviceBackups`) run the procedure and
+  return a `BacnetDeviceBackup` that stores as JSON; `server.enableBackup`
+  lets clients back up and restore the server, with `prepareBackup` and
+  `applyRestore` callbacks of the application, and `server.backupState`.
+  Constants `BacnetBackupState`.
+- **Typed properties**: `schedulePresentValue`, `priorityForWriting`,
+  `calendarPresentValue`, `configurationFiles`, `backupAndRestoreState`,
+  `backupPreparationTime`, `restorePreparationTime`,
+  `restoreCompletionTime`, `backupFailureTimeout` and `lastRestoreTime`.
+- **Testing**: fake devices with `configurationFiles` take part in backup
+  and restore (`backupState`, `restores`).
+
+### Fixed
+
+- Calendars of the server refused every Date_List write (bacnet-stack
+  decodes it as an application value first).
+- Exception_Schedule writes with a different number of special events were
+  ignored by bacnet-stack.
+
 ## [0.5.0] - Unreleased
 
 Device management, files and messages, routers and BBMDs, files on the

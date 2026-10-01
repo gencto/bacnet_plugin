@@ -723,6 +723,54 @@ extension type const BacnetReinitializedState(int value) implements int {
   String get label => getName(value);
 }
 
+/// Backup and restore state of a device (Backup_And_Restore_State, BACnetBackupState).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetBackupState(value)`.
+extension type const BacnetBackupState(int value) implements int {
+  /// Idle.
+  static const idle = BacnetBackupState(0);
+
+  /// Preparing For Backup.
+  static const preparingForBackup = BacnetBackupState(1);
+
+  /// Preparing For Restore.
+  static const preparingForRestore = BacnetBackupState(2);
+
+  /// Performing A Backup.
+  static const performingABackup = BacnetBackupState(3);
+
+  /// Performing A Restore.
+  static const performingARestore = BacnetBackupState(4);
+
+  /// Backup Failure.
+  static const backupFailure = BacnetBackupState(5);
+
+  /// Restore Failure.
+  static const restoreFailure = BacnetBackupState(6);
+
+  static const Map<BacnetBackupState, String> _labels = {
+    idle: 'Idle',
+    preparingForBackup: 'Preparing For Backup',
+    preparingForRestore: 'Preparing For Restore',
+    performingABackup: 'Performing A Backup',
+    performingARestore: 'Performing A Restore',
+    backupFailure: 'Backup Failure',
+    restoreFailure: 'Restore Failure',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetBackupState> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) => _labels[value] ?? 'Backup State $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
 /// How the content of a File object is accessed (BACnetFileAccessMethod).
 ///
 /// An extension type over the encoded value: it is an [int] at

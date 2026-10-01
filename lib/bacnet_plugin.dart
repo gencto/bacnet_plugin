@@ -34,6 +34,7 @@ export 'src/core/logger.dart';
 export 'src/core/types.dart';
 // Models
 export 'src/models/alarms.dart';
+export 'src/models/backup.dart';
 export 'src/models/bacnet_property.dart';
 export 'src/models/bacnet_stats.dart';
 export 'src/models/bacnet_value.dart';
@@ -51,6 +52,7 @@ export 'src/models/wpm_models.dart';
 export 'src/server/bacnet_server.dart';
 // Utilities
 export 'src/utilities/alarm_subscription.dart';
+export 'src/utilities/device_backup.dart';
 export 'src/utilities/device_scanner.dart';
 export 'src/utilities/file_transfer.dart';
 export 'src/utilities/network_discovery.dart';

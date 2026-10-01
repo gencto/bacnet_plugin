@@ -266,6 +266,45 @@ class CreateObjectCommand extends WorkerCommand {
   final String? presentValueString;
 }
 
+/// Appends a record to a Trend Log of the server; returns true when
+/// recorded (false while the log is disabled).
+class TrendLogAppendCommand extends WorkerCommand {
+  const TrendLogAppendCommand(
+    super.id,
+    this.instance,
+    this.payload, {
+    this.statusFlags = -1,
+  });
+  final int instance;
+
+  /// Application encoded value.
+  final Uint8List payload;
+
+  /// Status flags bits, -1 to leave them out.
+  final int statusFlags;
+}
+
+/// Lets clients back up and restore the server.
+class BackupConfigureCommand extends WorkerCommand {
+  const BackupConfigureCommand(
+    super.id, {
+    required this.files,
+    required this.prepare,
+    required this.apply,
+    required this.failureTimeoutSeconds,
+  });
+  final List<int> files;
+  final bool prepare;
+  final bool apply;
+  final int failureTimeoutSeconds;
+}
+
+/// Sets Backup_And_Restore_State of the server.
+class BackupStateCommand extends WorkerCommand {
+  const BackupStateCommand(super.id, this.state);
+  final int state;
+}
+
 /// Replaces the content of a File object of the server.
 class SetFileContentCommand extends WorkerCommand {
   const SetFileContentCommand(super.id, this.instance, this.content);

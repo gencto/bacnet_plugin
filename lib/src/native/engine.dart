@@ -171,6 +171,49 @@ class NativeEngine {
     );
   }
 
+  /// Appends a record with the application encoded [payload] to Trend Log
+  /// [instance] of the server; false while the log is disabled.
+  bool appendTrendLog(int instance, Uint8List payload, int statusFlags) =>
+      checkNative(
+        _withBytes(
+          payload,
+          (data, length) => bacnet_plugin_trend_log_append(
+            instance,
+            data,
+            length,
+            statusFlags,
+          ),
+        ),
+      ) ==
+      1;
+
+  /// Lets clients back up and restore the server.
+  void configureBackup(
+    List<int> files, {
+    required bool prepare,
+    required bool apply,
+    required int failureTimeoutSeconds,
+  }) {
+    final array = calloc<ffi.Uint32>(files.isEmpty ? 1 : files.length);
+    try {
+      array.asTypedList(files.length).setAll(0, files);
+      checkNative(
+        bacnet_plugin_backup_configure(
+          array,
+          files.length,
+          (prepare ? BP_BACKUP_PREPARE : 0) | (apply ? BP_BACKUP_APPLY : 0),
+          failureTimeoutSeconds,
+        ),
+      );
+    } finally {
+      calloc.free(array);
+    }
+  }
+
+  /// Sets Backup_And_Restore_State of the server.
+  void setBackupState(int state) =>
+      checkNative(bacnet_plugin_backup_set_state(state));
+
   /// Replaces the content of File object [instance] of the server.
   void setFileContent(int instance, Uint8List content) {
     checkNative(

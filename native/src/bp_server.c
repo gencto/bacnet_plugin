@@ -38,6 +38,9 @@ static bool bp_on_write_store(BACNET_WRITE_PROPERTY_DATA *wp_data)
         return true;
     }
     bp_event_init(&hdr, BP_EVENT_WRITE);
+    if (bp_state.internal_write) {
+        hdr.flags = BP_FLAG_INTERNAL;
+    }
     hdr.a = (uint32_t)wp_data->object_type;
     hdr.b = wp_data->object_instance;
     hdr.c = (uint32_t)wp_data->object_property;
@@ -182,6 +185,9 @@ static void bp_on_reinitialize(
     uint8_t copy[8];
     size_t copy_len;
 
+    if (bp_backup_reinitialize(request, len, src, service_data)) {
+        return;
+    }
     memset(Handler_Transmit_Buffer, 0, 8);
     handler_reinitialize_device(request, len, src, service_data);
     memset(&data, 0, sizeof(data));

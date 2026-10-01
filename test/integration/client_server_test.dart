@@ -153,7 +153,7 @@ void main() {
       deviceObject,
       BacnetProperties.objectList,
     );
-    expect(objects, hasLength(109));
+    expect(objects, hasLength(117));
     expect(
       await client.read(device, deviceObject, BacnetProperties.vendorName),
       'bacnet_plugin',
@@ -162,8 +162,10 @@ void main() {
 
   test('scans the object list', () async {
     final objects = await client.scanDevice(device);
-    // device, network port, 100 AV, BV, MSV, alarms: NC, AV, BV, 2 files
-    expect(objects, hasLength(109));
+    // device, network port, 100 AV, BV, MSV, alarms: NC, AV, BV, 2 files,
+    // scheduled AV, calendar, schedule, 2 logged AVs, 2 trend logs,
+    // settings file
+    expect(objects, hasLength(117));
     final scanner = DeviceScanner(client);
     final details = await scanner.getDeviceDetails(device);
     expect(details.deviceName, 'DemoServer');
@@ -912,6 +914,284 @@ void main() {
     });
   });
 
+  group('schedules', () {
+    const schedule = BacnetObject(type: BacnetObjectType.schedule, instance: 1);
+    const calendar = BacnetObject(type: BacnetObjectType.calendar, instance: 1);
+    const target = BacnetObject(
+      type: BacnetObjectType.analogValue,
+      instance: 900,
+    );
+
+    Future<void> expectTarget(double value) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (true) {
+        final current = await client.read(
+          device,
+          target,
+          BacnetProperties.analogPresentValue,
+        );
+        if (current == value) return;
+        if (DateTime.now().isAfter(deadline)) {
+          fail('AV 900 is $current, expected $value');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    }
+
+    List<List<BacnetTimeValue>> everyDay(double value) => [
+      for (var day = 0; day < 7; day++)
+        [
+          BacnetTimeValue(
+            const BacnetTime(hour: 0, minute: 0, second: 0, hundredths: 0),
+            BacnetReal(value),
+          ),
+        ],
+    ];
+
+    test('writes its members at its priority', () async {
+      await expectTarget(20);
+      expect(
+        await client.read(
+          device,
+          schedule,
+          BacnetProperties.priorityForWriting,
+        ),
+        12,
+      );
+      expect(
+        await client.read(
+          device,
+          schedule,
+          BacnetProperties.schedulePresentValue,
+        ),
+        const BacnetReal(20),
+      );
+      // reported to the application as a write of the server itself
+      expect(
+        server.lines,
+        contains(
+          'WRITE PropertyWriteEvent(2:900 property 85 = BacnetReal(20.0) '
+          '@ 12, internal)',
+        ),
+      );
+    });
+
+    test('clients change the weekly schedule', () async {
+      await client.write(
+        device,
+        schedule,
+        BacnetProperties.weeklySchedule,
+        BacnetWeeklySchedule(everyDay(23.5)),
+      );
+      await expectTarget(23.5);
+      expect(
+        await client.read(device, schedule, BacnetProperties.weeklySchedule),
+        BacnetWeeklySchedule(everyDay(23.5)),
+      );
+    });
+
+    test('calendars select exceptions', () async {
+      final now = DateTime.now();
+      expect(
+        await client.read(
+          device,
+          calendar,
+          BacnetProperties.calendarPresentValue,
+        ),
+        isFalse,
+      );
+      await client.write(device, calendar, BacnetProperties.dateList, [
+        BacnetCalendarDate(
+          BacnetDate(year: now.year, month: now.month, day: now.day),
+        ),
+      ]);
+      expect(
+        await client.read(
+          device,
+          calendar,
+          BacnetProperties.calendarPresentValue,
+        ),
+        isTrue,
+      );
+      await client.write(device, schedule, BacnetProperties.exceptionSchedule, [
+        BacnetSpecialEvent(
+          period: const BacnetCalendarReference(calendar),
+          timeValues: [
+            const BacnetTimeValue(
+              BacnetTime(hour: 0, minute: 0, second: 0, hundredths: 0),
+              BacnetReal(30),
+            ),
+          ],
+          priority: 1,
+        ),
+      ]);
+      await expectTarget(30);
+      // without the date the weekly schedule applies again
+      await client.write(
+        device,
+        calendar,
+        BacnetProperties.dateList,
+        const <BacnetCalendarEntry>[],
+      );
+      await expectTarget(23.5);
+    });
+  });
+
+  group('trend logs', () {
+    const polled = BacnetObject(type: BacnetObjectType.trendLog, instance: 1);
+    const logged = BacnetObject(
+      type: BacnetObjectType.analogValue,
+      instance: 910,
+    );
+
+    Future<TrendLogData> waitForLog(
+      int instance,
+      bool Function(TrendLogData log) test,
+    ) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 15));
+      while (true) {
+        final log = await client.getTrendLog(device, instance);
+        if (test(log)) return log;
+        if (DateTime.now().isAfter(deadline)) fail('trend log $instance: $log');
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      }
+    }
+
+    test('polls a property of the server', () async {
+      final log = await waitForLog(1, (log) => log.entries.length >= 2);
+      expect(log.entries.first.value, const BacnetReal(1));
+      expect(log.entries.first.statusFlags, const BacnetStatusFlags());
+      await client.write(
+        device,
+        logged,
+        BacnetProperties.analogPresentValue,
+        42,
+      );
+      final changed = await waitForLog(
+        1,
+        (log) => log.entries.last.value == const BacnetReal(42),
+      );
+      expect(changed.totalRecords, greaterThanOrEqualTo(3));
+      expect(
+        await client.read(device, polled, BacnetProperties.logInterval),
+        100,
+      );
+      expect(
+        await client.read(device, polled, BacnetProperties.bufferSize),
+        100,
+      );
+    });
+
+    test('records the values of the application', () async {
+      await client.write(
+        device,
+        const BacnetObject(type: BacnetObjectType.analogValue, instance: 911),
+        BacnetProperties.analogPresentValue,
+        7.5,
+      );
+      final log = await waitForLog(2, (log) => log.entries.isNotEmpty);
+      expect(log.entries.last.value, const BacnetReal(7.5));
+      expect(
+        log.entries.last.statusFlags,
+        const BacnetStatusFlags(overridden: true),
+      );
+    });
+
+    test('answers ReadRange by position, sequence number and time', () async {
+      await waitForLog(1, (log) => log.entries.length >= 3);
+      final count = await client.read(
+        device,
+        polled,
+        BacnetProperties.recordCount,
+      );
+      final total = await client.read(
+        device,
+        polled,
+        BacnetProperties.totalRecordCount,
+      );
+      final first = await client.readRange(
+        device,
+        BacnetObjectType.trendLog,
+        1,
+        BacnetPropertyId.logBuffer,
+        range: const BacnetRange.byPosition(1, 2),
+      );
+      expect(first.itemCount, 2);
+      expect(first.resultFlags[0], isTrue); // first item
+      final bySequence = await client.readRange(
+        device,
+        BacnetObjectType.trendLog,
+        1,
+        BacnetPropertyId.logBuffer,
+        range: BacnetRange.bySequenceNumber(total - count + 1, 2),
+      );
+      expect(bySequence.itemCount, 2);
+      expect(bySequence.firstSequenceNumber, total - count + 1);
+      expect(bySequence.items, first.items);
+      final recent = await client.readRange(
+        device,
+        BacnetObjectType.trendLog,
+        1,
+        BacnetPropertyId.logBuffer,
+        range: BacnetRange.byTime(
+          DateTime.now().subtract(const Duration(hours: 1)),
+          1,
+        ),
+      );
+      expect(recent.itemCount, 1);
+      expect(recent.firstSequenceNumber, total - count + 1);
+      final none = await client.readRange(
+        device,
+        BacnetObjectType.trendLog,
+        1,
+        BacnetPropertyId.logBuffer,
+        range: BacnetRange.byTime(
+          DateTime.now().add(const Duration(hours: 1)),
+          5,
+        ),
+      );
+      expect(none.itemCount, 0);
+      await expectLater(
+        client.readProperty(
+          device,
+          BacnetObjectType.trendLog,
+          1,
+          BacnetPropertyId.logBuffer,
+        ),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.errorCode,
+            'code',
+            BacnetErrorCode.readAccessDenied,
+          ),
+        ),
+      );
+    });
+
+    test('clients disable, purge and resize the log', () async {
+      await client.write(device, polled, BacnetProperties.enable, false);
+      await client.write(device, polled, BacnetProperties.recordCount, 0);
+      final purged = await client.getTrendLog(device, 1);
+      expect(purged.entries, hasLength(1));
+      expect(purged.entries.single.datum, isA<TrendLogStatus>());
+      await client.write(device, polled, BacnetProperties.bufferSize, 50);
+      expect(
+        await client.read(device, polled, BacnetProperties.bufferSize),
+        50,
+      );
+      expect(
+        await client.read(device, polled, BacnetProperties.recordCount),
+        0,
+      );
+      await client.write(device, polled, BacnetProperties.enable, true);
+      await expectLater(
+        client.write(device, polled, BacnetProperties.bufferSize, 60),
+        throwsA(isA<BacnetProtocolException>()),
+      );
+      await waitForLog(1, (log) => log.entries.isNotEmpty);
+    });
+  });
+
   group('files', () {
     const notes = BacnetObject(type: BacnetObjectType.file, instance: 1);
     const firmware = BacnetObject(type: BacnetObjectType.file, instance: 2);
@@ -1044,6 +1324,123 @@ void main() {
             BacnetErrorCode.invalidFileStartPosition,
           ),
         ),
+      );
+    });
+  });
+
+  group('backup and restore', () {
+    const deviceObject = BacnetObject(
+      type: BacnetObjectType.device,
+      instance: device,
+    );
+
+    test('backs up the configuration files', () async {
+      final progress = <int>[];
+      final backup = await client.backupDevice(
+        device,
+        password: 'demo-password',
+        onProgress: (done, total) => progress.add(done),
+      );
+      expect(backup.deviceId, device);
+      expect(backup.files, [
+        BacnetBackupFile.stream(
+          instance: 3,
+          data: 'setpoint=21'.codeUnits,
+          fileType: 'text/plain',
+        ),
+      ]);
+      expect(progress, [0, 1]);
+      expect(
+        await client.read(
+          device,
+          deviceObject,
+          BacnetProperties.backupAndRestoreState,
+        ),
+        BacnetBackupState.idle,
+      );
+      final json = jsonDecode(jsonEncode(backup.toJson()));
+      expect(BacnetDeviceBackup.fromJson(json as Map<String, Object?>), backup);
+    });
+
+    test('restores and the application applies the files', () async {
+      final backup = await client.backupDevice(
+        device,
+        password: 'demo-password',
+      );
+      // the configuration changes after the backup
+      await client.writeFile(device, 3, 'setpoint=99'.codeUnits);
+      await client.restoreDevice(device, backup, password: 'demo-password');
+      expect(server.lines, contains('RESTORED setpoint=21'));
+      expect(
+        String.fromCharCodes(await client.readFile(device, 3)),
+        'setpoint=21',
+      );
+      final restored = await client.read(
+        device,
+        deviceObject,
+        BacnetProperties.lastRestoreTime,
+      );
+      expect(restored, isA<BacnetTimeStampDateTime>());
+    });
+
+    test('refuses wrong passwords and concurrent procedures', () async {
+      await expectLater(
+        client.backupDevice(device, password: 'wrong'),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.errorCode,
+            'code',
+            BacnetErrorCode.passwordFailure,
+          ),
+        ),
+      );
+      await client.reinitializeDevice(
+        device,
+        BacnetReinitializedState.startRestore,
+        password: 'demo-password',
+      );
+      expect(
+        await client.read(
+          device,
+          deviceObject,
+          BacnetProperties.backupAndRestoreState,
+        ),
+        BacnetBackupState.performingARestore,
+      );
+      await expectLater(
+        client.reinitializeDevice(
+          device,
+          BacnetReinitializedState.startBackup,
+          password: 'demo-password',
+        ),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.errorCode,
+            'code',
+            BacnetErrorCode.configurationInProgress,
+          ),
+        ),
+      );
+      await client.reinitializeDevice(
+        device,
+        BacnetReinitializedState.abortRestore,
+        password: 'demo-password',
+      );
+      expect(
+        await client.read(
+          device,
+          deviceObject,
+          BacnetProperties.backupAndRestoreState,
+        ),
+        BacnetBackupState.idle,
+      );
+      expect(
+        await client.read(
+          device,
+          deviceObject,
+          BacnetProperties.configurationFiles,
+        ),
+        [const BacnetObject(type: BacnetObjectType.file, instance: 3)],
       );
     });
   });

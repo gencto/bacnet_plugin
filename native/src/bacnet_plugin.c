@@ -13,7 +13,6 @@
 #include "bacnet/basic/bbmd/h_bbmd.h"
 #include "bacnet/basic/npdu/h_npdu.h"
 #include "bacnet/basic/object/device.h"
-#include "bacnet/basic/object/trendlog.h"
 #include "bacnet/basic/services.h"
 #include "bacnet/basic/sys/mstimer.h"
 #include "bacnet/basic/tsm/tsm.h"
@@ -53,8 +52,8 @@ static void bp_timers(void)
             dcc_timer_seconds(seconds);
             if (bp_state.server_enabled) {
                 handler_cov_timer_seconds(seconds);
-                trend_log_timer((uint16_t)seconds);
                 bp_event_reporting(seconds);
+                bp_backup_timer(seconds);
             }
             if (bp_state.fdr_ttl > 0) {
                 uint32_t renew =
@@ -237,6 +236,10 @@ BP_API int32_t bacnet_plugin_init(
     datetime_init();
     /* application objects only: no demo instances of the default table */
     Device_Init(BP_Object_Table);
+    /* after Device_Init(), which links the objects to Device_Write_Property */
+    bp_internal_writes_init();
+    bp_state.internal_write = false;
+    bp_backup_reset();
     if (device_instance <= BACNET_MAX_INSTANCE) {
         (void)Device_Set_Object_Instance_Number(device_instance);
     }

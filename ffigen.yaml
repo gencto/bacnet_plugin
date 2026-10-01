@@ -33,6 +33,8 @@ functions:
       - bacnet_plugin_local_address
       - bacnet_plugin_object_.*
       - bacnet_plugin_file_.*
+      - bacnet_plugin_trend_log_.*
+      - bacnet_plugin_backup_.*
 structs:
   include:
     - bp_.*

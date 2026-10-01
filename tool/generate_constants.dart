@@ -245,6 +245,16 @@ const List<_File> _files = [
       maxValue: 7,
     ),
     _Enum(
+      'BacnetBackupState',
+      cEnum: 'BACNET_BACKUP_STATE',
+      prefix: 'BACKUP_STATE_',
+      doc:
+          'Backup and restore state of a device '
+          '(Backup_And_Restore_State, BACnetBackupState).',
+      unknown: r'Backup State $value',
+      skip: {'MAX'},
+    ),
+    _Enum(
       'BacnetFileAccessMethod',
       cEnum: 'BACNET_FILE_ACCESS_METHOD',
       prefix: 'FILE_',

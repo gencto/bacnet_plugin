@@ -898,4 +898,80 @@ void main() {
       ]);
     });
   });
+
+  group('backup and restore', () {
+    late FakeBacnetDevice controller;
+    late FakeBacnetClient client;
+
+    setUp(() async {
+      controller = FakeBacnetDevice(77)
+        ..password = 'secret'
+        ..addFile(1, content: 'config v1'.codeUnits, fileType: 'text/plain')
+        ..configurationFiles = [1];
+      client = FakeBacnetClient(devices: [controller]);
+      await client.start();
+    });
+
+    test('backs up and restores the configuration files', () async {
+      final backup = await client.backupDevice(77, password: 'secret');
+      expect(backup.files, [
+        BacnetBackupFile.stream(
+          instance: 1,
+          data: 'config v1'.codeUnits,
+          fileType: 'text/plain',
+        ),
+      ]);
+      controller.object(BacnetObjectType.file, 1)!.fileContent =
+          'config v2, longer'.codeUnits;
+      await client.restoreDevice(77, backup, password: 'secret');
+      expect(
+        String.fromCharCodes(
+          controller.object(BacnetObjectType.file, 1)!.fileContent,
+        ),
+        'config v1',
+      );
+      expect(controller.restores, 1);
+      expect(controller.backupState, BacnetBackupState.idle);
+      expect(controller.reinitializations, [
+        BacnetReinitializedState.startBackup,
+        BacnetReinitializedState.endBackup,
+        BacnetReinitializedState.startRestore,
+        BacnetReinitializedState.endRestore,
+      ]);
+    });
+
+    test('devices without configuration files refuse', () async {
+      controller.configurationFiles = [];
+      await expectLater(
+        client.backupDevice(77, password: 'secret'),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.errorCode,
+            'code',
+            BacnetErrorCode.optionalFunctionalityNotSupported,
+          ),
+        ),
+      );
+    });
+
+    test('a failed restore is aborted', () async {
+      final backup = BacnetDeviceBackup(
+        deviceId: 77,
+        time: DateTime(2026),
+        files: [
+          BacnetBackupFile.stream(instance: 9, data: const [1]),
+        ],
+      );
+      await expectLater(
+        client.restoreDevice(77, backup, password: 'secret'),
+        throwsA(isA<BacnetProtocolException>()),
+      );
+      expect(
+        controller.reinitializations.last,
+        BacnetReinitializedState.abortRestore,
+      );
+      expect(controller.backupState, BacnetBackupState.idle);
+      expect(controller.restores, 0);
+    });
+  });
 }

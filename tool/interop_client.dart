@@ -1,5 +1,5 @@
 // Exercises the client against bacnet-stack's reference server (bacserv).
-// Usage: dart run tool/interop_client.dart <port> <device>
+// Usage: dart run tool/interop_client.dart <port> <device> [backup]
 // ignore_for_file: avoid_print
 import 'dart:io';
 
@@ -19,6 +19,12 @@ Future<void> main(List<String> args) async {
   );
   await client.start();
   await client.addDeviceBinding(device, '127.0.0.1', port: port);
+  if (args.contains('backup')) {
+    // bacserv built with BACNET_BACKUP_RESTORE
+    await backupAndRestore(client, device);
+    await client.close();
+    exit(0);
+  }
   final scanner = DeviceScanner(client);
   final details = await scanner.getDeviceDetails(device);
   print(
@@ -583,5 +589,49 @@ Future<void> bbmd(BacnetClient client, int port) async {
     await bbmd.writeBroadcastDistributionTable(table);
   } on BacnetBbmdException catch (e) {
     print('Write-BDT refused: ${e.result.label}');
+  }
+}
+
+/// Backs up bacserv (its objects as CreateObject requests in a file), changes
+/// an object and restores the backup.
+Future<void> backupAndRestore(BacnetClient client, int device) async {
+  final files = await client.read(
+    device,
+    BacnetObject(type: BacnetObjectType.device, instance: device),
+    BacnetProperties.configurationFiles,
+  );
+  print('configuration files: $files');
+  final backup = await client.backupDevice(
+    device,
+    password: 'filister',
+    onProgress: (done, total) => print('backup $done / $total'),
+  );
+  print('backup: $backup');
+  const av = BacnetObject(type: BacnetObjectType.analogValue, instance: 1);
+  final value = await client.read(
+    device,
+    av,
+    BacnetProperties.analogPresentValue,
+  );
+  await client.write(device, av, BacnetProperties.analogPresentValue, 55.5);
+  print(
+    'changed $value to '
+    '${await client.read(device, av, BacnetProperties.analogPresentValue)}',
+  );
+  await client.restoreDevice(device, backup, password: 'filister');
+  final state = await client.read(
+    device,
+    BacnetObject(type: BacnetObjectType.device, instance: device),
+    BacnetProperties.backupAndRestoreState,
+  );
+  print(
+    'after restore: '
+    '${await client.read(device, av, BacnetProperties.analogPresentValue)}, '
+    'state ${state.label}',
+  );
+  try {
+    await client.backupDevice(device, password: 'wrong');
+  } on BacnetProtocolException catch (e) {
+    print('wrong password: ${e.errorCode.label}');
   }
 }

@@ -552,6 +552,52 @@ abstract final class BacnetProperties {
     _time,
   );
 
+  /// Configuration_Files of the Device object: the File objects a backup
+  /// reads and a restore writes.
+  static const configurationFiles = BacnetProperty<List<BacnetObject>>(
+    BacnetPropertyId.configurationFiles,
+    _objectList,
+  );
+
+  /// Backup_And_Restore_State of the Device object.
+  static const backupAndRestoreState = BacnetProperty<BacnetBackupState>(
+    BacnetPropertyId.backupAndRestoreState,
+    _backupState,
+  );
+
+  /// Backup_Preparation_Time in seconds: how long the device may not answer
+  /// after accepting a backup.
+  static const backupPreparationTime = BacnetProperty<int>(
+    BacnetPropertyId.backupPreparationTime,
+    _unsigned,
+  );
+
+  /// Restore_Preparation_Time in seconds.
+  static const restorePreparationTime = BacnetProperty<int>(
+    BacnetPropertyId.restorePreparationTime,
+    _unsigned,
+  );
+
+  /// Restore_Completion_Time in seconds: how long the device may not answer
+  /// after the end of a restore.
+  static const restoreCompletionTime = BacnetProperty<int>(
+    BacnetPropertyId.restoreCompletionTime,
+    _unsigned,
+  );
+
+  /// Backup_Failure_Timeout in seconds.
+  static const backupFailureTimeout = BacnetWritableProperty<int>(
+    BacnetPropertyId.backupFailureTimeout,
+    _unsigned,
+    _encodeUnsigned,
+  );
+
+  /// Last_Restore_Time of the Device object.
+  static const lastRestoreTime = BacnetProperty<BacnetTimeStamp>(
+    BacnetPropertyId.lastRestoreTime,
+    BacnetTimeStamp.fromValue,
+  );
+
   /// Device_Address_Binding.
   static const deviceAddressBinding =
       BacnetProperty<List<BacnetAddressBinding>>(
@@ -597,6 +643,25 @@ abstract final class BacnetProperties {
         BacnetDeviceObjectPropertyReference.listFromValue,
         BacnetDeviceObjectPropertyReference.listToValue,
       );
+
+  /// Present_Value of a Schedule object: the value it writes now.
+  static const schedulePresentValue = BacnetWritableProperty<BacnetValue>(
+    BacnetPropertyId.presentValue,
+    _any,
+    _any,
+  );
+
+  /// Priority_For_Writing of a Schedule object (1..16).
+  static const priorityForWriting = BacnetProperty<int>(
+    BacnetPropertyId.priorityForWriting,
+    _unsigned,
+  );
+
+  /// Present_Value of a Calendar object: true when today is in Date_List.
+  static const calendarPresentValue = BacnetProperty<bool>(
+    BacnetPropertyId.presentValue,
+    _boolean,
+  );
 
   /// Date_List of a Calendar object.
   static const dateList = BacnetWritableProperty<List<BacnetCalendarEntry>>(
@@ -735,6 +800,11 @@ Never _wrongType(String expected, BacnetValue value) =>
     throw BacnetDecodeException('expected $expected, got $value');
 
 BacnetValue _any(BacnetValue value) => value;
+
+BacnetBackupState _backupState(BacnetValue value) => switch (value) {
+  BacnetEnumerated(:final value) => BacnetBackupState(value),
+  _ => _wrongType('Enumerated', value),
+};
 
 BacnetFileAccessMethod _fileAccessMethod(BacnetValue value) => switch (value) {
   BacnetEnumerated(:final value) => BacnetFileAccessMethod(value),

@@ -24,17 +24,18 @@ Dart programs such as headless gateways and supervisory services.
   messages, time synchronization, router and network discovery
   (Who-Is-Router-To-Network, What-Is-Network-Number, routing tables),
   foreign device registration, BBMD table management (Broadcast
-  Distribution and Foreign Device Tables) and raw confirmed services.
+  Distribution and Foreign Device Tables), backup and restore of devices
+  and raw confirmed services.
 - **Server**: hosts Analog/Binary/Multi-state Input/Output/Value, Integer,
-  Positive Integer, CharacterString Value, Notification Class and File
-  objects (content in memory); answers Who-Is, Read/WriteProperty(Multiple),
-  SubscribeCOV(Property), ReadRange, Add/RemoveListElement,
-  AtomicReadFile/AtomicWriteFile, DeviceCommunicationControl and
-  ReinitializeDevice (password protected, reported to the application)
-  natively; reports alarms of analog and binary objects
-  (intrinsic reporting) and answers AcknowledgeAlarm, GetEventInformation
-  and GetAlarmSummary; batch updates of present values; write
-  notifications.
+  Positive Integer, CharacterString Value, Notification Class, File
+  (content in memory), Schedule, Calendar and Trend Log objects; answers
+  Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property), ReadRange,
+  Add/RemoveListElement, AtomicReadFile/AtomicWriteFile,
+  DeviceCommunicationControl and ReinitializeDevice (password protected,
+  reported to the application, backup and restore) natively; reports
+  alarms of analog and binary objects (intrinsic reporting) and answers
+  AcknowledgeAlarm, GetEventInformation and GetAlarmSummary; batch updates
+  of present values; write notifications.
 - **Built for load**: request scheduler with global and per-device
   concurrency limits, back pressure, automatic address binding, concurrent
   reads merged into ReadPropertyMultiple, batched isolate messaging and
@@ -50,7 +51,7 @@ Dart programs such as headless gateways and supervisory services.
 
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.5.0
+  bacnet_plugin: ^0.6.0
 ```
 
 Requirements:
@@ -618,6 +619,103 @@ The typed descriptors `BacnetProperties.fileType`, `fileSize`,
 `modificationDate`, `archive`, `readOnly` and `fileAccessMethod` read the
 properties of File objects of any device.
 
+## Schedules, trend logs and backups
+
+The server runs schedules, keeps trend logs and lets clients back it up:
+
+```dart
+// heating setpoint: 21 °C on workdays from 7:00 to 18:00, else 17 °C
+const workday = [
+  BacnetTimeValue(
+    BacnetTime(hour: 7, minute: 0, second: 0, hundredths: 0),
+    BacnetReal(21),
+  ),
+  BacnetTimeValue(
+    BacnetTime(hour: 18, minute: 0, second: 0, hundredths: 0),
+    BacnetReal(17),
+  ),
+];
+await server.addCalendar(1, name: 'Holidays', dates: [
+  BacnetCalendarDate(BacnetDate(year: 2026, month: 12, day: 25)),
+]);
+await server.addSchedule(
+  1,
+  name: 'Heating',
+  scheduleDefault: const BacnetReal(17),
+  weeklySchedule: BacnetWeeklySchedule([
+    for (var day = 0; day < 5; day++) workday,
+    const [],
+    const [],
+  ]),
+  exceptionSchedule: [
+    BacnetSpecialEvent(
+      period: const BacnetCalendarReference(
+        BacnetObject(type: BacnetObjectType.calendar, instance: 1),
+      ),
+      timeValues: const [
+        BacnetTimeValue(
+          BacnetTime(hour: 0, minute: 0, second: 0, hundredths: 0),
+          BacnetReal(17),
+        ),
+      ],
+      priority: 1,
+    ),
+  ],
+  references: const [
+    BacnetDeviceObjectPropertyReference(
+      object: BacnetObject(type: BacnetObjectType.analogValue, instance: 1),
+      property: BacnetPropertyId.presentValue,
+    ),
+  ],
+  priorityForWriting: 12,
+);
+// writes of the schedule arrive with `internal` set
+server.writeEvents.where((write) => write.internal).listen(print);
+
+// the setpoint every 5 minutes, the last 10 000 records
+await server.addTrendLog(1,
+    name: 'Setpoint log',
+    source: const BacnetDeviceObjectPropertyReference(
+      object: BacnetObject(type: BacnetObjectType.analogValue, instance: 1),
+      property: BacnetPropertyId.presentValue,
+    ),
+    logInterval: const Duration(minutes: 5),
+    bufferSize: 10000);
+// or values of the application
+await server.addTrendLog(2, name: 'Meter readings');
+await server.logValue(2, const BacnetReal(1234.5));
+```
+
+Clients read the logs with ReadRange (`client.getTrendLog`,
+`client.readRange`) and change schedules, calendars and logs with
+WriteProperty.
+
+Backup and restore (ASHRAE 135 clause 19.1) copies the configuration files
+of a device; the backup is a `BacnetDeviceBackup` that stores as JSON:
+
+```dart
+final backup = await client.backupDevice(1234, password: 'secret',
+    onProgress: (done, total) => print('$done / $total files'));
+await File('ahu-1.json').writeAsString(jsonEncode(backup.toJson()));
+// ... later, or to a replaced controller of the same kind:
+await client.restoreDevice(1234, backup, password: 'secret');
+```
+
+The server takes part with the File objects that hold the configuration
+of the application:
+
+```dart
+await server.addFile(1, name: 'settings.json');
+await server.enableBackup(
+  files: [1],
+  prepareBackup: () =>
+      server.setFileContent(1, utf8.encode(jsonEncode(settings))),
+  applyRestore: () async {
+    settings = jsonDecode(utf8.decode(await server.fileContent(1)));
+  },
+);
+```
+
 ## Routers, networks and BBMDs
 
 Routers connect BACnet networks (BACnet/IP subnets, MS/TP trunks). Their
@@ -737,6 +835,15 @@ sensor.reportEvent(
   ),
 );
 ```
+
+## Migrating from 0.5.x
+
+- Schedules of the server write their members through the server like
+  clients do: those writes arrive as `writeEvents` with
+  `PropertyWriteEvent.internal` set.
+- Fake devices refuse the backup and restore states of
+  `reinitializeDevice` unless they have `configurationFiles`, like devices
+  without the procedure.
 
 ## Migrating from 0.4.x
 

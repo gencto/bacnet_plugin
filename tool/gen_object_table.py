@@ -2,7 +2,7 @@
 """Generates native/src/bp_object_table.h from bacnet-stack's device.c.
 
 The default object table of bacnet-stack contains object types whose Init()
-creates fixed demo instances (Command, Trend Log, Schedule, Access Control).
+creates fixed demo instances (Command, Access Control).
 The plugin server must only expose objects created by the application, so it
 uses a copy of the table without those types.
 
@@ -19,8 +19,6 @@ OUTPUT = ROOT / "native/src/bp_object_table.h"
 # object types with statically allocated demo instances
 EXCLUDED = {
     "OBJECT_COMMAND",
-    "OBJECT_TRENDLOG",
-    "OBJECT_SCHEDULE",
     "OBJECT_ACCESS_CREDENTIAL",
     "OBJECT_ACCESS_DOOR",
     "OBJECT_ACCESS_POINT",
@@ -55,6 +53,39 @@ REPLACED = {
         "Notification_Class_Remove_List_Element,": "bp_nc_remove_list_element,",
         "NULL /* Create */": "bp_nc_create",
         "NULL /* Delete */": "bp_nc_delete",
+    },
+    # Priority_For_Writing and marked writes of schedules
+    # (native/src/bp_schedule.c)
+    "OBJECT_SCHEDULE": {
+        "Schedule_Read_Property,": "bp_schedule_read_property,",
+        "Schedule_Write_Property,": "bp_schedule_write_property,",
+        "Schedule_Delete,": "bp_schedule_delete,",
+        "Schedule_Timer /* Timer */": "bp_schedule_timer /* Timer */",
+    },
+    # backup and restore properties (native/src/bp_backup.c)
+    "OBJECT_DEVICE": {
+        "Device_Read_Property_Local,": "bp_device_read_property,",
+        "Device_Property_Lists,": "bp_device_property_lists,",
+    },
+    # logs created by the application (native/src/bp_trendlog.c)
+    "OBJECT_TRENDLOG": {
+        "Trend_Log_Init,": "bp_tl_init,",
+        "Trend_Log_Count,": "bp_tl_count,",
+        "Trend_Log_Index_To_Instance,": "bp_tl_index_to_instance,",
+        "Trend_Log_Valid_Instance,": "bp_tl_valid_instance,",
+        "Trend_Log_Object_Name,": "bp_tl_object_name,",
+        "Trend_Log_Read_Property,": "bp_tl_read_property,",
+        "Trend_Log_Write_Property,": "bp_tl_write_property,",
+        "Trend_Log_Property_Lists,": "bp_tl_property_lists,",
+        "TrendLogGetRRInfo,": "bp_tl_rr_info,",
+        "NULL /* Create */": "bp_tl_create",
+        "NULL /* Delete */": "bp_tl_delete",
+        "NULL /* Timer */": "bp_tl_timer /* Timer */",
+        "Trend_Log_Writable_Property_List }": "bp_tl_writable_property_list }",
+    },
+    # Date_List writes (native/src/bp_schedule.c)
+    "OBJECT_CALENDAR": {
+        "Calendar_Write_Property,": "bp_calendar_write_property,",
     },
     # the content of files is kept in memory (native/src/bp_files.c)
     "OBJECT_FILE": {

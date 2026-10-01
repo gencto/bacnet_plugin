@@ -179,6 +179,7 @@ class PropertyWriteEvent extends BacnetEvent {
     this.index = -1,
     this.priority = 16,
     this.rawValue,
+    this.internal = false,
   });
 
   /// Object type written to.
@@ -204,10 +205,16 @@ class PropertyWriteEvent extends BacnetEvent {
   /// Application encoded value as received.
   final Uint8List? rawValue;
 
+  /// True when an object of the server wrote the value (a Schedule writing
+  /// its present value to the members of
+  /// List_Of_Object_Property_References), false for a remote client.
+  final bool internal;
+
   @override
   String toString() =>
       'PropertyWriteEvent($objectType:$instance '
-      'property $propertyId = $value @ $priority)';
+      'property $propertyId = $value @ $priority'
+      '${internal ? ', internal' : ''})';
 }
 
 /// An I-Have: [deviceId] hosts [object] named [objectName] (the answer to

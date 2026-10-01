@@ -252,6 +252,26 @@ final class _Worker implements RequestTransport {
         return _createObject(command);
       case DeleteObjectCommand():
         _engine.deleteObject(command.objectType, command.instance);
+      case TrendLogAppendCommand(
+        :final instance,
+        :final payload,
+        :final statusFlags,
+      ):
+        return _engine.appendTrendLog(instance, payload, statusFlags);
+      case BackupConfigureCommand(
+        :final files,
+        :final prepare,
+        :final apply,
+        :final failureTimeoutSeconds,
+      ):
+        _engine.configureBackup(
+          files,
+          prepare: prepare,
+          apply: apply,
+          failureTimeoutSeconds: failureTimeoutSeconds,
+        );
+      case BackupStateCommand(:final state):
+        _engine.setBackupState(state);
       case SetFileContentCommand(:final instance, :final content):
         _engine.setFileContent(instance, content);
       case FileContentCommand(:final instance):
@@ -685,6 +705,7 @@ final class _Worker implements RequestTransport {
       priority: event.priority,
       value: value,
       rawValue: raw,
+      internal: event.hasFlag(BP_FLAG_INTERNAL),
     );
   }
 

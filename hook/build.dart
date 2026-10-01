@@ -60,6 +60,9 @@ const _stackDefines = <String, String?>{
   'BINARY_INPUT_INTRINSIC_REPORTING': '1',
   'BINARY_VALUE_INTRINSIC_REPORTING': '1',
   'MAX_NOTIFICATION_CLASSES': '64',
+  // schedules of the server: members written and exceptions
+  'BACNET_SCHEDULE_OBJ_PROP_REF_SIZE': '32',
+  'BACNET_EXCEPTION_SCHEDULE_SIZE': '16',
 };
 
 void main(List<String> args) async {

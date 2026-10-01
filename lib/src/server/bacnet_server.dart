@@ -15,7 +15,9 @@ import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/bacnet_config.dart';
+import '../core/exceptions.dart';
 import '../core/logger.dart';
+import '../core/types.dart';
 import '../models/alarms.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_value.dart';
@@ -86,6 +88,8 @@ class BacnetServer {
   final BacnetConfig _config;
   final BacnetSystem _system = BacnetSystem.instance;
   bool _started = false;
+  int? _deviceId;
+  StreamSubscription<ReinitializeDeviceEvent>? _backupRequests;
 
   /// Configuration of this server.
   BacnetConfig get config => _config;
@@ -182,9 +186,9 @@ class BacnetServer {
     String? firmwareRevision,
     String? applicationSoftwareVersion,
     String? password,
-  }) {
+  }) async {
     _checkPassword(password);
-    return _system.call<void>(
+    await _system.call<void>(
       (id) => ServerEnableCommand(
         id,
         deviceId: deviceId,
@@ -202,6 +206,7 @@ class BacnetServer {
         },
       ),
     );
+    _deviceId = deviceId;
   }
 
   /// Adds an object to the server and returns its instance.
@@ -487,6 +492,366 @@ class BacnetServer {
     ),
   );
 
+  // ---- schedules and calendars ---------------------------------------------
+
+  /// Adds a Schedule object and returns its instance.
+  ///
+  /// Every 100 ms the server evaluates [exceptionSchedule] (dates, date
+  /// ranges, week-n-days or Calendar objects of this server, see
+  /// [addCalendar]), then [weeklySchedule], else [scheduleDefault], within
+  /// [effectivePeriod], and writes a changed present value to [references]
+  /// (properties of objects of this server) at [priorityForWriting]. Those
+  /// writes arrive as [writeEvents] with `internal` set. Clients change the
+  /// schedule with WriteProperty ([writeEvents]).
+  ///
+  /// ```dart
+  /// const workday = [
+  ///   BacnetTimeValue(
+  ///     BacnetTime(hour: 7, minute: 0, second: 0, hundredths: 0),
+  ///     BacnetReal(21),
+  ///   ),
+  ///   BacnetTimeValue(
+  ///     BacnetTime(hour: 18, minute: 0, second: 0, hundredths: 0),
+  ///     BacnetReal(17),
+  ///   ),
+  /// ];
+  /// await server.addSchedule(
+  ///   1,
+  ///   name: 'Heating',
+  ///   scheduleDefault: const BacnetReal(17),
+  ///   // Monday to Friday, nothing at the weekend
+  ///   weeklySchedule: BacnetWeeklySchedule([
+  ///     for (var day = 0; day < 5; day++) workday,
+  ///     const [],
+  ///     const [],
+  ///   ]),
+  ///   references: [
+  ///     BacnetDeviceObjectPropertyReference(
+  ///       object: const BacnetObject(
+  ///         type: BacnetObjectType.analogValue,
+  ///         instance: 1,
+  ///       ),
+  ///       property: BacnetPropertyId.presentValue,
+  ///     ),
+  ///   ],
+  ///   priorityForWriting: 12,
+  /// );
+  /// ```
+  Future<int> addSchedule(
+    int instance, {
+    String? name,
+    String? description,
+    BacnetValue? scheduleDefault,
+    BacnetWeeklySchedule? weeklySchedule,
+    List<BacnetSpecialEvent> exceptionSchedule = const [],
+    BacnetDateRange? effectivePeriod,
+    List<BacnetDeviceObjectPropertyReference> references = const [],
+    int priorityForWriting = 16,
+  }) async {
+    RangeError.checkValueInInterval(
+      priorityForWriting,
+      1,
+      16,
+      'priorityForWriting',
+    );
+    final created = await addObject(
+      BacnetObjectType.schedule,
+      instance,
+      name: name,
+      description: description,
+    );
+    final object = BacnetObject(
+      type: BacnetObjectType.schedule,
+      instance: created,
+    );
+    try {
+      if (priorityForWriting != 16) {
+        await setPriorityForWriting(created, priorityForWriting);
+      }
+      if (references.isNotEmpty) {
+        await write(
+          object,
+          BacnetProperties.listOfObjectPropertyReferences,
+          references,
+        );
+      }
+      if (scheduleDefault != null) {
+        await write(object, BacnetProperties.scheduleDefault, scheduleDefault);
+      }
+      if (effectivePeriod != null) {
+        await write(object, BacnetProperties.effectivePeriod, effectivePeriod);
+      }
+      if (weeklySchedule != null) {
+        await write(object, BacnetProperties.weeklySchedule, weeklySchedule);
+      }
+      if (exceptionSchedule.isNotEmpty) {
+        await write(
+          object,
+          BacnetProperties.exceptionSchedule,
+          exceptionSchedule,
+        );
+      }
+    } on Object {
+      await removeObject(BacnetObjectType.schedule, created);
+      rethrow;
+    }
+    return created;
+  }
+
+  /// Sets the priority (1..16) a Schedule of [addSchedule] writes its
+  /// members with.
+  Future<void> setPriorityForWriting(int instance, int priority) {
+    RangeError.checkValueInInterval(priority, 1, 16, 'priority');
+    return _system.call<void>(
+      (id) => SetNumberCommand(
+        id,
+        objectType: BacnetObjectType.schedule,
+        instance: instance,
+        propertyId: BacnetPropertyId.priorityForWriting,
+        value: priority.toDouble(),
+      ),
+    );
+  }
+
+  /// Adds a Calendar object and returns its instance: its present value is
+  /// true on the [dates] (dates, date ranges and week-n-days). Schedules
+  /// refer to calendars in their exception schedule.
+  ///
+  /// ```dart
+  /// await server.addCalendar(1, name: 'Holidays', dates: [
+  ///   BacnetCalendarDate(BacnetDate(year: 2026, month: 12, day: 25)),
+  /// ]);
+  /// ```
+  Future<int> addCalendar(
+    int instance, {
+    String? name,
+    String? description,
+    List<BacnetCalendarEntry> dates = const [],
+  }) async {
+    final created = await addObject(
+      BacnetObjectType.calendar,
+      instance,
+      name: name,
+      description: description,
+    );
+    if (dates.isNotEmpty) {
+      try {
+        await write(
+          BacnetObject(type: BacnetObjectType.calendar, instance: created),
+          BacnetProperties.dateList,
+          dates,
+        );
+      } on Object {
+        await removeObject(BacnetObjectType.calendar, created);
+        rethrow;
+      }
+    }
+    return created;
+  }
+
+  // ---- backup and restore ---------------------------------------------------
+
+  /// Lets clients back up and restore this server (ASHRAE 135 clause 19.1,
+  /// see `BacnetDeviceBackups`): [files] are the instances of the File
+  /// objects of [addFile] that hold the configuration of the application
+  /// (Configuration_Files, at most 16).
+  ///
+  /// When a client starts a backup, [prepareBackup] writes the current
+  /// configuration into the files before the client reads them; after a
+  /// restore [applyRestore] reads the restored files and applies them.
+  /// An error thrown by either reports a failure to the client
+  /// (Backup_And_Restore_State). A procedure fails when the client sends no
+  /// request for [failureTimeout]. The requests also arrive as
+  /// [reinitializeRequests].
+  ///
+  /// ```dart
+  /// await server.addFile(1, name: 'settings.json');
+  /// await server.enableBackup(
+  ///   files: [1],
+  ///   prepareBackup: () =>
+  ///       server.setFileContent(1, utf8.encode(jsonEncode(settings))),
+  ///   applyRestore: () async {
+  ///     settings = jsonDecode(utf8.decode(await server.fileContent(1)));
+  ///   },
+  /// );
+  /// ```
+  Future<void> enableBackup({
+    required List<int> files,
+    Future<void> Function()? prepareBackup,
+    Future<void> Function()? applyRestore,
+    Duration failureTimeout = const Duration(minutes: 5),
+  }) async {
+    if (files.length > 16) {
+      throw ArgumentError.value(files, 'files', 'at most 16 files');
+    }
+    final seconds = failureTimeout.inSeconds;
+    RangeError.checkValueInInterval(seconds, 0, 0xFFFF, 'failureTimeout');
+    await _backupRequests?.cancel();
+    _backupRequests = reinitializeRequests.listen((request) async {
+      switch (request.state) {
+        case BacnetReinitializedState.startBackup when prepareBackup != null:
+          await _backupStep(
+            prepareBackup,
+            BacnetBackupState.performingABackup,
+            BacnetBackupState.backupFailure,
+          );
+        case BacnetReinitializedState.endRestore when applyRestore != null:
+          await _backupStep(
+            applyRestore,
+            BacnetBackupState.idle,
+            BacnetBackupState.restoreFailure,
+          );
+      }
+    });
+    await _system.call<void>(
+      (id) => BackupConfigureCommand(
+        id,
+        files: files,
+        prepare: prepareBackup != null,
+        apply: applyRestore != null,
+        failureTimeoutSeconds: seconds,
+      ),
+    );
+  }
+
+  Future<void> _backupStep(
+    Future<void> Function() step,
+    BacnetBackupState success,
+    BacnetBackupState failure,
+  ) async {
+    var state = success;
+    try {
+      await step();
+    } on Object catch (e, stackTrace) {
+      _system.log(
+        BacnetLogLevel.error,
+        'backup or restore of the application failed',
+        e,
+        stackTrace,
+      );
+      state = failure;
+    }
+    try {
+      await _system.call<void>((id) => BackupStateCommand(id, state));
+    } on BacnetException {
+      // the stack stopped
+    }
+  }
+
+  /// Backup_And_Restore_State of this server (after [init]).
+  Future<BacnetBackupState> backupState() async {
+    final deviceId = _deviceId;
+    if (deviceId == null) throw const BacnetNotInitializedException();
+    final value = await readProperty(
+      BacnetObjectType.device,
+      deviceId,
+      BacnetPropertyId.backupAndRestoreState,
+    );
+    return BacnetBackupState(value.asInt ?? 0);
+  }
+
+  // ---- trend logs -----------------------------------------------------------
+
+  /// Adds a Trend Log object and returns its instance. Clients read its
+  /// records with ReadRange ([BacnetClient.getTrendLog]).
+  ///
+  /// With [source] (a property of an object of this server) the log reads
+  /// the property every [logInterval] and records its value and the
+  /// Status_Flags of the object; without it the application records values
+  /// with [logValue]. The log keeps the last [bufferSize] records (or stops
+  /// when full with [stopWhenFull]) and records while [enable] is true,
+  /// between [startTime] and [stopTime] when given.
+  ///
+  /// ```dart
+  /// await server.addTrendLog(
+  ///   1,
+  ///   name: 'Supply temperature log',
+  ///   source: const BacnetDeviceObjectPropertyReference(
+  ///     object: BacnetObject(type: BacnetObjectType.analogInput, instance: 1),
+  ///     property: BacnetPropertyId.presentValue,
+  ///   ),
+  ///   logInterval: const Duration(minutes: 5),
+  ///   bufferSize: 10000,
+  /// );
+  /// ```
+  Future<int> addTrendLog(
+    int instance, {
+    String? name,
+    String? description,
+    BacnetDeviceObjectPropertyReference? source,
+    Duration logInterval = const Duration(minutes: 1),
+    int bufferSize = 1000,
+    bool stopWhenFull = false,
+    BacnetDateTime? startTime,
+    BacnetDateTime? stopTime,
+    bool enable = true,
+  }) async {
+    final hundredths = logInterval.inMilliseconds ~/ 10;
+    if (hundredths < 1) {
+      throw ArgumentError.value(logInterval, 'logInterval', 'below 10 ms');
+    }
+    RangeError.checkValueInInterval(bufferSize, 1, 100000, 'bufferSize');
+    final created = await addObject(
+      BacnetObjectType.trendLog,
+      instance,
+      name: name,
+      description: description,
+    );
+    final object = BacnetObject(
+      type: BacnetObjectType.trendLog,
+      instance: created,
+    );
+    try {
+      await write(object, BacnetProperties.bufferSize, bufferSize);
+      await write(object, BacnetProperties.logInterval, hundredths);
+      await write(object, BacnetProperties.stopWhenFull, stopWhenFull);
+      if (startTime != null) {
+        await write(object, BacnetProperties.startTime, startTime);
+      }
+      if (stopTime != null) {
+        await write(object, BacnetProperties.stopTime, stopTime);
+      }
+      if (source != null) {
+        await write(object, BacnetProperties.logDeviceObjectProperty, source);
+      }
+      await write(object, BacnetProperties.enable, enable);
+    } on Object {
+      await removeObject(BacnetObjectType.trendLog, created);
+      rethrow;
+    }
+    return created;
+  }
+
+  /// Records [value] with the current time in Trend Log [instance] of
+  /// [addTrendLog]: a [BacnetNull], [BacnetBoolean], [BacnetReal],
+  /// [BacnetDouble] (recorded as Real), [BacnetEnumerated],
+  /// [BacnetUnsigned], [BacnetSigned] or a [BacnetBitString] of up to 32
+  /// bits. Returns false while the log is disabled.
+  Future<bool> logValue(
+    int instance,
+    BacnetValue value, {
+    BacnetStatusFlags? statusFlags,
+  }) {
+    final writer = BacnetWriter();
+    encodeApplicationValue(writer, value);
+    final payload = writer.toBytes();
+    return _system.call<bool>(
+      (id) => TrendLogAppendCommand(
+        id,
+        instance,
+        payload,
+        statusFlags: switch (statusFlags) {
+          null => -1,
+          final flags =>
+            (flags.inAlarm ? 1 : 0) |
+                (flags.fault ? 2 : 0) |
+                (flags.overridden ? 4 : 0) |
+                (flags.outOfService ? 8 : 0),
+        },
+      ),
+    );
+  }
+
   // ---- alarms and events ----------------------------------------------------
 
   /// Adds Notification Class [instance] (0..63): the recipients,
@@ -610,6 +975,8 @@ class BacnetServer {
 
   /// Releases the stack (stopped when no client or server uses it).
   Future<void> close() async {
+    await _backupRequests?.cancel();
+    _backupRequests = null;
     if (!_started) return;
     _started = false;
     await _system.release();

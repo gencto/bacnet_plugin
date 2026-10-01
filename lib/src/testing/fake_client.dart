@@ -534,6 +534,87 @@ final class FakeBacnetDevice {
     }
   }
 
+  /// Instances of the File objects of Configuration_Files: with files the
+  /// device takes part in backup and restore (ReinitializeDevice
+  /// START_BACKUP .. ABORT_RESTORE, Backup_And_Restore_State), without it
+  /// refuses them.
+  List<int> get configurationFiles => List.unmodifiable(_configurationFiles);
+  List<int> _configurationFiles = const [];
+  set configurationFiles(List<int> files) {
+    _configurationFiles = List.of(files);
+    final device = object(BacnetObjectType.device, deviceId)!;
+    if (files.isEmpty) {
+      device.properties
+        ..remove(BacnetPropertyId.configurationFiles)
+        ..remove(BacnetPropertyId.backupAndRestoreState);
+      return;
+    }
+    device.properties[BacnetPropertyId.configurationFiles] = BacnetList([
+      for (final file in files)
+        BacnetObject(type: BacnetObjectType.file, instance: file),
+    ]);
+    _setBackupState(_backupState);
+  }
+
+  /// Backup_And_Restore_State.
+  BacnetBackupState get backupState => _backupState;
+  BacnetBackupState _backupState = BacnetBackupState.idle;
+
+  /// Restores completed with ReinitializeDevice END_RESTORE.
+  int restores = 0;
+
+  void _setBackupState(BacnetBackupState state) {
+    _backupState = state;
+    object(
+      BacnetObjectType.device,
+      deviceId,
+    )!.properties[BacnetPropertyId.backupAndRestoreState] = BacnetEnumerated(
+      state,
+    );
+  }
+
+  void _reinitialize(BacnetReinitializedState state) {
+    final inProgress =
+        _backupState != BacnetBackupState.idle &&
+        _backupState != BacnetBackupState.backupFailure &&
+        _backupState != BacnetBackupState.restoreFailure;
+    switch (state) {
+      case BacnetReinitializedState.startBackup ||
+              BacnetReinitializedState.endBackup ||
+              BacnetReinitializedState.startRestore ||
+              BacnetReinitializedState.endRestore ||
+              BacnetReinitializedState.abortRestore
+          when _configurationFiles.isEmpty:
+        throw _error(
+          BacnetErrorClass.services,
+          BacnetErrorCode.optionalFunctionalityNotSupported,
+        );
+      case BacnetReinitializedState.startBackup ||
+              BacnetReinitializedState.startRestore
+          when inProgress:
+        throw _error(
+          BacnetErrorClass.device,
+          BacnetErrorCode.configurationInProgress,
+        );
+      case BacnetReinitializedState.startBackup:
+        _setBackupState(BacnetBackupState.performingABackup);
+      case BacnetReinitializedState.startRestore:
+        _setBackupState(BacnetBackupState.performingARestore);
+      case BacnetReinitializedState.endRestore:
+        if (_backupState != BacnetBackupState.performingARestore) {
+          throw _error(
+            BacnetErrorClass.device,
+            BacnetErrorCode.configurationInProgress,
+          );
+        }
+        restores++;
+        _setBackupState(BacnetBackupState.idle);
+      case BacnetReinitializedState.endBackup ||
+          BacnetReinitializedState.abortRestore:
+        if (inProgress) _setBackupState(BacnetBackupState.idle);
+    }
+  }
+
   void _checkPassword(String? given) {
     if (password != null && given != password) {
       throw _error(BacnetErrorClass.security, BacnetErrorCode.passwordFailure);
@@ -1696,6 +1777,7 @@ class FakeBacnetClient implements BacnetClient {
     ) {
       device
         .._checkPassword(password)
+        .._reinitialize(state)
         ..reinitializations.add(state);
     });
   }
