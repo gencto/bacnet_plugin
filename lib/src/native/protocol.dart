@@ -78,6 +78,10 @@ enum AckDecoding {
   readRange,
   getEventInformation,
   getAlarmSummary,
+  createObject,
+  atomicReadFile,
+  atomicWriteFile,
+  privateTransfer,
 }
 
 /// A confirmed request with pre-encoded service data.

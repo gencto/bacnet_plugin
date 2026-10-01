@@ -163,6 +163,7 @@ Future<void> main(List<String> args) async {
   await single.close();
   await typedProperties(client, device, objects);
   await alarms(client, device, objects);
+  await management(client, device, objects);
   print(await client.stats());
   await client.close();
   exit(0);
@@ -420,4 +421,132 @@ Future<void> alarms(
     'recipients ${await client.read(device, nc, BacnetProperties.recipientList)}',
   );
   print('alarms: ok');
+}
+
+/// DeviceCommunicationControl, ReinitializeDevice, Create/DeleteObject and
+/// file transfers (bacserv's password is "filister").
+Future<void> management(
+  BacnetClient client,
+  int device,
+  List<BacnetObject> objects,
+) async {
+  Future<void> expectError(String what, Future<void> request) async {
+    try {
+      await request;
+      print('$what: FAIL (no error)');
+    } on BacnetException catch (e) {
+      print('$what: $e');
+    }
+  }
+
+  await expectError(
+    'DCC without password',
+    client.deviceCommunicationControl(
+      device,
+      BacnetCommunicationState.disableInitiation,
+    ),
+  );
+  await client.deviceCommunicationControl(
+    device,
+    BacnetCommunicationState.disableInitiation,
+    duration: const Duration(minutes: 1),
+    password: 'filister',
+  );
+  print(
+    'DCC disable initiation: name '
+    '${await client.read(device, BacnetObject(type: BacnetObjectType.device, instance: device), BacnetProperties.objectName)}',
+  );
+  await client.deviceCommunicationControl(
+    device,
+    BacnetCommunicationState.enable,
+    password: 'filister',
+  );
+  await expectError(
+    'reinitialize with wrong password',
+    client.reinitializeDevice(
+      device,
+      BacnetReinitializedState.warmStart,
+      password: 'wrong',
+    ),
+  );
+  await client.reinitializeDevice(
+    device,
+    BacnetReinitializedState.activateChanges,
+    password: 'filister',
+  );
+  print('reinitialize activate changes: ok');
+
+  // bacnet-stack does not accept Object_Name as initial value
+  await expectError(
+    'create with Object_Name',
+    client.createObject(
+      device,
+      type: BacnetObjectType.analogValue,
+      initialValues: const [
+        BacnetPropertyValue(
+          propertyIdentifier: BacnetPropertyId.objectName,
+          value: BacnetCharacterString('Created by interop'),
+        ),
+      ],
+    ),
+  );
+  final created = await client.createObject(
+    device,
+    type: BacnetObjectType.analogValue,
+    initialValues: const [
+      BacnetPropertyValue(
+        propertyIdentifier: BacnetPropertyId.presentValue,
+        value: BacnetReal(42),
+      ),
+    ],
+  );
+  print(
+    'created $created: '
+    '${await client.read(device, created, BacnetProperties.objectName)} = '
+    '${await client.read(device, created, BacnetProperties.analogPresentValue)}',
+  );
+  await expectError(
+    'create existing',
+    client.createObject(device, object: created),
+  );
+  await client.deleteObject(device, created);
+  await expectError(
+    'read deleted',
+    client.readProperty(
+      device,
+      created.type,
+      created.instance,
+      BacnetPropertyId.objectName,
+    ),
+  );
+
+  final file = objects.firstWhere((o) => o.type == BacnetObjectType.file);
+  final content = List.generate(4000, (i) => (i * 13) & 0xFF);
+  // bacnet-stack writes File_Size only with a callback bacserv lacks
+  await expectError(
+    'truncate',
+    client.writeProperty(
+      device,
+      BacnetObjectType.file,
+      file.instance,
+      BacnetPropertyId.fileSize,
+      const BacnetUnsigned(0),
+    ),
+  );
+  await client.writeFile(device, file.instance, content);
+  final read = await client.readFile(
+    device,
+    file.instance,
+    onProgress: (done, total) => print('read $done / $total'),
+  );
+  var same = read.length >= content.length;
+  for (var i = 0; same && i < content.length; i++) {
+    same = read[i] == content[i];
+  }
+  print('file round trip ${read.length} octets: ${same ? 'ok' : 'FAIL'}');
+  await expectError(
+    'record access',
+    client.readFileRecords(device, file.instance, start: 0, count: 1),
+  );
+  print('management: ok');
 }

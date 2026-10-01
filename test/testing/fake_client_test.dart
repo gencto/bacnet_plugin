@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:bacnet_plugin/bacnet_plugin.dart';
 import 'package:bacnet_plugin/testing.dart';
 import 'package:test/test.dart';
@@ -596,6 +598,219 @@ void main() {
         () => output.reportEvent(BacnetEventState.fault),
         throwsStateError,
       );
+    });
+  });
+
+  group('device management', () {
+    Matcher protocolError(BacnetErrorCode code, {int? element}) => throwsA(
+      isA<BacnetProtocolException>()
+          .having((e) => e.errorCode, 'code', code)
+          .having((e) => e.firstFailedElement, 'element', element),
+    );
+
+    test('DeviceCommunicationControl silences the device', () async {
+      ahu.password = 'secret';
+      await expectLater(
+        client.deviceCommunicationControl(
+          1234,
+          BacnetCommunicationState.disable,
+        ),
+        protocolError(BacnetErrorCode.passwordFailure),
+      );
+      await client.deviceCommunicationControl(
+        1234,
+        BacnetCommunicationState.disable,
+        password: 'secret',
+        duration: const Duration(minutes: 1),
+      );
+      expect(ahu.communication, BacnetCommunicationState.disable);
+      await expectLater(
+        client.readProperty(
+          1234,
+          BacnetObjectType.device,
+          1234,
+          BacnetPropertyId.objectName,
+        ),
+        throwsA(isA<BacnetTimeoutException>()),
+      );
+      final devices = await DeviceScanner(
+        client,
+      ).discoverDevices(timeout: const Duration(milliseconds: 50));
+      expect(devices.map((d) => d.deviceId), [42]);
+
+      await client.deviceCommunicationControl(
+        1234,
+        BacnetCommunicationState.enable,
+        password: 'secret',
+      );
+      expect(
+        await client.read(
+          1234,
+          const BacnetObject(type: BacnetObjectType.device, instance: 1234),
+          BacnetProperties.objectName,
+        ),
+        'AHU-1',
+      );
+    });
+
+    test('ReinitializeDevice is recorded', () async {
+      await client.reinitializeDevice(1234, BacnetReinitializedState.warmStart);
+      expect(ahu.reinitializations, [BacnetReinitializedState.warmStart]);
+    });
+
+    test('creates and deletes objects', () async {
+      final created = await client.createObject(
+        1234,
+        type: BacnetObjectType.analogValue,
+        initialValues: const [
+          BacnetPropertyValue(
+            propertyIdentifier: BacnetPropertyId.objectName,
+            value: BacnetCharacterString('Setpoint'),
+          ),
+          BacnetPropertyValue(
+            propertyIdentifier: BacnetPropertyId.presentValue,
+            value: BacnetReal(21.5),
+          ),
+        ],
+      );
+      expect(
+        created,
+        const BacnetObject(type: BacnetObjectType.analogValue, instance: 1),
+      );
+      expect(
+        await client.read(1234, created, BacnetProperties.objectName),
+        'Setpoint',
+      );
+      expect(
+        await client.read(1234, created, BacnetProperties.analogPresentValue),
+        21.5,
+      );
+      expect(await client.scanDevice(1234), contains(created));
+      await expectLater(
+        client.createObject(1234, object: created),
+        protocolError(
+          BacnetErrorCode.objectIdentifierAlreadyExists,
+          element: 0,
+        ),
+      );
+      await expectLater(
+        client.createObject(
+          1234,
+          type: BacnetObjectType.analogValue,
+          initialValues: const [
+            BacnetPropertyValue(
+              propertyIdentifier: BacnetPropertyId.description,
+              value: BacnetCharacterString('ok'),
+            ),
+            BacnetPropertyValue(
+              propertyIdentifier: BacnetPropertyId.objectType,
+              value: BacnetEnumerated(BacnetObjectType.binaryValue),
+            ),
+          ],
+        ),
+        protocolError(BacnetErrorCode.writeAccessDenied, element: 2),
+      );
+
+      await client.deleteObject(1234, created);
+      expect(await client.scanDevice(1234), isNot(contains(created)));
+      await expectLater(
+        client.deleteObject(1234, created),
+        protocolError(BacnetErrorCode.unknownObject),
+      );
+      await expectLater(
+        client.deleteObject(
+          1234,
+          const BacnetObject(type: BacnetObjectType.device, instance: 1234),
+        ),
+        protocolError(BacnetErrorCode.objectDeletionNotPermitted),
+      );
+    });
+
+    test('reads and writes files', () async {
+      final content = Uint8List.fromList(
+        List.generate(5000, (i) => i * 7 & 0xFF),
+      );
+      final file = ahu.addFile(1, content: content, name: 'config.bin');
+      final progress = <(int, int?)>[];
+      final read = await client.readFile(
+        1234,
+        1,
+        onProgress: (done, total) => progress.add((done, total)),
+      );
+      expect(read, content);
+      // 1476 octets of maximum APDU: chunks of 1444 octets
+      expect(progress.map((p) => p.$1), [0, 1444, 2888, 4332, 5000]);
+      expect(progress.every((p) => p.$2 == 5000), isTrue);
+      expect(
+        client.requests.where((r) => r.service == 'readFileStream'),
+        hasLength(4),
+      );
+
+      final chunk = await client.readFileStream(
+        1234,
+        1,
+        start: 4990,
+        count: 100,
+      );
+      expect(chunk.start, 4990);
+      expect(chunk.data, content.sublist(4990));
+      expect(chunk.endOfFile, isTrue);
+
+      await client.writeFile(1234, 1, [1, 2, 3], truncate: true);
+      expect(file.fileContent, [1, 2, 3]);
+      expect(
+        await client.readProperty(
+          1234,
+          BacnetObjectType.file,
+          1,
+          BacnetPropertyId.fileSize,
+        ),
+        const BacnetUnsigned(3),
+      );
+      expect(await client.writeFileStream(1234, 1, [4, 5], start: -1), 3);
+      expect(await client.readFile(1234, 1), [1, 2, 3, 4, 5]);
+
+      await expectLater(
+        client.readFileStream(1234, 1, start: 99, count: 1),
+        protocolError(BacnetErrorCode.invalidFileStartPosition),
+      );
+      await expectLater(
+        client.readFileRecords(1234, 1, start: 0, count: 1),
+        protocolError(BacnetErrorCode.invalidFileAccessMethod),
+      );
+      await expectLater(
+        client.readFile(1234, 9),
+        throwsA(isA<BacnetProtocolException>()),
+      );
+      ahu.addFile(2, readOnly: true);
+      await expectLater(
+        client.writeFile(1234, 2, [1]),
+        protocolError(BacnetErrorCode.fileAccessDenied),
+      );
+    });
+
+    test('ConfirmedPrivateTransfer calls the vendor handler', () async {
+      await expectLater(
+        client.privateTransfer(1234, 260, 1),
+        throwsA(isA<BacnetRejectException>()),
+      );
+      ahu.onPrivateTransfer = (vendor, service, parameters) =>
+          BacnetList([BacnetUnsigned(vendor), BacnetUnsigned(service)]);
+      expect(
+        await client.privateTransfer(1234, 260, 7),
+        const BacnetList([BacnetUnsigned(260), BacnetUnsigned(7)]),
+      );
+    });
+
+    test('text messages reach devices', () async {
+      await client.textMessage(1234, 'Filter change due', urgent: true);
+      await client.sendTextMessage('Shutdown at 18:00');
+      expect(ahu.messages.map((m) => m.message), [
+        'Filter change due',
+        'Shutdown at 18:00',
+      ]);
+      expect(ahu.messages.first.urgent, isTrue);
+      expect(boiler.messages.single.message, 'Shutdown at 18:00');
     });
   });
 }

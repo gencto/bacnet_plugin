@@ -404,9 +404,13 @@ final class _Worker implements RequestTransport {
           BacnetErrorClass(event.a),
           BacnetErrorCode(event.b),
         );
+        int? firstFailedElement;
         if (event.hasFlag(BP_FLAG_COMPLEX)) {
           try {
-            error = decodeComplexError(event.data);
+            (:error, :firstFailedElement) = decodeComplexError(
+              event.data,
+              service: event.service,
+            );
           } on BacnetDecodeException {
             error = const BacnetError(
               BacnetErrorClass(-1),
@@ -418,6 +422,7 @@ final class _Worker implements RequestTransport {
           'device $deviceId returned an error',
           errorClass: error.errorClass,
           errorCode: error.errorCode,
+          firstFailedElement: firstFailedElement,
         );
       case BP_EVENT_REJECT:
         return BacnetRejectException(
@@ -445,6 +450,10 @@ final class _Worker implements RequestTransport {
         AckDecoding.readRange => decodeReadRangeAck(data),
         AckDecoding.getEventInformation => decodeGetEventInformationAck(data),
         AckDecoding.getAlarmSummary => decodeGetAlarmSummaryAck(data),
+        AckDecoding.createObject => decodeCreateObjectAck(data),
+        AckDecoding.atomicReadFile => decodeAtomicReadFileAck(data),
+        AckDecoding.atomicWriteFile => decodeAtomicWriteFileAck(data),
+        AckDecoding.privateTransfer => decodePrivateTransfer(data).parameters,
       };
       _requestSucceeded(command, value);
     } on BacnetDecodeException catch (e) {

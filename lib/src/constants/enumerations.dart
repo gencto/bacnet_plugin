@@ -637,6 +637,92 @@ extension type const BacnetPropertyStateKind(int value) implements int {
   String get label => getName(value);
 }
 
+/// Communication states of DeviceCommunicationControl (BACnetEnableDisable).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetCommunicationState(value)`.
+extension type const BacnetCommunicationState(int value) implements int {
+  /// Enable.
+  static const enable = BacnetCommunicationState(0);
+
+  /// Disable.
+  static const disable = BacnetCommunicationState(1);
+
+  /// Disable Initiation.
+  static const disableInitiation = BacnetCommunicationState(2);
+
+  static const Map<BacnetCommunicationState, String> _labels = {
+    enable: 'Enable',
+    disable: 'Disable',
+    disableInitiation: 'Disable Initiation',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetCommunicationState> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) =>
+      _labels[value] ?? 'Communication State $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
+/// States a device is reinitialized to by ReinitializeDevice (BACnetReinitializedStateOfDevice).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetReinitializedState(value)`.
+extension type const BacnetReinitializedState(int value) implements int {
+  /// Cold Start.
+  static const coldStart = BacnetReinitializedState(0);
+
+  /// Warm Start.
+  static const warmStart = BacnetReinitializedState(1);
+
+  /// Start Backup.
+  static const startBackup = BacnetReinitializedState(2);
+
+  /// End Backup.
+  static const endBackup = BacnetReinitializedState(3);
+
+  /// Start Restore.
+  static const startRestore = BacnetReinitializedState(4);
+
+  /// End Restore.
+  static const endRestore = BacnetReinitializedState(5);
+
+  /// Abort Restore.
+  static const abortRestore = BacnetReinitializedState(6);
+
+  /// Activate Changes.
+  static const activateChanges = BacnetReinitializedState(7);
+
+  static const Map<BacnetReinitializedState, String> _labels = {
+    coldStart: 'Cold Start',
+    warmStart: 'Warm Start',
+    startBackup: 'Start Backup',
+    endBackup: 'End Backup',
+    startRestore: 'Start Restore',
+    endRestore: 'End Restore',
+    abortRestore: 'Abort Restore',
+    activateChanges: 'Activate Changes',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetReinitializedState> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) =>
+      _labels[value] ?? 'Reinitialized State $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
 /// Values of binary objects (BACnetBinaryPV).
 ///
 /// An extension type over the encoded value: it is an [int] at

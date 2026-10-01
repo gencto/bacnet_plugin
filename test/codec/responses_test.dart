@@ -341,7 +341,9 @@ void main() {
 
     test('complex error payload', () {
       expect(
-        decodeComplexError(bytes([0x0E, 0x91, 0x02, 0x91, 0x28, 0x0F, 0x1E])),
+        decodeComplexError(
+          bytes([0x0E, 0x91, 0x02, 0x91, 0x28, 0x0F, 0x1E]),
+        ).error,
         const BacnetError(BacnetErrorClass.property, BacnetErrorCode(40)),
       );
     });

@@ -55,6 +55,7 @@ class BacnetProtocolException extends BacnetException {
     super.message, {
     required this.errorClass,
     required this.errorCode,
+    this.firstFailedElement,
   });
 
   /// BACnet error class.
@@ -63,11 +64,18 @@ class BacnetProtocolException extends BacnetException {
   /// BACnet error code.
   final BacnetErrorCode errorCode;
 
+  /// For CreateObject, AddListElement and RemoveListElement: the position
+  /// (1 based) of the initial value or list element the device rejected,
+  /// or 0 when the request failed for another reason; null for other
+  /// services.
+  final int? firstFailedElement;
+
   @override
   String toString() =>
       'BacnetProtocolException: $message '
       '(${BacnetErrorClass.getName(errorClass)}: '
-      '${BacnetErrorCode.getName(errorCode)})';
+      '${BacnetErrorCode.getName(errorCode)}'
+      '${firstFailedElement == null ? '' : ', element $firstFailedElement'})';
 }
 
 /// Exception thrown when a device rejects a request (Reject PDU).

@@ -5,11 +5,13 @@ import 'package:meta/meta.dart';
 import '../constants/enumerations.dart';
 import '../constants/errors.dart';
 import '../constants/property_ids.dart';
+import '../constants/services.dart';
 import '../core/exceptions.dart';
 import '../models/alarms.dart';
 import '../models/bacnet_value.dart';
 import '../models/complex_values.dart';
 import '../models/events.dart';
+import '../models/files.dart';
 import 'reader.dart';
 import 'value_encoding.dart';
 
@@ -235,12 +237,31 @@ CovNotificationData decodeCovNotification(Uint8List data) {
   );
 }
 
-/// Extracts error class and code from a complex Error PDU payload
-/// (e.g. WritePropertyMultiple-Error, CreateObject-Error).
-BacnetError decodeComplexError(Uint8List data) {
+/// A decoded complex Error PDU: the error and, for CreateObject,
+/// AddListElement and RemoveListElement, the position (1 based) of the
+/// element that failed (0 when the request failed for another reason).
+typedef ComplexError = ({BacnetError error, int? firstFailedElement});
+
+/// Extracts the error of a complex Error PDU payload of [service] (e.g.
+/// WritePropertyMultiple-Error, CreateObject-Error).
+ComplexError decodeComplexError(Uint8List data, {int? service}) {
   final r = BacnetReader(data);
-  if (r.nextIsOpening(0)) r.expectOpening(0);
-  return _readError(r);
+  if (!r.nextIsOpening(0)) {
+    return (error: _readError(r), firstFailedElement: null);
+  }
+  r.expectOpening(0);
+  final error = _readError(r);
+  r.expectClosing(0);
+  final changeList = switch (service) {
+    BacnetConfirmedService.createObject ||
+    BacnetConfirmedService.addListElement ||
+    BacnetConfirmedService.removeListElement => true,
+    _ => false,
+  };
+  return (
+    error: error,
+    firstFailedElement: changeList ? r.readOptionalContextUnsigned(1) : null,
+  );
 }
 
 /// Decoded I-Have.
@@ -518,4 +539,75 @@ ListElementsData decodeListElements(Uint8List data) {
     arrayIndex: arrayIndex,
     elements: BacnetList(List.unmodifiable(elements)),
   );
+}
+
+/// Decodes a CreateObject-ACK: the created object.
+BacnetObject decodeCreateObjectAck(Uint8List data) {
+  final r = BacnetReader(data);
+  if (r.readApplicationValue() case final BacnetObject object when r.isAtEnd) {
+    return object;
+  }
+  throw const BacnetDecodeException('malformed CreateObject-ACK');
+}
+
+/// Decoded AtomicReadFile-ACK: a chunk (stream access) or records.
+typedef AtomicReadFileData = ({
+  BacnetFileChunk? chunk,
+  BacnetFileRecords? records,
+});
+
+/// Decodes an AtomicReadFile-ACK (ASHRAE 135 clause 14.1).
+AtomicReadFileData decodeAtomicReadFileAck(Uint8List data) {
+  final r = BacnetReader(data);
+  final endOfFile = switch (r.readApplicationValue()) {
+    BacnetBoolean(:final value) => value,
+    final other => throw BacnetDecodeException('malformed end of file: $other'),
+  };
+  int signed() => switch (r.readApplicationValue()) {
+    BacnetSigned(:final value) => value,
+    BacnetUnsigned(:final value) => value,
+    final other => throw BacnetDecodeException('malformed position: $other'),
+  };
+  Uint8List octets() => switch (r.readApplicationValue()) {
+    BacnetOctetString(:final value) => value,
+    final other => throw BacnetDecodeException('malformed file data: $other'),
+  };
+  if (r.nextIsOpening(0)) {
+    r.expectOpening(0);
+    final start = signed();
+    final data = octets();
+    r.expectClosing(0);
+    return (
+      chunk: BacnetFileChunk(start: start, data: data, endOfFile: endOfFile),
+      records: null,
+    );
+  }
+  r.expectOpening(1);
+  final start = signed();
+  final count = switch (r.readApplicationValue()) {
+    BacnetUnsigned(:final value) => value,
+    final other => throw BacnetDecodeException(
+      'malformed record count: $other',
+    ),
+  };
+  final records = [for (var i = 0; i < count; i++) octets()];
+  r.expectClosing(1);
+  return (
+    chunk: null,
+    records: BacnetFileRecords(
+      start: start,
+      records: records,
+      endOfFile: endOfFile,
+    ),
+  );
+}
+
+/// Decodes an AtomicWriteFile-ACK: the position (stream access) or record
+/// where the data was written.
+int decodeAtomicWriteFileAck(Uint8List data) {
+  final r = BacnetReader(data);
+  final start = r.nextIsContext(0)
+      ? r.readContextSigned(0)
+      : r.readContextSigned(1);
+  return start;
 }

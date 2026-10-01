@@ -207,6 +207,44 @@ const List<_File> _files = [
       maxValue: 63,
     ),
     _Enum(
+      'BacnetCommunicationState',
+      cEnum: 'BACNET_COMMUNICATION_ENABLE_DISABLE',
+      prefix: 'COMMUNICATION_',
+      doc:
+          'Communication states of DeviceCommunicationControl '
+          '(BACnetEnableDisable).',
+      unknown: r'Communication State $value',
+    ),
+    _Enum(
+      'BacnetReinitializedState',
+      cEnum: 'BACNET_REINITIALIZED_STATE',
+      prefix: 'BACNET_REINIT_',
+      doc:
+          'States a device is reinitialized to by ReinitializeDevice '
+          '(BACnetReinitializedStateOfDevice).',
+      unknown: r'Reinitialized State $value',
+      names: {
+        'COLDSTART': 'coldStart',
+        'WARMSTART': 'warmStart',
+        'STARTBACKUP': 'startBackup',
+        'ENDBACKUP': 'endBackup',
+        'STARTRESTORE': 'startRestore',
+        'ENDRESTORE': 'endRestore',
+        'ABORTRESTORE': 'abortRestore',
+      },
+      labels: {
+        'COLDSTART': 'Cold Start',
+        'WARMSTART': 'Warm Start',
+        'STARTBACKUP': 'Start Backup',
+        'ENDBACKUP': 'End Backup',
+        'STARTRESTORE': 'Start Restore',
+        'ENDRESTORE': 'End Restore',
+        'ABORTRESTORE': 'Abort Restore',
+      },
+      skip: {'IDLE', 'MAX'},
+      maxValue: 7,
+    ),
+    _Enum(
       'BacnetBinaryPV',
       cEnum: 'BACNET_BINARY_PV',
       prefix: 'BINARY_',

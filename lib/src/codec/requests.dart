@@ -390,3 +390,189 @@ Uint8List encodeListElements(
   w.closing(3);
   return w.toBytes();
 }
+
+// ---- device management -------------------------------------------------------
+
+/// Encodes a DeviceCommunicationControl request (ASHRAE 135 clause 16.1);
+/// [duration] in whole minutes (1..65535), null for indefinitely.
+Uint8List encodeDeviceCommunicationControl(
+  BacnetCommunicationState state, {
+  Duration? duration,
+  String? password,
+}) {
+  final w = BacnetWriter(32);
+  if (duration != null) {
+    final minutes = duration.inMinutes;
+    if (minutes < 1 || minutes > 0xFFFF) {
+      throw ArgumentError.value(
+        duration,
+        'duration',
+        'must be 1 to 65535 minutes',
+      );
+    }
+    w.ctxUnsigned(0, minutes);
+  }
+  w.ctxUnsigned(1, state);
+  if (password != null) w.ctxCharacterString(2, _password(password));
+  return w.toBytes();
+}
+
+/// Encodes a ReinitializeDevice request (ASHRAE 135 clause 16.4).
+Uint8List encodeReinitializeDevice(
+  BacnetReinitializedState state, {
+  String? password,
+}) {
+  final w = BacnetWriter(32)..ctxUnsigned(0, state);
+  if (password != null) w.ctxCharacterString(1, _password(password));
+  return w.toBytes();
+}
+
+String _password(String password) {
+  if (password.isEmpty || password.runes.length > 20) {
+    throw ArgumentError.value(
+      password,
+      'password',
+      'must have 1 to 20 characters',
+    );
+  }
+  return password;
+}
+
+/// Encodes a CreateObject request (ASHRAE 135 clause 15.3) for an object
+/// of [type] whose instance the device chooses, or for [object].
+Uint8List encodeCreateObject({
+  BacnetObjectType? type,
+  BacnetObject? object,
+  List<BacnetPropertyValue> initialValues = const [],
+}) {
+  if ((type == null) == (object == null)) {
+    throw ArgumentError('give either type or object');
+  }
+  final w = BacnetWriter()..opening(0);
+  if (object != null) {
+    w.ctxObjectId(1, object.type, object.instance);
+  } else {
+    w.ctxUnsigned(0, type!);
+  }
+  w.closing(0);
+  if (initialValues.isNotEmpty) {
+    w.opening(1);
+    for (final value in initialValues) {
+      w.ctxUnsigned(0, value.propertyIdentifier);
+      if (value.propertyArrayIndex >= 0) {
+        w.ctxUnsigned(1, value.propertyArrayIndex);
+      }
+      w.opening(2);
+      encodeApplicationValue(w, value.value);
+      w.closing(2);
+      if (value.priority >= 1 && value.priority < 16) {
+        w.ctxUnsigned(3, value.priority);
+      }
+    }
+    w.closing(1);
+  }
+  return w.toBytes();
+}
+
+/// Encodes a DeleteObject request (ASHRAE 135 clause 15.4).
+Uint8List encodeDeleteObject(BacnetObject object) =>
+    (BacnetWriter(8)..appObjectId(object.type, object.instance)).toBytes();
+
+/// Encodes an AtomicReadFile request with stream access ([records] false)
+/// or record access (ASHRAE 135 clause 14.1).
+Uint8List encodeAtomicReadFile(
+  int fileInstance, {
+  required int start,
+  required int count,
+  bool records = false,
+}) {
+  if (count < 0) throw ArgumentError.value(count, 'count', 'is negative');
+  final tag = records ? 1 : 0;
+  return (BacnetWriter(24)
+        ..appObjectId(BacnetObjectType.file, fileInstance)
+        ..opening(tag)
+        ..appSigned(start)
+        ..appUnsigned(count)
+        ..closing(tag))
+      .toBytes();
+}
+
+/// Encodes an AtomicWriteFile request with stream access (ASHRAE 135
+/// clause 14.2); a [start] of -1 appends to the file.
+Uint8List encodeAtomicWriteFileStream(
+  int fileInstance,
+  List<int> data, {
+  int start = 0,
+}) =>
+    (BacnetWriter(data.length + 24)
+          ..appObjectId(BacnetObjectType.file, fileInstance)
+          ..opening(0)
+          ..appSigned(start)
+          ..appOctetString(data)
+          ..closing(0))
+        .toBytes();
+
+/// Encodes an AtomicWriteFile request with record access; a [start] of -1
+/// appends the records.
+Uint8List encodeAtomicWriteFileRecords(
+  int fileInstance,
+  List<List<int>> records, {
+  int start = 0,
+}) {
+  final w = BacnetWriter()
+    ..appObjectId(BacnetObjectType.file, fileInstance)
+    ..opening(1)
+    ..appSigned(start)
+    ..appUnsigned(records.length);
+  for (final record in records) {
+    w.appOctetString(record);
+  }
+  return (w..closing(1)).toBytes();
+}
+
+/// Encodes a (Confirmed or Unconfirmed)PrivateTransfer request (ASHRAE
+/// 135 clause 16.2).
+Uint8List encodePrivateTransfer(
+  int vendorId,
+  int serviceNumber, {
+  BacnetValue? parameters,
+}) {
+  final w = BacnetWriter(32)
+    ..ctxUnsigned(0, vendorId)
+    ..ctxUnsigned(1, serviceNumber);
+  if (parameters != null) {
+    w.opening(2);
+    encodeApplicationValue(w, parameters);
+    w.closing(2);
+  }
+  return w.toBytes();
+}
+
+/// Encodes a (Confirmed or Unconfirmed)TextMessage request from device
+/// [sourceDevice] (ASHRAE 135 clause 16.5).
+Uint8List encodeTextMessage(
+  int sourceDevice,
+  String message, {
+  bool urgent = false,
+  int? classNumber,
+  String? classText,
+}) {
+  if (classNumber != null && classText != null) {
+    throw ArgumentError('give at most one of classNumber and classText');
+  }
+  final w = BacnetWriter(message.length + 24)
+    ..ctxObjectId(0, BacnetObjectType.device, sourceDevice);
+  if (classNumber != null || classText != null) {
+    w.opening(1);
+    if (classNumber != null) {
+      w.ctxUnsigned(0, classNumber);
+    } else {
+      w.ctxCharacterString(1, classText!);
+    }
+    w.closing(1);
+  }
+  return (w
+        ..ctxUnsigned(2, urgent ? 1 : 0)
+        ..ctxCharacterString(3, message))
+      .toBytes();
+}
