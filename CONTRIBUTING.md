@@ -14,7 +14,8 @@ cd bacnet_plugin
 dart pub get --no-example
 ```
 
-`native/bacnet-stack` is a git submodule pinned to a bacnet-stack release.
+`native/bacnet-stack` is a git submodule pinned to a reviewed bacnet-stack
+commit.
 The native library is compiled by `hook/build.dart` the first time a test,
 app or benchmark runs, so a C compiler is required: clang or gcc on Linux,
 Xcode on macOS/iOS, Visual Studio with the C++ workload on Windows, the

@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 High-throughput BACnet/IP **client and server** for Dart and Flutter, built
-on [bacnet-stack](https://github.com/bacnet-stack/bacnet-stack) 1.6.1 through
+on [bacnet-stack](https://github.com/bacnet-stack/bacnet-stack) 1.7 through
 FFI. Works in Flutter apps (Android, iOS, Linux, macOS, Windows) and in plain
 Dart programs such as headless gateways and supervisory services.
 
@@ -45,7 +45,7 @@ Requirements:
   the C++ workload (Windows), clang or gcc (Linux), the Android NDK
   installed by Flutter (Android).
 - Git dependencies must be fetched with submodules
-  (`native/bacnet-stack` is pinned to a bacnet-stack release); the pub.dev
+  (`native/bacnet-stack` is pinned to a reviewed bacnet-stack commit); the pub.dev
   package already contains the sources.
 
 Platform notes:
@@ -195,7 +195,7 @@ Run them yourself with `benchmark/load_test.dart` and
 │ BacnetServer         │  + wakeup  │ (per device queues,   │     │ (event buffer,     │
 │ DeviceScanner        │            │  limits, binding)     │     │  source checks,    │
 │ PropertyMonitor      │ ◄───────── │ event decoding        │ ◄── │  timers)           │
-└──────────────────────┘  batched   └───────────────────────┘     │ bacnet-stack 1.6.1 │
+└──────────────────────┘  batched   └───────────────────────┘     │ bacnet-stack 1.7   │
                           results                                 └────────────────────┘
 ```
 

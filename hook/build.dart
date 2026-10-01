@@ -9,7 +9,7 @@ import 'package:hooks/hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:native_toolchain_c/native_toolchain_c.dart';
 
-/// Pinned bacnet-stack release, see `native/bacnet-stack` (git submodule).
+/// Pinned bacnet-stack sources, see `native/bacnet-stack` (git submodule).
 const bacnetStackDir = 'native/bacnet-stack/';
 
 /// bacnet-stack source directories compiled into the library.

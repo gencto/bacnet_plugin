@@ -1545,6 +1545,9 @@ abstract final class BacnetPropertyId {
   /// Override Color Reference.
   static const int overrideColorReference = 4194332;
 
+  /// Write Every Scheduled Action.
+  static const int writeEveryScheduledAction = 4194333;
+
   /// Color Command.
   static const int colorCommand = 4194334;
 
@@ -2108,6 +2111,7 @@ abstract final class BacnetPropertyId {
     defaultColor: 'Default Color',
     defaultColorTemperature: 'Default Color Temperature',
     overrideColorReference: 'Override Color Reference',
+    writeEveryScheduledAction: 'Write Every Scheduled Action',
     colorCommand: 'Color Command',
     highEndTrim: 'High End Trim',
     lowEndTrim: 'Low End Trim',

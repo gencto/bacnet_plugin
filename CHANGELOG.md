@@ -12,8 +12,9 @@ notes in the README.
 
 ### Changed
 
-- **Dependencies**: bacnet-stack 1.6.1 pinned as git submodule (previously
-  an unpinned clone of `master`); Dart SDK `^3.11.0`; `ffi` 2.2,
+- **Dependencies**: bacnet-stack 1.7.0-rc4 pinned as git submodule
+  (previously an unpinned clone of `master`; 1.7 adds security fixes for
+  BVLC header encoding, enclosed data and constructed value decoding); Dart SDK `^3.11.0`; `ffi` 2.2,
   `json_annotation` 4.12, `meta` 1.16+, `hooks` 2.2, `code_assets` 2.1,
   `native_toolchain_c` 0.19, `ffigen` 22, `build_runner` 2.16,
   `json_serializable` 6.14, `mocktail` 1.0.5, `test` 1.30+, `lints` 6.1;
