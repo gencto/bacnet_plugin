@@ -11,11 +11,14 @@ coverage/
 .vscode/
 
 # Development only
-.github/
 .agent/
-tool/
-ffigen.yaml
+.editorconfig
+.gitattributes
+.github/
 dart_test.yaml
+ffigen.yaml
+native/src/.clang-format
+tool/
 
 # bacnet-stack: ship the sources compiled by hook/build.dart and the licenses
 native/bacnet-stack/*

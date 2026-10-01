@@ -1,0 +1,36 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal code and the BACnet devices involved (vendor, model, network type).
+      render: dart
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Output with `logLevel: BacnetLogLevel.debug`, `client.stats()`, or a Wireshark capture.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: bacnet_plugin version
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: e.g. Linux x64, Dart 3.11 / Android 15, Flutter 3.44
+    validations:
+      required: true
