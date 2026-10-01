@@ -110,7 +110,7 @@ await server.addObject(
   BacnetObjectType.analogInput,
   1,
   name: 'Supply Air Temperature',
-  units: 62, // degrees Celsius
+  units: BacnetEngineeringUnits.degreesCelsius,
   covIncrement: 0.1,
 );
 await server.addObject(

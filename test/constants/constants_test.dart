@@ -65,4 +65,48 @@ void main() {
       expect(BacnetErrorCode.getName(32), contains('Unknown Property'));
     });
   });
+
+  group('BacnetEngineeringUnits', () {
+    test('constants have correct values', () {
+      expect(BacnetEngineeringUnits.degreesCelsius, equals(62));
+      expect(BacnetEngineeringUnits.percent, equals(98));
+      expect(BacnetEngineeringUnits.noUnits, equals(95));
+    });
+
+    test('getName returns human-readable names', () {
+      expect(BacnetEngineeringUnits.getName(62), equals('Degrees Celsius'));
+      expect(BacnetEngineeringUnits.getName(100000), equals('Units 100000'));
+    });
+  });
+
+  group('generated tables', () {
+    test('cover the standard enumerations', () {
+      expect(BacnetObjectType.values, hasLength(greaterThanOrEqualTo(65)));
+      expect(BacnetPropertyId.values, hasLength(greaterThanOrEqualTo(500)));
+      expect(BacnetErrorCode.values, hasLength(greaterThanOrEqualTo(200)));
+      expect(
+        BacnetObjectType.getName(BacnetObjectType.networkPort),
+        'Network Port',
+      );
+      expect(
+        BacnetPropertyId.getName(BacnetPropertyId.covIncrement),
+        'COV Increment',
+      );
+    });
+
+    test('use the standard ranges only', () {
+      expect(BacnetObjectType.values.every((v) => v < 128), isTrue);
+      expect(BacnetErrorCode.values.every((v) => v < 256), isTrue);
+    });
+
+    test('decode common enumerated property values', () {
+      expect(
+        BacnetEventState.getName(BacnetEventState.offNormal),
+        'Off Normal',
+      );
+      expect(BacnetReliability.getName(0), 'No Fault Detected');
+      expect(BacnetSegmentation.getName(BacnetSegmentation.none), 'None');
+      expect(BacnetDeviceStatus.getName(0), 'Operational');
+    });
+  });
 }

@@ -1,4 +1,4 @@
-import '../constants/error_codes.dart';
+import '../constants/errors.dart';
 
 /// Base exception class for BACnet operations.
 ///

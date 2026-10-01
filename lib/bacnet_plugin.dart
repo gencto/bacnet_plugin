@@ -15,9 +15,12 @@ export 'src/codec/value_encoding.dart'
     show decodeApplicationData, encodeApplicationValue;
 export 'src/codec/values.dart';
 export 'src/codec/writer.dart';
-export 'src/constants/error_codes.dart';
+export 'src/constants/engineering_units.dart';
+export 'src/constants/enumerations.dart';
+export 'src/constants/errors.dart';
 export 'src/constants/object_types.dart';
 export 'src/constants/property_ids.dart';
+export 'src/constants/services.dart';
 export 'src/core/bacnet_config.dart';
 export 'src/core/exceptions.dart';
 export 'src/core/logger.dart';

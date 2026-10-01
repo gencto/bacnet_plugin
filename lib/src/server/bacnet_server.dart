@@ -51,7 +51,8 @@ class BacnetPresentValueUpdate {
 /// await server.start();
 /// await server.init(4194300, 'Flutter BACnet Server');
 /// await server.addObject(BacnetObjectType.analogInput, 1,
-///     name: 'Supply Air Temp', units: 62, covIncrement: 0.1);
+///     name: 'Supply Air Temp',
+///     units: BacnetEngineeringUnits.degreesCelsius, covIncrement: 0.1);
 /// await server.setPresentValue(BacnetObjectType.analogInput, 1, 21.5);
 ///
 /// server.writeEvents.listen((event) {

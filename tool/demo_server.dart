@@ -27,7 +27,7 @@ Future<void> main(List<String> args) async {
       BacnetObjectType.analogValue,
       i,
       name: 'AV-$i',
-      units: 62,
+      units: BacnetEngineeringUnits.degreesCelsius,
       covIncrement: 0.1,
       presentValue: i.toDouble(),
     );

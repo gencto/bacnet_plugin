@@ -1,4 +1,4 @@
-import '../constants/error_codes.dart';
+import '../constants/errors.dart';
 import '../core/exceptions.dart';
 import 'bindings.g.dart';
 

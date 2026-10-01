@@ -20,7 +20,7 @@ part 'bacnet_object.g.dart';
 ///   properties: {
 ///     BacnetPropertyId.objectName: 'Temperature Sensor',
 ///     BacnetPropertyId.presentValue: 22.5,
-///     BacnetPropertyId.units: 62, // degrees Celsius
+///     BacnetPropertyId.units: BacnetEngineeringUnits.degreesCelsius,
 ///   },
 /// );
 ///
