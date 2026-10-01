@@ -254,6 +254,18 @@ void main() {
       BacnetProperties.priorityArray,
     );
     expect(priorities.activePriority, 8);
+    // an int for a REAL property
+    await client.write(
+      1234,
+      output,
+      BacnetProperties.analogPresentValue,
+      40,
+      priority: 7,
+    );
+    expect(
+      await client.read(1234, output, BacnetProperties.analogPresentValue),
+      40,
+    );
     await expectLater(
       client.read(1234, sensor, BacnetProperties.binaryPresentValue),
       throwsA(isA<BacnetDecodeException>()),

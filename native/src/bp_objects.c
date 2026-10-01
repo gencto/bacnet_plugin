@@ -65,6 +65,10 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
         case OBJECT_CHARACTERSTRING_VALUE:
             return description ? CharacterString_Value_Description_Set
                                : CharacterString_Value_Name_Set;
+#if defined(INTRINSIC_REPORTING)
+        case OBJECT_NOTIFICATION_CLASS:
+            return description ? bp_nc_description_set : bp_nc_name_set;
+#endif
         default:
             return NULL;
     }

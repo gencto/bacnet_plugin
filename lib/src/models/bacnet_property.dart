@@ -120,7 +120,24 @@ class BacnetWritableProperty<T> extends BacnetProperty<T> {
       BacnetWritableProperty(id, _any, _any);
 
   /// Converts a value to what is written to the device.
+  ///
+  /// Prefer [encodeValue] where the property may be typed as a supertype
+  /// (see there).
   final BacnetValue Function(T value) encode;
+
+  /// Converts [value], which must be a [T], to what is written to the
+  /// device; an [int] is accepted for a [double] property.
+  ///
+  /// Generic methods such as `write<T>(property, value)` infer `T` from
+  /// both arguments: `write(BacnetProperties.analogPresentValue, 35)`
+  /// infers `num`. [encode] then cannot be called through the
+  /// `BacnetWritableProperty<num>` view, this method can. Throws an
+  /// [ArgumentError] for a value of another type.
+  BacnetValue encodeValue(Object? value) {
+    if (value is T) return encode(value);
+    if (value is int && 0.0 is T) return encode(value.toDouble() as T);
+    throw ArgumentError.value(value, 'value', 'not a $T value of ${id.label}');
+  }
 }
 
 /// The standard properties with their datatypes (ASHRAE 135 clause 12).
@@ -369,6 +386,13 @@ abstract final class BacnetProperties {
     BacnetPropertyId.timeDelay,
     _unsigned,
     _encodeUnsigned,
+  );
+
+  /// Alarm_Value of binary inputs and values: the state that is off-normal.
+  static const binaryAlarmValue = BacnetWritableProperty<BacnetBinaryPV>(
+    BacnetPropertyId.alarmValue,
+    _binaryPV,
+    _encodeEnumerated,
   );
 
   /// Notify_Type: whether the transitions of the object are alarms or

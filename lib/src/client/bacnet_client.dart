@@ -291,7 +291,7 @@ class BacnetClient {
       object.type,
       object.instance,
       property.id,
-      property.encode(value),
+      property.encodeValue(value),
       priority: priority,
       timeout: timeout,
       background: background,
@@ -806,7 +806,7 @@ class BacnetClient {
       object.type,
       object.instance,
       property.id,
-      property.encode(elements),
+      property.encodeValue(elements),
       timeout: timeout,
     ),
   );
@@ -825,7 +825,7 @@ class BacnetClient {
       object.type,
       object.instance,
       property.id,
-      property.encode(elements),
+      property.encodeValue(elements),
       timeout: timeout,
     ),
   );

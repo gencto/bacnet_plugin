@@ -893,7 +893,7 @@ class FakeBacnetClient implements BacnetClient {
       object.type,
       object.instance,
       property.id,
-      property.encode(value),
+      property.encodeValue(value),
       priority: priority,
       cancelToken: cancelToken,
     ),
@@ -1264,7 +1264,7 @@ class FakeBacnetClient implements BacnetClient {
       object.type,
       object.instance,
       property.id,
-      property.encode(elements),
+      property.encodeValue(elements),
     ),
   );
 
@@ -1281,7 +1281,7 @@ class FakeBacnetClient implements BacnetClient {
       object.type,
       object.instance,
       property.id,
-      property.encode(elements),
+      property.encodeValue(elements),
     ),
   );
 

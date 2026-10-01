@@ -54,6 +54,7 @@ static void bp_timers(void)
             if (bp_state.server_enabled) {
                 handler_cov_timer_seconds(seconds);
                 trend_log_timer((uint16_t)seconds);
+                bp_event_reporting(seconds);
             }
             if (bp_state.fdr_ttl > 0) {
                 uint32_t renew =

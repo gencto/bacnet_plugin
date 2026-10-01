@@ -162,6 +162,7 @@ Future<void> main(List<String> args) async {
   }
   await single.close();
   await typedProperties(client, device, objects);
+  await alarms(client, device, objects);
   print(await client.stats());
   await client.close();
   exit(0);
@@ -299,4 +300,124 @@ Future<void> typedProperties(
     await read(output, BacnetProperties.priorityArray);
   }
   print('typed decode failures: $failures');
+}
+
+/// Subscribes to the Notification Class of an Analog Value, drives it out
+/// of its limits and back, and acknowledges the alarm.
+Future<void> alarms(
+  BacnetClient client,
+  int device,
+  List<BacnetObject> objects,
+) async {
+  final av = objects.firstWhere((o) => o.type == BacnetObjectType.analogValue);
+  final nc = objects.firstWhere(
+    (o) => o.type == BacnetObjectType.notificationClass,
+  );
+  final me = BacnetDestination(
+    recipient: BacnetRecipient.ip('127.0.0.1', client.config.port),
+    processId: 5,
+  );
+  final before = await client.read(device, nc, BacnetProperties.recipientList);
+  try {
+    await client.addListElements(device, nc, BacnetProperties.recipientList, [
+      me,
+    ]);
+  } on BacnetRejectException catch (e) {
+    // bacserv does not implement AddListElement: write the whole list
+    print('AddListElement: $e');
+    await client.write(device, nc, BacnetProperties.recipientList, [
+      ...before,
+      me,
+    ]);
+  }
+  print(
+    'recipients ${await client.read(device, nc, BacnetProperties.recipientList)}',
+  );
+  await client.write(
+    device,
+    nc,
+    BacnetProperties.ackRequired,
+    const BacnetEventTransitionBits(toOffNormal: true),
+  );
+  print('priority ${await client.read(device, nc, BacnetProperties.priority)}');
+  await client.write(
+    device,
+    av,
+    BacnetProperties.notificationClass,
+    nc.instance,
+  );
+  await client.write(device, av, BacnetProperties.highLimit, 50);
+  await client.write(device, av, BacnetProperties.lowLimit, 0);
+  await client.write(device, av, BacnetProperties.deadband, 1);
+  await client.write(device, av, BacnetProperties.timeDelay, 0);
+  await client.write(
+    device,
+    av,
+    BacnetProperties.limitEnable,
+    const BacnetLimitEnable(lowLimit: true, highLimit: true),
+  );
+  await client.write(
+    device,
+    av,
+    BacnetProperties.eventEnable,
+    const BacnetEventTransitionBits(
+      toOffNormal: true,
+      toFault: true,
+      toNormal: true,
+    ),
+  );
+
+  Future<EventNotificationEvent> next(BacnetEventState state) => client
+      .eventNotifications
+      .firstWhere((e) => e.object == av && e.toState == state)
+      .timeout(const Duration(seconds: 10));
+
+  final alarmReceived = next(BacnetEventState.highLimit);
+  await client.write(
+    device,
+    av,
+    BacnetProperties.analogPresentValue,
+    60,
+    priority: 8,
+  );
+  final alarm = await alarmReceived;
+  print('alarm $alarm');
+  print('event information ${await client.getEventInformation(device)}');
+  print('alarm summary ${await client.getAlarmSummary(device)}');
+  final acked = client.eventNotifications
+      .firstWhere((e) => e.object == av && e.isAckNotification)
+      .timeout(const Duration(seconds: 10));
+  await client.acknowledgeEvent(alarm, source: 'interop');
+  print('ack notification ${await acked}');
+  final normalReceived = next(BacnetEventState.normal);
+  await client.write(
+    device,
+    av,
+    BacnetProperties.analogPresentValue,
+    20,
+    priority: 8,
+  );
+  print('normal ${await normalReceived}');
+  await client.writeProperty(
+    device,
+    av.type,
+    av.instance,
+    BacnetPropertyId.presentValue,
+    const BacnetNull(),
+    priority: 8,
+  );
+  try {
+    await client.removeListElements(
+      device,
+      nc,
+      BacnetProperties.recipientList,
+      [me],
+    );
+  } on BacnetRejectException {
+    await client.write(device, nc, BacnetProperties.recipientList, before);
+  }
+  print(
+    'recipients ${await client.read(device, nc, BacnetProperties.recipientList)}',
+  );
+  print('alarms: ok');
 }

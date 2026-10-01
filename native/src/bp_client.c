@@ -188,8 +188,11 @@ static void bp_on_timeout(uint8_t invoke_id)
     bp_transaction_t *tx = bp_tx_for(invoke_id);
 
     if (!tx) {
-        /* not ours (e.g. a confirmed COV notification of the server):
-           the owner frees the invoke id */
+        /* not ours: a confirmed COV or event notification of the server.
+           The COV handler checks its own invoke ids; nobody tracks those
+           of event notifications, so free the slot here (the COV handler
+           then sees it free) */
+        tsm_free_invoke_id(invoke_id);
         return;
     }
     bp_tx_event(tx, BP_EVENT_TIMEOUT, invoke_id, &tx->dest);
@@ -223,6 +226,9 @@ bp_on_i_am(uint8_t *service_request, uint16_t service_len, BACNET_ADDRESS *src)
     if (max_apdu > MAX_APDU) {
         max_apdu = MAX_APDU;
     }
+    /* answers the Who-Is of a device recipient of a Notification Class
+       (updates only devices the stack waits for) */
+    address_add_binding(device_id, max_apdu, src);
     entry = bp_device_put(device_id, src, (uint16_t)max_apdu);
     if (entry) {
         entry->vendor_id = vendor_id;

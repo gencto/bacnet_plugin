@@ -11,12 +11,15 @@ import 'package:meta/meta.dart';
 import '../codec/value_encoding.dart';
 import '../codec/writer.dart';
 import '../constants/engineering_units.dart';
+import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/bacnet_config.dart';
 import '../core/logger.dart';
+import '../models/alarms.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_value.dart';
+import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
@@ -101,8 +104,9 @@ class BacnetServer {
 
   /// Initializes the local Device object and starts answering requests
   /// (Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property),
-  /// ReadRange, DeviceCommunicationControl, ReinitializeDevice and time
-  /// synchronization). Sends an I-Am.
+  /// ReadRange, Add/RemoveListElement, AcknowledgeAlarm,
+  /// GetEventInformation, GetAlarmSummary, DeviceCommunicationControl,
+  /// ReinitializeDevice and time synchronization). Sends an I-Am.
   ///
   /// ```dart
   /// await server.init(4194300, 'Building Controller', vendorName: 'ACME');
@@ -140,8 +144,9 @@ class BacnetServer {
   /// Adds an object to the server and returns its instance.
   ///
   /// Supported types: Analog/Binary/Multi-state Input/Output/Value, Integer
-  /// Value, Positive Integer Value, CharacterString Value and every other
-  /// object type of bacnet-stack that supports CreateObject.
+  /// Value, Positive Integer Value, CharacterString Value, Notification
+  /// Class (see [addNotificationClass]) and every other object type of
+  /// bacnet-stack that supports CreateObject.
   /// [stateTexts] defines the states of multi-state objects. See
   /// [setPresentValue] for the supported [presentValue]s.
   Future<int> addObject(
@@ -351,10 +356,113 @@ class BacnetServer {
       object.type,
       object.instance,
       property.id,
-      property.encode(value),
+      property.encodeValue(value),
       priority: priority,
     ),
   );
+
+  // ---- alarms and events ----------------------------------------------------
+
+  /// Adds Notification Class [instance] (0..63): the recipients,
+  /// priorities and acknowledgement rules of the alarms and events of the
+  /// objects that refer to it.
+  ///
+  /// Clients add themselves to the recipients with AddListElement
+  /// ([BacnetClient.addListElements]); [recipients] are the initial ones.
+  ///
+  /// ```dart
+  /// await server.addNotificationClass(1, name: 'Critical alarms');
+  /// await server.enableEventReporting(
+  ///   const BacnetObject(type: BacnetObjectType.analogInput, instance: 1),
+  ///   notificationClass: 1,
+  ///   highLimit: 30,
+  ///   lowLimit: 10,
+  ///   deadband: 0.5,
+  /// );
+  /// ```
+  Future<void> addNotificationClass(
+    int instance, {
+    String? name,
+    String? description,
+    BacnetEventPriorities priorities = const BacnetEventPriorities(
+      toOffNormal: 100,
+      toFault: 100,
+      toNormal: 200,
+    ),
+    BacnetEventTransitionBits ackRequired = const BacnetEventTransitionBits(
+      toOffNormal: true,
+      toFault: true,
+    ),
+    List<BacnetDestination> recipients = const [],
+  }) async {
+    await addObject(
+      BacnetObjectType.notificationClass,
+      instance,
+      name: name,
+      description: description,
+    );
+    final object = BacnetObject(
+      type: BacnetObjectType.notificationClass,
+      instance: instance,
+    );
+    await write(object, BacnetProperties.priority, priorities);
+    await write(object, BacnetProperties.ackRequired, ackRequired);
+    if (recipients.isNotEmpty) {
+      await write(object, BacnetProperties.recipientList, recipients);
+    }
+  }
+
+  /// Enables the event algorithm (intrinsic reporting) of an Analog or
+  /// Binary Input or Value: the server evaluates it every second and sends
+  /// event notifications to the recipients of [notificationClass].
+  ///
+  /// Analog objects report OUT_OF_RANGE when the present value exceeds
+  /// [highLimit] or falls below [lowLimit] for [timeDelay] (and return to
+  /// normal [deadband] inside the limits); binary objects report
+  /// CHANGE_OF_STATE when the present value equals [alarmValue]. A
+  /// Reliability other than no-fault-detected reports a fault.
+  /// [eventEnable] selects the reported transitions.
+  Future<void> enableEventReporting(
+    BacnetObject object, {
+    required int notificationClass,
+    double? highLimit,
+    double? lowLimit,
+    double deadband = 0,
+    BacnetBinaryPV? alarmValue,
+    BacnetEventTransitionBits eventEnable = const BacnetEventTransitionBits(
+      toOffNormal: true,
+      toFault: true,
+      toNormal: true,
+    ),
+    BacnetNotifyType notifyType = BacnetNotifyType.alarm,
+    Duration timeDelay = Duration.zero,
+  }) async {
+    await write(object, BacnetProperties.notificationClass, notificationClass);
+    await write(object, BacnetProperties.notifyType, notifyType);
+    await write(object, BacnetProperties.timeDelay, timeDelay.inSeconds);
+    if (highLimit != null) {
+      await write(object, BacnetProperties.highLimit, highLimit);
+    }
+    if (lowLimit != null) {
+      await write(object, BacnetProperties.lowLimit, lowLimit);
+    }
+    if (highLimit != null || lowLimit != null) {
+      await write(object, BacnetProperties.deadband, deadband);
+      await write(
+        object,
+        BacnetProperties.limitEnable,
+        BacnetLimitEnable(
+          lowLimit: lowLimit != null,
+          highLimit: highLimit != null,
+        ),
+      );
+    }
+    if (alarmValue != null) {
+      await write(object, BacnetProperties.binaryAlarmValue, alarmValue);
+    }
+    // last: the algorithm starts with the complete configuration
+    await write(object, BacnetProperties.eventEnable, eventEnable);
+  }
 
   /// Broadcasts an I-Am for the local device.
   Future<void> sendIAm() => _system.call<void>(SendIAmCommand.new);

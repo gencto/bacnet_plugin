@@ -49,6 +49,7 @@
 #include "bacnet/basic/object/netport.h"
 #include "bacnet/basic/object/color_object.h"
 #include "bacnet/basic/object/color_temperature.h"
+#include "bp_internal.h"
 
 static object_functions_t BP_Object_Table[] = {
     { OBJECT_DEVICE,
@@ -214,7 +215,7 @@ static object_functions_t BP_Object_Table[] = {
       Binary_Input_Encode_Value_List,
       Binary_Input_Change_Of_Value,
       Binary_Input_Change_Of_Value_Clear,
-      NULL /* Intrinsic Reporting */,
+      Binary_Input_Intrinsic_Reporting,
       NULL /* Add_List_Element */,
       NULL /* Remove_List_Element */,
       Binary_Input_Create,
@@ -256,7 +257,7 @@ static object_functions_t BP_Object_Table[] = {
       Binary_Value_Encode_Value_List,
       Binary_Value_Change_Of_Value,
       Binary_Value_Change_Of_Value_Clear,
-      NULL /* Intrinsic Reporting */,
+      Binary_Value_Intrinsic_Reporting,
       NULL /* Add_List_Element */,
       NULL /* Remove_List_Element */,
       Binary_Value_Create,
@@ -414,12 +415,12 @@ static object_functions_t BP_Object_Table[] = {
 #endif
 #if defined(INTRINSIC_REPORTING)
     { OBJECT_NOTIFICATION_CLASS,
-      Notification_Class_Init,
-      Notification_Class_Count,
-      Notification_Class_Index_To_Instance,
-      Notification_Class_Valid_Instance,
-      Notification_Class_Object_Name,
-      Notification_Class_Read_Property,
+      bp_nc_init,
+      bp_nc_count,
+      bp_nc_index_to_instance,
+      bp_nc_valid_instance,
+      bp_nc_object_name,
+      bp_nc_read_property,
       Notification_Class_Write_Property,
       Notification_Class_Property_Lists,
       NULL /* ReadRangeInfo */,
@@ -430,8 +431,8 @@ static object_functions_t BP_Object_Table[] = {
       NULL /* Intrinsic Reporting */,
       Notification_Class_Add_List_Element,
       Notification_Class_Remove_List_Element,
-      NULL /* Create */,
-      NULL /* Delete */,
+      bp_nc_create,
+      bp_nc_delete,
       NULL /* Timer */,
       Notification_Class_Writable_Property_List },
 #endif

@@ -1,6 +1,6 @@
 /*
- * bacnet_plugin - server side: local device, COV and object
- * lifecycle.
+ * bacnet_plugin - server side: local device, COV, event reporting and
+ * object lifecycle.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -11,6 +11,7 @@
 #include "bacnet/basic/object/bv.h"
 #include "bacnet/basic/object/device.h"
 #include "bacnet/basic/object/msv.h"
+#include "bacnet/basic/object/nc.h"
 #include "bacnet/basic/services.h"
 #include "bacnet/basic/tsm/tsm.h"
 
@@ -20,6 +21,10 @@ static bool bp_on_write_store(BACNET_WRITE_PROPERTY_DATA *wp_data)
 {
     bp_event_header_t hdr;
 
+    if (wp_data && wp_data->object_type == OBJECT_NOTIFICATION_CLASS &&
+        wp_data->object_property == PROP_RECIPIENT_LIST) {
+        bp_state.nc_rescan = true;
+    }
     if (bp_state.suppress_write_events || !wp_data) {
         return true;
     }
@@ -37,6 +42,43 @@ static bool bp_on_write_store(BACNET_WRITE_PROPERTY_DATA *wp_data)
             ? (uint32_t)wp_data->application_data_len
             : 0);
     return true;
+}
+
+static int bp_on_list_element(BACNET_LIST_ELEMENT_DATA *list_element)
+{
+    if (list_element &&
+        list_element->object_type == OBJECT_NOTIFICATION_CLASS &&
+        list_element->object_property == PROP_RECIPIENT_LIST) {
+        bp_state.nc_rescan = true;
+    }
+    return BACNET_STATUS_OK;
+}
+
+/* Runs the event algorithms of the objects (intrinsic reporting) once per
+   second and resolves the addresses of device recipients of the
+   Notification Classes: every NC_RESCAN_RECIPIENTS_SECS and after the
+   recipients changed. */
+void bp_event_reporting(uint32_t seconds)
+{
+#if defined(INTRINSIC_REPORTING)
+    uint32_t runs = seconds > 10 ? 10 : seconds;
+
+    if (!bp_state.server_enabled) {
+        return;
+    }
+    while (runs-- > 0) {
+        Device_local_reporting();
+    }
+    bp_state.nc_rescan_elapsed += seconds;
+    if (bp_state.nc_rescan ||
+        bp_state.nc_rescan_elapsed >= NC_RESCAN_RECIPIENTS_SECS) {
+        bp_state.nc_rescan = false;
+        bp_state.nc_rescan_elapsed = 0;
+        Notification_Class_find_recipient();
+    }
+#else
+    (void)seconds;
+#endif
 }
 
 void bp_cov_scan(uint32_t now)
@@ -108,8 +150,25 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
             handler_device_communication_control);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_REINITIALIZE_DEVICE, handler_reinitialize_device);
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_ADD_LIST_ELEMENT, handler_add_list_element);
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_REMOVE_LIST_ELEMENT, handler_remove_list_element);
+#if defined(INTRINSIC_REPORTING)
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_ACKNOWLEDGE_ALARM, handler_alarm_ack);
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_GET_EVENT_INFORMATION,
+            handler_get_event_information);
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_GET_ALARM_SUMMARY, handler_get_alarm_summary);
+#endif
         handler_cov_init();
         Device_Write_Property_Store_Callback_Set(bp_on_write_store);
+        Device_Add_List_Element_Callback_Set(bp_on_list_element);
+        Device_Remove_List_Element_Callback_Set(bp_on_list_element);
+        bp_state.nc_rescan = true;
+        bp_state.nc_rescan_elapsed = 0;
         bp_state.server_enabled = true;
     }
     Send_I_Am(&Handler_Transmit_Buffer[0]);
