@@ -469,7 +469,10 @@ BP_API int32_t bacnet_plugin_send_unconfirmed(
         return BP_ERR_COMMUNICATION_DISABLED;
     }
     if (device_id == BP_DEVICE_UNKNOWN) {
-        datalink_get_broadcast_address(&dest);
+        /* no MAC: a broadcast (Original-Broadcast-NPDU, or
+           Distribute-Broadcast-To-Network as foreign device); the NPCI
+           names the network unless it is the local one */
+        memset(&dest, 0, sizeof(dest));
         dest.net = network;
     } else {
         bp_device_entry_t *device = bp_device_find(device_id);
@@ -602,6 +605,86 @@ BP_API int32_t bacnet_plugin_local_address(uint8_t *mac)
     }
     memcpy(mac, address.mac, 6);
     return 6;
+}
+
+void bp_network_received(
+    const BACNET_ADDRESS *src,
+    const BACNET_ADDRESS *dest,
+    const BACNET_NPDU_DATA *npdu_data,
+    const uint8_t *message,
+    uint16_t message_len)
+{
+    bp_event_header_t hdr;
+
+    if ((dest->net != 0 && dest->net != BACNET_BROADCAST_NETWORK) ||
+        npdu_data->network_message_type > 0xFF) {
+        /* for a router, or no message type */
+        return;
+    }
+    bp_event_init(&hdr, BP_EVENT_NETWORK);
+    hdr.service = (uint8_t)npdu_data->network_message_type;
+    hdr.a = npdu_data->network_message_type >= 0x80 ? npdu_data->vendor_id : 0;
+    hdr.b = dest->net;
+    bp_event_src(&hdr, src);
+    bp_event_push(&hdr, message, message_len);
+}
+
+BP_API int32_t bacnet_plugin_send_network(
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len,
+    uint8_t message_type,
+    uint16_t vendor_id,
+    const uint8_t *data,
+    uint16_t data_len)
+{
+    BACNET_NPDU_DATA npdu_data;
+    BACNET_ADDRESS my_address;
+    BACNET_ADDRESS dest;
+    int pdu_len;
+
+    if (!bp_state.initialized) {
+        return BP_ERR_NOT_INITIALIZED;
+    }
+    if ((data_len > 0 && !data) || (mac_len > 0 && !mac) ||
+        (adr_len > 0 && !adr) || mac_len > MAX_MAC_LEN ||
+        adr_len > MAX_MAC_LEN || (adr_len > 0 && net == 0)) {
+        return BP_ERR_INVALID_ARGUMENT;
+    }
+    /* no MAC: a broadcast, as in bacnet_plugin_send_unconfirmed() */
+    memset(&dest, 0, sizeof(dest));
+    dest.mac_len = mac_len;
+    if (mac_len) {
+        memcpy(dest.mac, mac, mac_len);
+    }
+    dest.net = net;
+    dest.len = adr_len;
+    if (adr_len) {
+        memcpy(dest.adr, adr, adr_len);
+    }
+    datalink_get_my_address(&my_address);
+    /* Initialize-Routing-Table is the only one expecting a reply */
+    npdu_encode_npdu_network(
+        &npdu_data, (BACNET_NETWORK_MESSAGE_TYPE)message_type,
+        message_type == NETWORK_MESSAGE_INIT_RT_TABLE, MESSAGE_PRIORITY_NORMAL);
+    npdu_data.vendor_id = vendor_id;
+    pdu_len =
+        npdu_encode_pdu(&bp_state.tx_buf[0], &dest, &my_address, &npdu_data);
+    if (pdu_len <= 0 || pdu_len + data_len > MAX_PDU) {
+        return BP_ERR_APDU_TOO_LARGE;
+    }
+    if (data_len) {
+        memcpy(&bp_state.tx_buf[pdu_len], data, data_len);
+        pdu_len += data_len;
+    }
+    bp_state.stats.requests_sent++;
+    if (datalink_send_pdu(&dest, &npdu_data, &bp_state.tx_buf[0], pdu_len) <=
+        0) {
+        return BP_ERR_SEND_FAILED;
+    }
+    return BP_OK;
 }
 
 BP_API int32_t bacnet_plugin_register_foreign_device(

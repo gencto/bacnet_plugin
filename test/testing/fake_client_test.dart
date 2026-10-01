@@ -813,4 +813,89 @@ void main() {
       expect(boiler.messages.single.message, 'Shutdown at 18:00');
     });
   });
+
+  group('network layer', () {
+    late FakeBacnetClient client;
+    final router = FakeBacnetRouter('10.0.0.1', networks: [5, 6]);
+
+    setUp(() async {
+      client = FakeBacnetClient(
+        routers: [
+          router,
+          FakeBacnetRouter('10.0.0.2', port: 47809, networks: [7]),
+        ],
+        networkNumber: 1,
+      );
+      await client.start();
+    });
+
+    test('discovers routers', () async {
+      final routers = await client.discoverRouters(
+        timeout: const Duration(milliseconds: 20),
+      );
+      expect(routers, [
+        BacnetRouter(
+          mac: const [10, 0, 0, 1, 0xBA, 0xC0],
+          networks: const [5, 6],
+        ),
+        BacnetRouter(mac: const [10, 0, 0, 2, 0xBA, 0xC1], networks: const [7]),
+      ]);
+      expect(
+        await client.discoverRouters(
+          network: 6,
+          timeout: const Duration(milliseconds: 20),
+        ),
+        [
+          BacnetRouter(
+            mac: const [10, 0, 0, 1, 0xBA, 0xC0],
+            networks: const [6],
+          ),
+        ],
+      );
+      expect(
+        client.requests.last.networkMessage,
+        BacnetWhoIsRouterToNetwork(network: 6),
+      );
+    });
+
+    test('tells the network number', () async {
+      expect(
+        await client.whatIsNetworkNumber(),
+        BacnetNetworkNumberIs(network: 1, configured: true),
+      );
+      client.networkNumber = null;
+      expect(
+        await client.whatIsNetworkNumber(
+          timeout: const Duration(milliseconds: 20),
+        ),
+        isNull,
+      );
+    });
+
+    test('reads routing tables', () async {
+      expect(await client.readRoutingTable('10.0.0.1'), [
+        BacnetRoutingTableEntry(network: 5, portId: 1),
+        BacnetRoutingTableEntry(network: 6, portId: 2),
+      ]);
+      expect(client.requests.last.address, '10.0.0.1:47808');
+      router.online = false;
+      addTearDown(() => router.online = true);
+      await expectLater(
+        client.readRoutingTable(
+          '10.0.0.1',
+          timeout: const Duration(milliseconds: 20),
+        ),
+        throwsA(isA<BacnetTimeoutException>()),
+      );
+    });
+
+    test('streams the messages of the routers', () async {
+      final messages = client.networkMessages.take(2).toList();
+      await client.whoIsRouterToNetwork();
+      expect((await messages).map((e) => e.ipAddress), [
+        '10.0.0.1',
+        '10.0.0.2',
+      ]);
+    });
+  });
 }

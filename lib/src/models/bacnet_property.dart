@@ -669,6 +669,48 @@ abstract final class BacnetProperties {
     BacnetPropertyId.totalRecordCount,
     _unsigned,
   );
+
+  // ---- file ----------------------------------------------------------------------
+
+  /// File_Type of a File object: a media type such as `text/plain`.
+  static const fileType = BacnetWritableProperty<String>(
+    BacnetPropertyId.fileType,
+    _string,
+    _encodeString,
+  );
+
+  /// File_Size of a File object in octets; writing it truncates or extends
+  /// a stream file where the device allows it.
+  static const fileSize = BacnetWritableProperty<int>(
+    BacnetPropertyId.fileSize,
+    _unsigned,
+    _encodeUnsigned,
+  );
+
+  /// Modification_Date of a File object: the time of the last change.
+  static const modificationDate = BacnetProperty<BacnetDateTime>(
+    BacnetPropertyId.modificationDate,
+    BacnetDateTime.fromValue,
+  );
+
+  /// Archive of a File object: set by a backup, cleared by changes.
+  static const archive = BacnetWritableProperty<bool>(
+    BacnetPropertyId.archive,
+    _boolean,
+    _encodeBoolean,
+  );
+
+  /// Read_Only of a File object.
+  static const readOnly = BacnetProperty<bool>(
+    BacnetPropertyId.readOnly,
+    _boolean,
+  );
+
+  /// File_Access_Method of a File object: stream or record access.
+  static const fileAccessMethod = BacnetProperty<BacnetFileAccessMethod>(
+    BacnetPropertyId.fileAccessMethod,
+    _fileAccessMethod,
+  );
 }
 
 /// Typed access to the results of [BacnetClient.readMultiple].
@@ -693,6 +735,11 @@ Never _wrongType(String expected, BacnetValue value) =>
     throw BacnetDecodeException('expected $expected, got $value');
 
 BacnetValue _any(BacnetValue value) => value;
+
+BacnetFileAccessMethod _fileAccessMethod(BacnetValue value) => switch (value) {
+  BacnetEnumerated(:final value) => BacnetFileAccessMethod(value),
+  _ => _wrongType('Enumerated', value),
+};
 
 double _real(BacnetValue value) => switch (value) {
   BacnetReal(:final value) => value,

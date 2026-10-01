@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:bacnet_plugin/bacnet_plugin.dart';
 import 'package:test/test.dart';
 
+import '../support/fake_router.dart';
 import '../support/segmenting_device.dart';
 
 /// Runs tool/demo_server.dart in a separate process (the native stack is
@@ -152,7 +153,7 @@ void main() {
       deviceObject,
       BacnetProperties.objectList,
     );
-    expect(objects, hasLength(107));
+    expect(objects, hasLength(109));
     expect(
       await client.read(device, deviceObject, BacnetProperties.vendorName),
       'bacnet_plugin',
@@ -161,8 +162,8 @@ void main() {
 
   test('scans the object list', () async {
     final objects = await client.scanDevice(device);
-    // device, network port, 100 AV, BV, MSV, alarms: NC, AV, BV
-    expect(objects, hasLength(107));
+    // device, network port, 100 AV, BV, MSV, alarms: NC, AV, BV, 2 files
+    expect(objects, hasLength(109));
     final scanner = DeviceScanner(client);
     final details = await scanner.getDeviceDetails(device);
     expect(details.deviceName, 'DemoServer');
@@ -905,9 +906,277 @@ void main() {
         throwsA(isA<BacnetRejectException>()),
       );
       await expectLater(
-        client.readFile(device, 1),
+        client.readFile(device, 99),
         throwsA(isA<BacnetProtocolException>()),
       );
     });
   });
+
+  group('files', () {
+    const notes = BacnetObject(type: BacnetObjectType.file, instance: 1);
+    const firmware = BacnetObject(type: BacnetObjectType.file, instance: 2);
+
+    Future<String> fileLine(String text) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (DateTime.now().isBefore(deadline)) {
+        for (final line in server.lines) {
+          if (line.startsWith('FILE') && line.contains(text)) return line;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      throw TimeoutException('no "FILE ... $text" line from the server');
+    }
+
+    test('reads files of the server', () async {
+      expect(
+        String.fromCharCodes(await client.readFile(device, 1)),
+        'hello from the server',
+      );
+      expect(
+        await client.read(device, notes, BacnetProperties.fileType),
+        'text/plain',
+      );
+      expect(
+        await client.read(device, notes, BacnetProperties.description),
+        'Notes of the operator',
+      );
+      final firmwareContent = await client.readFile(device, 2, chunkSize: 1000);
+      expect(firmwareContent, List.generate(3000, (i) => i & 0xFF));
+      expect(
+        await client.read(device, firmware, BacnetProperties.readOnly),
+        isTrue,
+      );
+      expect(
+        await client.read(device, firmware, BacnetProperties.fileSize),
+        3000,
+      );
+    });
+
+    test('remote clients write, append and truncate', () async {
+      final before = await client.read(
+        device,
+        notes,
+        BacnetProperties.modificationDate,
+      );
+      await client.writeFile(device, 1, 'HELLO'.codeUnits);
+      await fileLine('5 octets at 0');
+      expect(
+        String.fromCharCodes(await client.readFile(device, 1)),
+        'HELLO from the server',
+      );
+      // an append answers with the position it wrote at
+      expect(
+        await client.writeFileStream(device, 1, '!'.codeUnits, start: -1),
+        21,
+      );
+      await fileLine('1 octets at 21');
+      await client.writeFile(device, 1, 'short'.codeUnits, truncate: true);
+      expect(String.fromCharCodes(await client.readFile(device, 1)), 'short');
+      final after = await client.read(
+        device,
+        notes,
+        BacnetProperties.modificationDate,
+      );
+      expect(after, isNot(before));
+      expect(
+        await client.read(device, notes, BacnetProperties.archive),
+        isFalse,
+      );
+    });
+
+    test('the description is not the storage of the content', () async {
+      await client.write(
+        device,
+        notes,
+        BacnetProperties.description,
+        'Changed by a client',
+      );
+      expect(
+        await client.read(device, notes, BacnetProperties.description),
+        'Changed by a client',
+      );
+      // the content is still there
+      expect(
+        await client.read(device, notes, BacnetProperties.fileSize),
+        greaterThan(0),
+      );
+      await client.writeFileStream(device, 1, 'x'.codeUnits);
+      expect((await client.readFile(device, 1)).first, 'x'.codeUnitAt(0));
+    });
+
+    test('read only files and record access are refused', () async {
+      await expectLater(
+        client.writeFileStream(device, 2, const [1, 2, 3]),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.errorCode,
+            'code',
+            BacnetErrorCode.fileAccessDenied,
+          ),
+        ),
+      );
+      await expectLater(
+        client.write(device, firmware, BacnetProperties.description, 'x'),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.errorCode,
+            'code',
+            BacnetErrorCode.writeAccessDenied,
+          ),
+        ),
+      );
+      await expectLater(
+        client.readFileRecords(device, 1, start: 0, count: 1),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.errorCode,
+            'code',
+            BacnetErrorCode.invalidFileAccessMethod,
+          ),
+        ),
+      );
+      await expectLater(
+        client.readFileStream(device, 2, start: 5000, count: 10),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.errorCode,
+            'code',
+            BacnetErrorCode.invalidFileStartPosition,
+          ),
+        ),
+      );
+    });
+  });
+
+  group('network layer', () {
+    const clientPort = 47862;
+    late FakeRouter router;
+
+    setUp(() async {
+      router = await FakeRouter.bind(networks: [5, 6], networkNumber: 3);
+    });
+    tearDown(() => router.close());
+
+    test('receives router announcements', () async {
+      final announcement = client.networkMessages.firstWhere(
+        (event) => event.port == router.port,
+      );
+      router.send(clientPort, 0x01, [0, 5, 0, 6]);
+      final event = await announcement.timeout(const Duration(seconds: 5));
+      expect(event.message, BacnetIAmRouterToNetwork([5, 6]));
+      expect(event.ipAddress, '127.0.0.1');
+      expect(event.net, 0);
+      expect(event.destinationNetwork, 0);
+    });
+
+    test('reads the routing table of a router', () async {
+      final table = await client.readRoutingTable(
+        '127.0.0.1',
+        port: router.port,
+      );
+      expect(table, [
+        BacnetRoutingTableEntry(network: 5, portId: 1),
+        BacnetRoutingTableEntry(network: 6, portId: 2),
+      ]);
+      final query = router.received.single;
+      expect(query.type, 0x06);
+      expect(query.bvlcFunction, 0x0A); // Original-Unicast-NPDU
+      expect(query.expectingReply, isTrue);
+      expect(query.data, [0]);
+    });
+
+    test('routing table queries time out without an answer', () async {
+      final silent = await RawDatagramSocket.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      addTearDown(silent.close);
+      await expectLater(
+        client.readRoutingTable(
+          '127.0.0.1',
+          port: silent.port,
+          timeout: const Duration(milliseconds: 300),
+        ),
+        throwsA(isA<BacnetTimeoutException>()),
+      );
+    });
+
+    test('sends network messages to a router', () async {
+      final answer = client.networkMessages.firstWhere(
+        (event) => event.port == router.port,
+      );
+      await client.sendNetworkMessage(
+        BacnetWhoIsRouterToNetwork(network: 6),
+        ip: '127.0.0.1',
+        port: router.port,
+      );
+      expect(
+        (await answer.timeout(const Duration(seconds: 5))).message,
+        BacnetIAmRouterToNetwork([6]),
+      );
+      expect(router.received.single.data, [0, 6]);
+      expect(router.received.single.destinationNetwork, isNull);
+
+      // a proprietary message for a device on network 9
+      await client.sendNetworkMessage(
+        BacnetOtherNetworkMessage(const BacnetNetworkMessageType(0x80), const [
+          1,
+          2,
+        ], vendorId: 260),
+        ip: '127.0.0.1',
+        port: router.port,
+        network: 9,
+        adr: const [7],
+      );
+      await _waitFor(() => router.received.length == 2);
+      final proprietary = router.received.last;
+      expect(proprietary.type, 0x80);
+      expect(proprietary.destinationNetwork, 9);
+      expect(proprietary.data, [1, 2]);
+      expect(
+        () => client.sendNetworkMessage(
+          const BacnetWhatIsNetworkNumber(),
+          adr: const [1],
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('broadcasts find routers and the network number', () async {
+      if (!await router.listenForBroadcasts(clientPort)) {
+        markTestSkipped('no broadcasts on the loopback interface');
+        return;
+      }
+      final routers = await client.discoverRouters(
+        timeout: const Duration(seconds: 1),
+      );
+      expect(
+        routers,
+        contains(
+          BacnetRouter(
+            mac: [127, 0, 0, 1, router.port >> 8, router.port & 0xFF],
+            networks: const [5, 6],
+          ),
+        ),
+      );
+      final whoIs = router.received.firstWhere((m) => m.type == 0x00);
+      expect(whoIs.bvlcFunction, 0x0B); // Original-Broadcast-NPDU
+      expect(whoIs.destinationNetwork, isNull); // local broadcast
+      expect(
+        await client.whatIsNetworkNumber(timeout: const Duration(seconds: 2)),
+        BacnetNetworkNumberIs(network: 3, configured: true),
+      );
+    });
+  });
+}
+
+Future<void> _waitFor(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 5),
+}) async {
+  final end = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(end)) throw TimeoutException('condition');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
 }

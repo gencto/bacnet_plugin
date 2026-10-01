@@ -134,6 +134,26 @@ class UnconfirmedRequestCommand extends WorkerCommand {
   final int network;
 }
 
+/// Sends a network layer message (a local broadcast when [mac] is empty).
+class NetworkMessageCommand extends WorkerCommand {
+  const NetworkMessageCommand(
+    super.id, {
+    required this.messageType,
+    required this.payload,
+    this.mac = const [],
+    this.network = 0,
+    this.adr = const [],
+    this.vendorId = 0,
+  });
+
+  final int messageType;
+  final Uint8List payload;
+  final List<int> mac;
+  final int network;
+  final List<int> adr;
+  final int vendorId;
+}
+
 /// Adds a static address binding.
 class BindDeviceCommand extends WorkerCommand {
   const BindDeviceCommand(
@@ -160,12 +180,12 @@ class UnbindDeviceCommand extends WorkerCommand {
   final int deviceId;
 }
 
-/// Queries the address binding of a device.
 /// Returns the own BACnet/IP address as a list of 6 bytes.
 class LocalAddressCommand extends WorkerCommand {
   const LocalAddressCommand(super.id);
 }
 
+/// Queries the address binding of a device.
 class DeviceBindingCommand extends WorkerCommand {
   const DeviceBindingCommand(super.id, this.deviceId);
   final int deviceId;
@@ -244,6 +264,32 @@ class CreateObjectCommand extends WorkerCommand {
   final List<String>? stateTexts;
   final double? presentValue;
   final String? presentValueString;
+}
+
+/// Replaces the content of a File object of the server.
+class SetFileContentCommand extends WorkerCommand {
+  const SetFileContentCommand(super.id, this.instance, this.content);
+  final int instance;
+  final Uint8List content;
+}
+
+/// Returns the content of a File object of the server as Uint8List.
+class FileContentCommand extends WorkerCommand {
+  const FileContentCommand(super.id, this.instance);
+  final int instance;
+}
+
+/// Sets File_Type and Read_Only of a File object (null keeps them).
+class ConfigureFileCommand extends WorkerCommand {
+  const ConfigureFileCommand(
+    super.id,
+    this.instance, {
+    this.fileType,
+    this.readOnly,
+  });
+  final int instance;
+  final String? fileType;
+  final bool? readOnly;
 }
 
 /// Deletes a server object.

@@ -246,6 +246,31 @@ void main() {
       expect(decodeAtomicWriteFileAck(hexBytes(_writeRecordAck)), 4);
     });
 
+    test('AtomicWriteFile requests decode (server side)', () {
+      final stream = decodeAtomicWriteFile(hexBytes(_writeStream));
+      expect(
+        stream.file,
+        const BacnetObject(type: BacnetObjectType.file, instance: 2),
+      );
+      expect(stream.start, -1);
+      expect(stream.data, utf8.encode('append'));
+      expect(stream.records, isNull);
+      final records = decodeAtomicWriteFile(hexBytes(_writeRecord));
+      expect(records.start, 4);
+      expect(records.data, isNull);
+      expect(records.records, [utf8.encode('rec')]);
+      for (final hex in [_writeStream, _writeRecord]) {
+        final data = hexBytes(hex);
+        for (var length = 0; length < data.length; length++) {
+          expect(
+            () => decodeAtomicWriteFile(Uint8List.sublistView(data, 0, length)),
+            throwsA(isA<BacnetDecodeException>()),
+            reason: '$hex[:$length]',
+          );
+        }
+      }
+    });
+
     test('truncated answers are rejected', () {
       for (final hex in [_readStreamAck, _readRecordsAck]) {
         final data = hexBytes(hex);

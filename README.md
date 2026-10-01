@@ -21,12 +21,15 @@ Dart programs such as headless gateways and supervisory services.
   GetAlarmSummary, Add/RemoveListElement), device management
   (DeviceCommunicationControl, ReinitializeDevice, Create/DeleteObject),
   file transfer (AtomicReadFile/AtomicWriteFile), private transfer, text
-  messages, time synchronization, foreign device registration and raw
-  confirmed services.
+  messages, time synchronization, router and network discovery
+  (Who-Is-Router-To-Network, What-Is-Network-Number, routing tables),
+  foreign device registration, BBMD table management (Broadcast
+  Distribution and Foreign Device Tables) and raw confirmed services.
 - **Server**: hosts Analog/Binary/Multi-state Input/Output/Value, Integer,
-  Positive Integer, CharacterString Value and Notification Class objects;
-  answers Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property),
-  ReadRange, Add/RemoveListElement, DeviceCommunicationControl and
+  Positive Integer, CharacterString Value, Notification Class and File
+  objects (content in memory); answers Who-Is, Read/WriteProperty(Multiple),
+  SubscribeCOV(Property), ReadRange, Add/RemoveListElement,
+  AtomicReadFile/AtomicWriteFile, DeviceCommunicationControl and
   ReinitializeDevice (password protected, reported to the application)
   natively; reports alarms of analog and binary objects
   (intrinsic reporting) and answers AcknowledgeAlarm, GetEventInformation
@@ -588,6 +591,83 @@ server.reinitializeRequests.listen((request) {
 server.communicationControls.listen(print);
 ```
 
+The server hosts File objects whose content it keeps in memory: clients
+read them with AtomicReadFile and, unless they are read only, write them
+with AtomicWriteFile (appends answer with the position they wrote at) and
+truncate them by writing File_Size. Modification_Date and Archive follow
+the changes:
+
+```dart
+await server.addFile(1,
+    name: 'settings.json',
+    fileType: 'application/json',
+    content: utf8.encode(jsonEncode(settings)));
+await server.addFile(2, name: 'firmware.bin', readOnly: true,
+    content: firmware);
+
+server.fileWrites.listen((write) async {
+  print('${write.data.length} octets at ${write.start} of file '
+      '${write.instance}');
+  final content = await server.fileContent(write.instance);
+  applySettings(jsonDecode(utf8.decode(content)));
+});
+await server.setFileContent(1, utf8.encode(jsonEncode(defaults)));
+```
+
+The typed descriptors `BacnetProperties.fileType`, `fileSize`,
+`modificationDate`, `archive`, `readOnly` and `fileAccessMethod` read the
+properties of File objects of any device.
+
+## Routers, networks and BBMDs
+
+Routers connect BACnet networks (BACnet/IP subnets, MS/TP trunks). Their
+network layer messages arrive as `NetworkMessageEvent`s on
+`client.networkMessages`; `BacnetNetworkDiscovery` finds routers, the
+number of the local network and routing tables:
+
+```dart
+for (final router in await client.discoverRouters()) {
+  print('${router.ipAddress}:${router.port} routes to ${router.networks}');
+}
+final number = await client.whatIsNetworkNumber(); // null: nobody knows
+final table = await client.readRoutingTable('192.168.1.1');
+
+client.networkMessages.listen((event) {
+  switch (event.message) {
+    case BacnetRejectMessageToNetwork(:final reason, :final network):
+      print('network $network unreachable: ${reason.label}');
+    case BacnetRouterBusyToNetwork(:final networks):
+      print('router ${event.ipAddress} busy for $networks');
+    case _:
+  }
+});
+```
+
+`sendNetworkMessage` sends any network layer message
+(`BacnetNetworkMessage` subclasses, proprietary ones as
+`BacnetOtherNetworkMessage`) as a local broadcast, to a router, or to a
+device behind it. Devices behind a router are reached with
+`addDeviceBinding(..., network: 5, adr: [...])` or by their I-Am.
+
+BBMDs forward broadcasts between BACnet/IP subnets. `BacnetBbmdClient`
+reads and changes their tables over its own UDP socket, without a started
+client:
+
+```dart
+final bbmd = BacnetBbmdClient('192.168.1.1');
+final peers = await bbmd.readBroadcastDistributionTable();
+final foreignDevices = await bbmd.readForeignDeviceTable();
+await bbmd.writeBroadcastDistributionTable([
+  ...peers,
+  BacnetBdtEntry('10.0.0.1'), // forward broadcasts to this BBMD too
+]);
+await bbmd.deleteForeignDeviceTableEntry('192.168.5.20');
+```
+
+A device that is not a BBMD, or refuses a change, answers with a NAK:
+`BacnetBbmdException.result` tells which (`BacnetBvlcResult`).
+`client.registerForeignDevice` registers the client itself with a BBMD.
+
 ## Testing your application
 
 `package:bacnet_plugin/testing.dart` provides `FakeBacnetClient`, a
@@ -625,6 +705,17 @@ client.latency = const Duration(milliseconds: 200);
 expect(client.requests.where((r) => r.service == 'writeProperty'), isEmpty);
 ```
 
+Routers of the simulated network answer router discovery, What-Is-Network-Number
+and routing table queries:
+
+```dart
+final client = FakeBacnetClient(
+  devices: [ahu],
+  routers: [FakeBacnetRouter('10.0.0.1', networks: [5, 6])],
+  networkNumber: 1,
+);
+```
+
 Fake devices report alarms to the clients in the Recipient_List of a
 Notification Class, keep the event state for `getEventInformation` and
 `getAlarmSummary` and check acknowledgements like a device.
@@ -652,11 +743,16 @@ sensor.reportEvent(
 - The server refuses DeviceCommunicationControl and ReinitializeDevice
   unless `init` (or `setPassword`) sets a password. Before, it accepted
   bacnet-stack's default password "filister".
-- `CommunicationControlEvent` and `ReinitializeDeviceEvent` are new
-  `BacnetEvent` subclasses: a `switch` over `BacnetEvent` needs cases for
-  them.
+- `CommunicationControlEvent`, `ReinitializeDeviceEvent`,
+  `NetworkMessageEvent` and `FileWriteEvent` are new `BacnetEvent`
+  subclasses: a `switch` over `BacnetEvent` needs cases for them.
 - Classes implementing `BacnetClient` need the new device management,
-  file and messaging methods and `deviceMaxApdu`.
+  file and messaging methods, `deviceMaxApdu`, `networkMessages` and
+  `sendNetworkMessage`.
+- `sendWhoIs(network: 0)` (and other local broadcasts) is sent as a
+  broadcast (Original-Broadcast-NPDU, or Distribute-Broadcast-To-Network
+  as registered foreign device). Before, it went as a unicast to the
+  broadcast address, which BBMDs did not forward.
 
 ## Migrating from 0.3.x
 

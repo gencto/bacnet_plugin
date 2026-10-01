@@ -164,6 +164,7 @@ Future<void> main(List<String> args) async {
   await typedProperties(client, device, objects);
   await alarms(client, device, objects);
   await management(client, device, objects);
+  await bbmd(client, port);
   print(await client.stats());
   await client.close();
   exit(0);
@@ -549,4 +550,38 @@ Future<void> management(
     client.readFileRecords(device, file.instance, start: 0, count: 1),
   );
   print('management: ok');
+}
+
+/// Reads and changes the tables of bacserv as BBMD (BBMD enabled by
+/// default in bacnet-stack builds; BACNET_BDT_ADDR_2 adds a peer).
+Future<void> bbmd(BacnetClient client, int port) async {
+  final bbmd = BacnetBbmdClient('127.0.0.1', port: port);
+  print('BDT: ${await bbmd.readBroadcastDistributionTable()}');
+  await client.registerForeignDevice('127.0.0.1', port: port, ttl: 60);
+  List<BacnetFdtEntry> fdt = const [];
+  for (var i = 0; i < 20 && fdt.isEmpty; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    fdt = await bbmd.readForeignDeviceTable();
+  }
+  print('FDT after registration: $fdt');
+  final me = await client.localAddress();
+  await bbmd.deleteForeignDeviceTableEntry(me.ipAddress!, port: me.port!);
+  print('FDT after delete: ${await bbmd.readForeignDeviceTable()}');
+  try {
+    await bbmd.deleteForeignDeviceTableEntry('127.0.0.1', port: 1);
+    print('delete of an unknown entry: accepted');
+  } on BacnetBbmdException catch (e) {
+    print('delete of an unknown entry: ${e.result.label}');
+  }
+  final table = await bbmd.readBroadcastDistributionTable();
+  try {
+    await bbmd.writeBroadcastDistributionTable([
+      ...table,
+      BacnetBdtEntry('127.0.0.1', port: 47899, mask: '255.255.255.0'),
+    ]);
+    print('BDT after write: ${await bbmd.readBroadcastDistributionTable()}');
+    await bbmd.writeBroadcastDistributionTable(table);
+  } on BacnetBbmdException catch (e) {
+    print('Write-BDT refused: ${e.result.label}');
+  }
 }

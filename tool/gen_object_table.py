@@ -56,6 +56,13 @@ REPLACED = {
         "NULL /* Create */": "bp_nc_create",
         "NULL /* Delete */": "bp_nc_delete",
     },
+    # the content of files is kept in memory (native/src/bp_files.c)
+    "OBJECT_FILE": {
+        "bacfile_read_property,": "bp_file_read_property,",
+        "bacfile_write_property,": "bp_file_write_property,",
+        "bacfile_create,": "bp_file_create,",
+        "bacfile_delete,": "bp_file_delete,",
+    },
 }
 
 

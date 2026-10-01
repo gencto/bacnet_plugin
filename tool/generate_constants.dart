@@ -245,6 +245,44 @@ const List<_File> _files = [
       maxValue: 7,
     ),
     _Enum(
+      'BacnetFileAccessMethod',
+      cEnum: 'BACNET_FILE_ACCESS_METHOD',
+      prefix: 'FILE_',
+      doc:
+          'How the content of a File object is accessed (BACnetFileAccessMethod).',
+      unknown: r'File Access Method $value',
+    ),
+    _Enum(
+      'BacnetNetworkMessageType',
+      cEnum: 'BACNET_NETWORK_MESSAGE_TYPE',
+      prefix: 'NETWORK_MESSAGE_',
+      doc:
+          'Network layer message types (clause 6.2.4); 0x80 and above are '
+          'proprietary.',
+      unknown: r'Network Message $value',
+      names: {
+        'INIT_RT_TABLE': 'initializeRoutingTable',
+        'INIT_RT_TABLE_ACK': 'initializeRoutingTableAck',
+      },
+      labels: {
+        'INIT_RT_TABLE': 'Initialize Routing Table',
+        'INIT_RT_TABLE_ACK': 'Initialize Routing Table Ack',
+      },
+      skip: {'ASHRAE_RESERVED_MIN', 'ASHRAE_RESERVED_MAX', 'INVALID'},
+      maxValue: 255,
+    ),
+    _Enum(
+      'BacnetNetworkRejectReason',
+      cEnum: 'BACNET_NETWORK_REJECT_REASONS',
+      prefix: 'NETWORK_REJECT_',
+      doc: 'Reasons of a Reject-Message-To-Network (clause 6.4.4).',
+      unknown: r'Reject Reason $value',
+      names: {'BACNET_SECURITY': 'security'},
+      labels: {'BACNET_SECURITY': 'BACnet Security'},
+      skip: {'REASON_INVALID'},
+      maxValue: 255,
+    ),
+    _Enum(
       'BacnetBinaryPV',
       cEnum: 'BACNET_BINARY_PV',
       prefix: 'BINARY_',

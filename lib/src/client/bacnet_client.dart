@@ -1,4 +1,5 @@
 /// @docImport '../server/bacnet_server.dart';
+/// @docImport '../utilities/network_discovery.dart';
 /// @docImport '../utilities/property_monitor.dart';
 library;
 
@@ -15,6 +16,7 @@ import '../constants/services.dart';
 import '../core/bacnet_config.dart';
 import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
+import '../core/ip_address.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
 import '../models/alarms.dart';
@@ -24,6 +26,7 @@ import '../models/bacnet_value.dart';
 import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../models/files.dart';
+import '../models/network.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
 import '../models/wpm_models.dart';
@@ -661,6 +664,49 @@ class BacnetClient {
   Future<BacnetAddressRecipient> localAddress() => _system
       .call<List<int>>(LocalAddressCommand.new)
       .then((mac) => BacnetAddressRecipient(network: 0, mac: mac));
+
+  /// Network layer messages received from routers and other devices
+  /// (I-Am-Router-To-Network, Network-Number-Is, Reject-Message-To-Network,
+  /// ...). [BacnetNetworkDiscovery] builds router discovery on them.
+  Stream<NetworkMessageEvent> get networkMessages =>
+      events.whereType<NetworkMessageEvent>();
+
+  /// Sends a network layer message (clause 6.4).
+  ///
+  /// The message is broadcast on the local network unless [ip] (an IPv4
+  /// address or host name) and [port] name the next hop. [network] and
+  /// [adr] address a device behind a router: [network] alone is a
+  /// broadcast on that network, 0xFFFF a global broadcast.
+  ///
+  /// ```dart
+  /// // ask the router at 192.168.1.1 for its routing table
+  /// await client.sendNetworkMessage(BacnetInitializeRoutingTable(),
+  ///     ip: '192.168.1.1');
+  /// ```
+  Future<void> sendNetworkMessage(
+    BacnetNetworkMessage message, {
+    String? ip,
+    int port = 47808,
+    int network = 0,
+    List<int> adr = const [],
+  }) async {
+    RangeError.checkValueInInterval(network, 0, 0xFFFF, 'network');
+    if (adr.length > 7 || (adr.isNotEmpty && network == 0)) {
+      throw ArgumentError.value(adr, 'adr', 'needs a network, 1 to 7 bytes');
+    }
+    final mac = ip == null ? const <int>[] : await resolveBacnetIp(ip, port);
+    return _system.call<void>(
+      (id) => NetworkMessageCommand(
+        id,
+        messageType: message.type,
+        payload: message.encode(),
+        mac: mac,
+        network: network,
+        adr: adr,
+        vendorId: message.vendorId,
+      ),
+    );
+  }
 
   /// Allocates a subscriber process identifier for COV subscriptions.
   int allocateProcessId() {

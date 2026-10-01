@@ -83,6 +83,41 @@ external ffi.Pointer<ffi.Uint8> bacnet_plugin_events_data();
 @ffi.Native<ffi.Uint32 Function()>(isLeaf: true)
 external int bacnet_plugin_events_length();
 
+/// Sets the File_Type (a media type, copied; NULL keeps it) and Read_Only
+/// (0 or 1; negative keeps it) of File object `instance`.
+@ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Char>, ffi.Int32)>(
+  isLeaf: true,
+)
+external int bacnet_plugin_file_configure(
+  int instance,
+  ffi.Pointer<ffi.Char> file_type,
+  int read_only,
+);
+
+/// Copies up to `capacity` octets of the content of File object `instance`
+/// from `offset` to `buffer`.
+/// @return the size of the file or a negative BP_ERR_* code.
+@ffi.Native<
+  ffi.Int64 Function(ffi.Uint32, ffi.Uint32, ffi.Pointer<ffi.Uint8>, ffi.Uint32)
+>(isLeaf: true)
+external int bacnet_plugin_file_get_content(
+  int instance,
+  int offset,
+  ffi.Pointer<ffi.Uint8> buffer,
+  int capacity,
+);
+
+/// Replaces the content of File object `instance` of the server (created
+/// with bacnet_plugin_object_create(); kept in memory, stream access).
+@ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Uint8>, ffi.Uint32)>(
+  isLeaf: true,
+)
+external int bacnet_plugin_file_set_content(
+  int instance,
+  ffi.Pointer<ffi.Uint8> data,
+  int length,
+);
+
 /// Initializes the BACnet/IP datalink and the stack.
 ///
 /// @param iface interface name ("eth0"), IPv4 address ("192.168.1.10") or NULL
@@ -284,6 +319,40 @@ external int bacnet_plugin_send_confirmed(
 @ffi.Native<ffi.Int32 Function()>()
 external int bacnet_plugin_send_i_am();
 
+/// Sends a network layer message (clause 6.4) without an APDU.
+/// @param mac BACnet/IP address (IPv4 address and UDP port, 6 bytes) of the
+/// next hop, NULL or mac_len 0 for a local broadcast.
+/// @param net destination network (DNET): 0 for the local network, 0xFFFF
+/// for a global broadcast.
+/// @param adr address on the destination network (DADR), adr_len 0 for a
+/// broadcast on it.
+/// @param message_type network message type (0x80 and above with vendor_id).
+/// @param data the message after the message type.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint16,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_send_network(
+  ffi.Pointer<ffi.Uint8> mac,
+  int mac_len,
+  int net,
+  ffi.Pointer<ffi.Uint8> adr,
+  int adr_len,
+  int message_type,
+  int vendor_id,
+  ffi.Pointer<ffi.Uint8> data,
+  int data_len,
+);
+
 /// Sends an unconfirmed request.
 /// @param device_id target device or BP_DEVICE_UNKNOWN for a broadcast.
 /// @param network broadcast network: 0 = local, 0xFFFF = global, else remote.
@@ -374,6 +443,8 @@ const int BP_EVENT_CONFIRMED_NOTIFICATION = 8;
 const int BP_EVENT_ERROR = 3;
 
 const int BP_EVENT_LOG = 10;
+
+const int BP_EVENT_NETWORK = 12;
 
 const int BP_EVENT_REJECT = 4;
 

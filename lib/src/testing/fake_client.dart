@@ -22,6 +22,7 @@ import '../models/bacnet_value.dart';
 import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../models/files.dart';
+import '../models/network.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
 import '../models/wpm_models.dart';
@@ -40,6 +41,7 @@ final class FakeBacnetRequest {
     this.address,
     this.objectName,
     this.source,
+    this.networkMessage,
   });
 
   /// Client method, e.g. `readProperty`, `writeProperty`, `subscribeCOV`,
@@ -64,7 +66,8 @@ final class FakeBacnetRequest {
   /// Time sent with `timeSynchronization`.
   final DateTime? time;
 
-  /// BBMD address (`host:port`) of `registerForeignDevice`.
+  /// BBMD address (`host:port`) of `registerForeignDevice`, destination
+  /// of `sendNetworkMessage` (null for a broadcast).
   final String? address;
 
   /// Object name searched by `sendWhoHas`.
@@ -72,6 +75,9 @@ final class FakeBacnetRequest {
 
   /// Acknowledgement source of `acknowledgeAlarm`.
   final String? source;
+
+  /// Message of `sendNetworkMessage`.
+  final BacnetNetworkMessage? networkMessage;
 
   @override
   String toString() =>
@@ -511,8 +517,9 @@ final class FakeBacnetDevice {
     properties: {
       BacnetPropertyId.fileType: BacnetCharacterString(fileType),
       BacnetPropertyId.readOnly: BacnetBoolean(readOnly),
-      // BACnetFileAccessMethod stream-access
-      BacnetPropertyId.fileAccessMethod: const BacnetEnumerated(1),
+      BacnetPropertyId.fileAccessMethod: const BacnetEnumerated(
+        BacnetFileAccessMethod.streamAccess,
+      ),
     },
   )..fileContent = content;
 
@@ -732,6 +739,66 @@ typedef _Subscription = ({
   bool confirmed,
 });
 
+/// A router simulated by a [FakeBacnetClient]: answers
+/// Who-Is-Router-To-Network with the [networks] it reaches and routing
+/// table queries with [routingTable].
+///
+/// ```dart
+/// final client = FakeBacnetClient(
+///   routers: [FakeBacnetRouter('10.0.0.1', networks: [5, 6])],
+///   networkNumber: 1,
+/// );
+/// final routers = await client.discoverRouters(); // 10.0.0.1 -> [5, 6]
+/// ```
+final class FakeBacnetRouter {
+  /// Creates a router at [ipAddress] (an IPv4 address) and [port].
+  ///
+  /// The routing table defaults to one port per network.
+  FakeBacnetRouter(
+    this.ipAddress, {
+    required List<int> networks,
+    this.port = 47808,
+    List<BacnetRoutingTableEntry>? routingTable,
+  }) : networks = List.unmodifiable(networks),
+       routingTable = List.unmodifiable(
+         routingTable ??
+             [
+               for (final (index, network) in networks.indexed)
+                 BacnetRoutingTableEntry(network: network, portId: index + 1),
+             ],
+       ),
+       mac = List.unmodifiable([..._ipv4(ipAddress), port >> 8, port & 0xFF]) {
+    RangeError.checkValueInInterval(port, 0, 0xFFFF, 'port');
+  }
+
+  static List<int> _ipv4(String ipAddress) {
+    final octets = ipAddress.split('.').map(int.tryParse).toList();
+    if (octets.length != 4 ||
+        octets.any((o) => o == null || o < 0 || o > 255)) {
+      throw ArgumentError.value(ipAddress, 'ipAddress', 'not an IPv4 address');
+    }
+    return octets.cast<int>();
+  }
+
+  /// IPv4 address.
+  final String ipAddress;
+
+  /// UDP port.
+  final int port;
+
+  /// The networks the router reaches.
+  final List<int> networks;
+
+  /// The answer to routing table queries.
+  final List<BacnetRoutingTableEntry> routingTable;
+
+  /// BACnet/IP address (IPv4 address and port).
+  final List<int> mac;
+
+  /// While false, the router ignores all messages.
+  bool online = true;
+}
+
 /// A [BacnetClient] backed by in-memory [FakeBacnetDevice]s, for testing
 /// applications without a network or the native stack.
 ///
@@ -759,9 +826,12 @@ class FakeBacnetClient implements BacnetClient {
   /// Creates a client serving [devices].
   FakeBacnetClient({
     Iterable<FakeBacnetDevice> devices = const [],
+    Iterable<FakeBacnetRouter> routers = const [],
+    this.networkNumber,
     this.latency = Duration.zero,
     BacnetConfig config = const BacnetConfig(),
-  }) : _config = config {
+  }) : _config = config,
+       routers = List.of(routers) {
     devices.forEach(addDevice);
   }
 
@@ -782,6 +852,13 @@ class FakeBacnetClient implements BacnetClient {
 
   /// Requests received, oldest first.
   final List<FakeBacnetRequest> requests = [];
+
+  /// Routers of the simulated network.
+  final List<FakeBacnetRouter> routers;
+
+  /// Number of the local network: the first online router answers
+  /// What-Is-Network-Number with it (null: nobody answers).
+  int? networkNumber;
 
   /// Devices served by this client.
   Map<int, FakeBacnetDevice> get devices => Map.unmodifiable(_devices);
@@ -821,6 +898,10 @@ class FakeBacnetClient implements BacnetClient {
   Stream<EventNotificationEvent> get eventNotifications => events
       .where((e) => e is EventNotificationEvent)
       .cast<EventNotificationEvent>();
+
+  @override
+  Stream<NetworkMessageEvent> get networkMessages =>
+      events.where((e) => e is NetworkMessageEvent).cast<NetworkMessageEvent>();
 
   @override
   String? get nativeVersion => _started ? 'fake' : null;
@@ -2045,6 +2126,56 @@ class FakeBacnetClient implements BacnetClient {
 
   @override
   Future<bool> isDeviceBound(int deviceId) async => _bound.contains(deviceId);
+
+  /// Simulates the [routers]: they answer Who-Is-Router-To-Network,
+  /// What-Is-Network-Number (with [networkNumber]) and routing table
+  /// queries (an Initialize-Routing-Table without entries sent to them).
+  @override
+  Future<void> sendNetworkMessage(
+    BacnetNetworkMessage message, {
+    String? ip,
+    int port = 47808,
+    int network = 0,
+    List<int> adr = const [],
+  }) async {
+    _checkStarted();
+    requests.add(
+      FakeBacnetRequest(
+        'sendNetworkMessage',
+        address: ip == null ? null : '$ip:$port',
+        networkMessage: message,
+      ),
+    );
+    if (network != 0 && network != 0xFFFF) return;
+    for (final router in routers) {
+      if (!router.online ||
+          (ip != null && (router.ipAddress != ip || router.port != port))) {
+        continue;
+      }
+      final answer = switch (message) {
+        BacnetWhoIsRouterToNetwork(network: null) => BacnetIAmRouterToNetwork(
+          router.networks,
+        ),
+        BacnetWhoIsRouterToNetwork(:final network?)
+            when router.networks.contains(network) =>
+          BacnetIAmRouterToNetwork([network]),
+        BacnetWhatIsNetworkNumber() when networkNumber != null =>
+          BacnetNetworkNumberIs(network: networkNumber!, configured: true),
+        BacnetInitializeRoutingTable(entries: []) when ip != null =>
+          BacnetInitializeRoutingTableAck(router.routingTable),
+        _ => null,
+      };
+      if (answer == null) continue;
+      unawaited(
+        Future<void>.delayed(latency, () {
+          if (_events.isClosed) return;
+          _events.add(NetworkMessageEvent(message: answer, mac: router.mac));
+        }),
+      );
+      // one device tells the network number
+      if (answer is BacnetNetworkNumberIs) break;
+    }
+  }
 
   /// `127.0.0.1` and the port of [config].
   @override

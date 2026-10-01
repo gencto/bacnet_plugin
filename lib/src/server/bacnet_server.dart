@@ -143,6 +143,12 @@ class BacnetServer {
       .where((e) => e is ListElementEvent)
       .cast<ListElementEvent>();
 
+  /// Writes of remote clients to the File objects of [addFile]
+  /// (AtomicWriteFile). Changes of the size (writes of File_Size) arrive as
+  /// [writeEvents].
+  Stream<FileWriteEvent> get fileWrites =>
+      _system.events.where((e) => e is FileWriteEvent).cast<FileWriteEvent>();
+
   /// Starts the BACnet stack (shared with [BacnetClient] instances).
   Future<void> start({String? interface, int? port}) async {
     if (_started) return;
@@ -153,8 +159,9 @@ class BacnetServer {
   /// Initializes the local Device object and starts answering requests
   /// (Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property),
   /// ReadRange, Add/RemoveListElement, AcknowledgeAlarm,
-  /// GetEventInformation, GetAlarmSummary, DeviceCommunicationControl,
-  /// ReinitializeDevice and time synchronization). Sends an I-Am.
+  /// GetEventInformation, GetAlarmSummary, AtomicReadFile, AtomicWriteFile,
+  /// DeviceCommunicationControl, ReinitializeDevice and time
+  /// synchronization). Sends an I-Am.
   ///
   /// DeviceCommunicationControl and ReinitializeDevice require [password]
   /// (up to 20 characters); without one the server refuses them with a
@@ -238,6 +245,69 @@ class BacnetServer {
       ),
     );
   }
+
+  /// Adds a File object whose content the server keeps in memory and
+  /// returns its instance: remote clients read it with AtomicReadFile
+  /// (stream access) and, unless [readOnly], write it with AtomicWriteFile
+  /// ([fileWrites]) and change its size by writing File_Size.
+  ///
+  /// ```dart
+  /// await server.addFile(
+  ///   1,
+  ///   name: 'settings.json',
+  ///   fileType: 'application/json',
+  ///   content: utf8.encode(jsonEncode(settings)),
+  /// );
+  /// server.fileWrites.listen((write) async {
+  ///   final content = await server.fileContent(write.instance);
+  ///   applySettings(jsonDecode(utf8.decode(content)));
+  /// });
+  /// ```
+  Future<int> addFile(
+    int instance, {
+    List<int> content = const [],
+    String? name,
+    String? description,
+    String fileType = 'application/octet-stream',
+    bool readOnly = false,
+  }) async {
+    final created = await addObject(
+      BacnetObjectType.file,
+      instance,
+      name: name,
+      description: description,
+    );
+    await configureFile(created, fileType: fileType, readOnly: readOnly);
+    if (content.isNotEmpty) await setFileContent(created, content);
+    return created;
+  }
+
+  /// Sets the File_Type (a media type) and Read_Only of a File object of
+  /// [addFile]; null keeps the value.
+  Future<void> configureFile(
+    int instance, {
+    String? fileType,
+    bool? readOnly,
+  }) => _system.call<void>(
+    (id) => ConfigureFileCommand(
+      id,
+      instance,
+      fileType: fileType,
+      readOnly: readOnly,
+    ),
+  );
+
+  /// The content of File object [instance] of [addFile].
+  Future<Uint8List> fileContent(int instance) =>
+      _system.call<Uint8List>((id) => FileContentCommand(id, instance));
+
+  /// Replaces the content of File object [instance] of [addFile] (also of
+  /// a read only one: Read_Only applies to remote clients).
+  Future<void> setFileContent(int instance, List<int> content) =>
+      _system.call<void>(
+        (id) =>
+            SetFileContentCommand(id, instance, Uint8List.fromList(content)),
+      );
 
   /// Removes an object from the server.
   Future<void> removeObject(BacnetObjectType objectType, int instance) =>

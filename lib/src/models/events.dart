@@ -9,6 +9,7 @@ import '../core/types.dart';
 import 'alarms.dart';
 import 'bacnet_value.dart';
 import 'complex_values.dart';
+import 'network.dart';
 
 /// Base class of the unsolicited events delivered by the BACnet stack.
 ///
@@ -549,6 +550,81 @@ class ListElementEvent extends BacnetEvent {
   String toString() =>
       'ListElementEvent(${added ? 'added to' : 'removed from'} $object '
       '${propertyId.label}: $elements)';
+}
+
+/// A remote client wrote to a File object of the server (AtomicWriteFile,
+/// see `BacnetServer.addFile`).
+class FileWriteEvent extends BacnetEvent {
+  /// Creates a file write event.
+  const FileWriteEvent({
+    required this.instance,
+    required this.start,
+    required this.data,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// Instance of the File object.
+  final int instance;
+
+  /// Position of the first written octet (also for appends).
+  final int start;
+
+  /// The written octets.
+  final Uint8List data;
+
+  /// Source MAC address of the client.
+  final List<int> mac;
+
+  /// Source network number of the client.
+  final int net;
+
+  @override
+  String toString() =>
+      'FileWriteEvent(file $instance, ${data.length} octets at $start)';
+}
+
+/// A network layer message (clause 6.4) received from a router or another
+/// device: I-Am-Router-To-Network, Network-Number-Is,
+/// Reject-Message-To-Network, ...
+class NetworkMessageEvent extends BacnetEvent {
+  /// Creates a network message event.
+  const NetworkMessageEvent({
+    required this.message,
+    this.mac = const [],
+    this.net = 0,
+    this.adr = const [],
+    this.destinationNetwork = 0,
+  });
+
+  /// The message.
+  final BacnetNetworkMessage message;
+
+  /// Source MAC address (BACnet/IP: 4 bytes IPv4 + 2 bytes port).
+  final List<int> mac;
+
+  /// Source network number (0 = local network).
+  final int net;
+
+  /// MAC address of the source behind a router (empty for local sources).
+  final List<int> adr;
+
+  /// Destination network of the message: 0 for the local network, 0xFFFF
+  /// for a global broadcast.
+  final int destinationNetwork;
+
+  /// IPv4 address of the source (or of its router), if BACnet/IP.
+  String? get ipAddress =>
+      mac.length >= 4 ? '${mac[0]}.${mac[1]}.${mac[2]}.${mac[3]}' : null;
+
+  /// UDP port of the source (or of its router), if BACnet/IP.
+  int? get port => mac.length >= 6 ? (mac[4] << 8) | mac[5] : null;
+
+  @override
+  String toString() =>
+      'NetworkMessageEvent($message from '
+      '${ipAddress != null ? '$ipAddress:$port' : mac}'
+      '${net == 0 ? '' : ' on network $net'})';
 }
 
 /// Any other unconfirmed service request, and requests that could not be

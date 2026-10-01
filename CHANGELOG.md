@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0] - Unreleased
 
-Device management, files and messages. See *Migrating from 0.4.x* in the
-README.
+Device management, files and messages, routers and BBMDs, files on the
+server. See *Migrating from 0.4.x* in the README.
 
 ### Added
 
@@ -26,15 +26,35 @@ README.
 - **Client — vendor services and messages**: `privateTransfer`
   (ConfirmedPrivateTransfer, returns the result block),
   `sendPrivateTransfer`, `textMessage` and `sendTextMessage`.
+- **Client — routers and networks**: `networkMessages`
+  (`NetworkMessageEvent` with a sealed `BacnetNetworkMessage`:
+  I-Am-Router-To-Network, Network-Number-Is, Reject-Message-To-Network,
+  Router-Busy/Available-To-Network, routing tables, ...) and
+  `sendNetworkMessage`; `BacnetNetworkDiscovery` adds
+  `whoIsRouterToNetwork`, `discoverRouters` (`BacnetRouter`),
+  `whatIsNetworkNumber` and `readRoutingTable`. Constants
+  `BacnetNetworkMessageType` and `BacnetNetworkRejectReason`.
+- **BBMDs**: `BacnetBbmdClient` reads and writes the Broadcast
+  Distribution Table (`BacnetBdtEntry`), reads the Foreign Device Table
+  (`BacnetFdtEntry`) and deletes its entries, over an own UDP socket;
+  refusals throw `BacnetBbmdException` (`BacnetBvlcResult`).
 - **Server**: `init(password:)` and `setPassword` protect
   DeviceCommunicationControl and ReinitializeDevice;
   `communicationControls` (`CommunicationControlEvent`) and
   `reinitializeRequests` (`ReinitializeDeviceEvent`) report accepted
   requests.
+- **Server — files**: `addFile` hosts File objects with the content in
+  memory (AtomicReadFile, AtomicWriteFile, File_Size writes; appends
+  answer with their position; Modification_Date and Archive follow the
+  changes), `fileContent`, `setFileContent`, `configureFile` and
+  `fileWrites` (`FileWriteEvent`).
+- **Typed properties**: `fileType`, `fileSize`, `modificationDate`,
+  `archive`, `readOnly` and `fileAccessMethod` (`BacnetFileAccessMethod`).
 - **Testing**: fake devices simulate DeviceCommunicationControl (silent
   device, `password`), `reinitializations`, object creation and deletion,
   File objects (`addFile`, `fileContent`), `onPrivateTransfer` and
-  received `messages`.
+  received `messages`; `FakeBacnetRouter` and
+  `FakeBacnetClient.networkNumber` simulate routers.
 
 ### Changed
 
@@ -42,8 +62,18 @@ README.
   and ReinitializeDevice with bacnet-stack's well-known default password
   "filister", so anyone on the network could silence it. Without a
   password set it now refuses both.
-- **Breaking**: `CommunicationControlEvent` and `ReinitializeDeviceEvent`
-  are new `BacnetEvent` subclasses; `BacnetClient` has new methods.
+- **Breaking**: `CommunicationControlEvent`, `ReinitializeDeviceEvent`,
+  `NetworkMessageEvent` and `FileWriteEvent` are new `BacnetEvent`
+  subclasses; `BacnetClient` has new methods.
+
+### Fixed
+
+- Broadcasts to the local network (`sendWhoIs(network: 0)` and other
+  unconfirmed services with `network: 0`) went as a unicast to the
+  broadcast address: BBMDs did not forward them and a registered foreign
+  device did not distribute them.
+  They are Original-Broadcast-NPDUs (Distribute-Broadcast-To-Network as
+  foreign device) now.
 
 ## [0.4.1] - 2026-10-01
 

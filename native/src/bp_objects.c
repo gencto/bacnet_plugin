@@ -12,6 +12,7 @@
 #include "bacnet/basic/object/ai.h"
 #include "bacnet/basic/object/ao.h"
 #include "bacnet/basic/object/av.h"
+#include "bacnet/basic/object/bacfile.h"
 #include "bacnet/basic/object/bi.h"
 #include "bacnet/basic/object/bo.h"
 #include "bacnet/basic/object/bv.h"
@@ -69,6 +70,9 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
         case OBJECT_NOTIFICATION_CLASS:
             return description ? bp_nc_description_set : bp_nc_name_set;
 #endif
+        case OBJECT_FILE:
+            return description ? bp_file_description_set
+                               : bacfile_object_name_set;
         default:
             return NULL;
     }

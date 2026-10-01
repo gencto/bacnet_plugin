@@ -80,6 +80,8 @@ void main() {
         decodeGetAlarmSummaryAck,
         decodeAcknowledgeAlarm,
         decodeListElements,
+        decodeAtomicWriteFile,
+        decodeAtomicReadFileAck,
         (data) => BacnetDestination.listFromValue(decodeApplicationData(data)),
       ]) {
         try {

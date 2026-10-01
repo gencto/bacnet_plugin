@@ -69,6 +69,21 @@ Future<void> main(List<String> args) async {
     alarmValue: BacnetBinaryPV.active,
     notifyType: BacnetNotifyType.event,
   );
+  // files kept in memory: a writable one and a read only one
+  await server.addFile(
+    1,
+    name: 'notes.txt',
+    description: 'Notes of the operator',
+    fileType: 'text/plain',
+    content: 'hello from the server'.codeUnits,
+  );
+  await server.addFile(
+    2,
+    name: 'firmware.bin',
+    readOnly: true,
+    content: List.generate(3000, (i) => i & 0xFF),
+  );
+  server.fileWrites.listen((e) => print('FILE $e'));
   server.writeEvents.listen((e) => print('WRITE $e'));
   server.alarmAcknowledgements.listen((e) => print('ACK $e'));
   server.listElementEvents.listen((e) => print('LIST $e'));

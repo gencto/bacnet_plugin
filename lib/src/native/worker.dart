@@ -21,6 +21,7 @@ import '../core/types.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
 import '../models/events.dart';
+import '../models/network.dart';
 import 'bindings.g.dart';
 import 'engine.dart';
 import 'native_event.dart';
@@ -204,6 +205,15 @@ final class _Worker implements RequestTransport {
           deviceId: command.deviceId,
           network: command.network,
         );
+      case NetworkMessageCommand():
+        _engine.sendNetworkMessage(
+          messageType: command.messageType,
+          payload: command.payload,
+          mac: command.mac,
+          network: command.network,
+          adr: command.adr,
+          vendorId: command.vendorId,
+        );
       case BindDeviceCommand():
         _engine.bindDevice(
           deviceId: command.deviceId,
@@ -242,6 +252,16 @@ final class _Worker implements RequestTransport {
         return _createObject(command);
       case DeleteObjectCommand():
         _engine.deleteObject(command.objectType, command.instance);
+      case SetFileContentCommand(:final instance, :final content):
+        _engine.setFileContent(instance, content);
+      case FileContentCommand(:final instance):
+        return _engine.fileContent(instance);
+      case ConfigureFileCommand(
+        :final instance,
+        :final fileType,
+        :final readOnly,
+      ):
+        _engine.configureFile(instance, fileType: fileType, readOnly: readOnly);
       case SetNumberCommand():
         _engine.setNumber(
           command.objectType,
@@ -403,6 +423,8 @@ final class _Worker implements RequestTransport {
         _emit(_writeEvent(event));
       case BP_EVENT_SERVICE:
         _emit(_serviceRequestEvent(event));
+      case BP_EVENT_NETWORK:
+        _networkMessage(event);
       case BP_EVENT_LOG:
         _log(
           BacnetLogLevel.values[event.a.clamp(0, 3)],
@@ -539,6 +561,26 @@ final class _Worker implements RequestTransport {
     return _serviceEvent(event, confirmed: false);
   }
 
+  void _networkMessage(NativeEvent event) {
+    try {
+      _emit(
+        NetworkMessageEvent(
+          message: BacnetNetworkMessage.decode(
+            BacnetNetworkMessageType(event.service),
+            event.data,
+            vendorId: event.a,
+          ),
+          mac: event.sourceMac,
+          net: event.sourceNetwork,
+          adr: event.sourceAdr,
+          destinationNetwork: event.b,
+        ),
+      );
+    } on BacnetDecodeException catch (e) {
+      _log(BacnetLogLevel.warning, 'network message: $e');
+    }
+  }
+
   /// The typed event notification, or the raw request when it is
   /// malformed.
   BacnetEvent _eventNotification(NativeEvent event, {required bool confirmed}) {
@@ -586,6 +628,17 @@ final class _Worker implements RequestTransport {
             mac: event.sourceMac,
             net: event.sourceNetwork,
           );
+        case BacnetConfirmedService.atomicWriteFile:
+          final write = decodeAtomicWriteFile(event.data);
+          if (write.data case final data?) {
+            return FileWriteEvent(
+              instance: write.file.instance,
+              start: write.start,
+              data: data,
+              mac: event.sourceMac,
+              net: event.sourceNetwork,
+            );
+          }
         case BacnetConfirmedService.addListElement ||
             BacnetConfirmedService.removeListElement:
           final list = decodeListElements(event.data);

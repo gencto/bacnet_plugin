@@ -75,10 +75,18 @@ extern "C" {
 #define BP_EVENT_LOG 10
 /** A confirmed service request of a remote client changed the server and
  *  was answered with success: AcknowledgeAlarm, AddListElement,
- *  RemoveListElement, DeviceCommunicationControl or ReinitializeDevice.
- *  service = confirmed service choice, data = the service request (without
- *  the password of DeviceCommunicationControl and ReinitializeDevice). */
+ *  RemoveListElement, DeviceCommunicationControl, ReinitializeDevice or
+ *  AtomicWriteFile. service = confirmed service choice, data = the service
+ *  request (without the password of DeviceCommunicationControl and
+ *  ReinitializeDevice; with the actual start position of an append of
+ *  AtomicWriteFile). */
 #define BP_EVENT_SERVICE 11
+/** Network layer message (clause 6.4) for this device: I-Am-Router-To-
+ *  Network, Network-Number-Is, Reject-Message-To-Network, ...
+ *  service = message type, a = vendor id (message types 0x80 and above),
+ *  b = destination network (0 local, 0xFFFF global broadcast),
+ *  data = the message after the message type and vendor id. */
+#define BP_EVENT_NETWORK 12
 
 #define BP_FLAG_ABORT_FROM_SERVER 0x01
 #define BP_FLAG_COMPLEX 0x02
@@ -265,6 +273,28 @@ BP_API int32_t bacnet_plugin_device_binding(
  */
 BP_API int32_t bacnet_plugin_local_address(uint8_t *mac);
 
+/**
+ * Sends a network layer message (clause 6.4) without an APDU.
+ * @param mac BACnet/IP address (IPv4 address and UDP port, 6 bytes) of the
+ *        next hop, NULL or mac_len 0 for a local broadcast.
+ * @param net destination network (DNET): 0 for the local network, 0xFFFF
+ *        for a global broadcast.
+ * @param adr address on the destination network (DADR), adr_len 0 for a
+ *        broadcast on it.
+ * @param message_type network message type (0x80 and above with vendor_id).
+ * @param data the message after the message type.
+ */
+BP_API int32_t bacnet_plugin_send_network(
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len,
+    uint8_t message_type,
+    uint16_t vendor_id,
+    const uint8_t *data,
+    uint16_t data_len);
+
 /** Registers as foreign device with a BBMD and keeps the registration. */
 BP_API int32_t bacnet_plugin_register_foreign_device(
     const char *host, uint16_t port, uint16_t ttl_seconds);
@@ -368,6 +398,30 @@ BP_API int32_t bacnet_plugin_object_read(
     uint16_t buffer_len,
     uint32_t *error_class,
     uint32_t *error_code);
+
+/* ---- File objects of the server -------------------------------------- */
+
+/**
+ * Replaces the content of File object `instance` of the server (created
+ * with bacnet_plugin_object_create(); kept in memory, stream access).
+ */
+BP_API int32_t bacnet_plugin_file_set_content(
+    uint32_t instance, const uint8_t *data, uint32_t length);
+
+/**
+ * Copies up to `capacity` octets of the content of File object `instance`
+ * from `offset` to `buffer`.
+ * @return the size of the file or a negative BP_ERR_* code.
+ */
+BP_API int64_t bacnet_plugin_file_get_content(
+    uint32_t instance, uint32_t offset, uint8_t *buffer, uint32_t capacity);
+
+/**
+ * Sets the File_Type (a media type, copied; NULL keeps it) and Read_Only
+ * (0 or 1; negative keeps it) of File object `instance`.
+ */
+BP_API int32_t bacnet_plugin_file_configure(
+    uint32_t instance, const char *file_type, int32_t read_only);
 
 #ifdef __cplusplus
 }

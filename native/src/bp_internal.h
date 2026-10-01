@@ -85,6 +85,7 @@ typedef struct {
 #define BP_STRING_STATE_TEXTS 2
 #define BP_STRING_DEVICE 3
 #define BP_STRING_PASSWORD 4
+#define BP_STRING_FILE_TYPE 5
 
 /* ---- outstanding confirmed requests ----------------------------------- */
 
@@ -185,6 +186,14 @@ void bp_apply_socket_buffer(int sock);
 /** Transaction of invoke_id, or NULL when it is not one of ours. */
 bp_transaction_t *bp_tx_for(uint8_t invoke_id);
 void bp_register_client_handlers(void);
+#include "bacnet/npdu.h"
+/** Queues a BP_EVENT_NETWORK event for a received network layer message. */
+void bp_network_received(
+    const BACNET_ADDRESS *src,
+    const BACNET_ADDRESS *dest,
+    const BACNET_NPDU_DATA *npdu_data,
+    const uint8_t *message,
+    uint16_t message_len);
 
 /* ---- bp_segments.c ----------------------------------------------------- */
 
@@ -206,6 +215,33 @@ void bp_alarm_ack_hooks(void);
 /* reports a successful Add/RemoveListElement of a remote client */
 void bp_list_element_changed(
     uint8_t service, const BACNET_LIST_ELEMENT_DATA *list_element);
+/** PDU type (PDU_TYPE_*) of the answer the last handler put into
+ *  Handler_Transmit_Buffer, 0xFF if none. */
+uint8_t bp_reply_pdu_type(void);
+/** Queues a BP_EVENT_SERVICE event for a request of src that changed the
+ *  server. */
+void bp_service_reported(
+    uint8_t service,
+    const uint8_t *request,
+    int request_len,
+    const BACNET_ADDRESS *src);
+
+/* ---- File objects with the content in memory (bp_files.c) ------------ */
+
+#include "bacnet/rp.h"
+#include "bacnet/wp.h"
+#include "bacnet/apdu.h"
+void bp_files_init(void);
+uint32_t bp_file_create(uint32_t object_instance);
+bool bp_file_delete(uint32_t object_instance);
+int bp_file_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
+bool bp_file_write_property(BACNET_WRITE_PROPERTY_DATA *wp_data);
+bool bp_file_description_set(uint32_t instance, const char *description);
+void bp_on_atomic_write_file(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data);
 
 /* ---- Notification Class objects of the application (bp_nc.c) ---------- */
 

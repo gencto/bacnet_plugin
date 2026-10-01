@@ -73,6 +73,20 @@ static void bp_service_event(
     bp_event_push(&hdr, request, (uint32_t)request_len);
 }
 
+void bp_service_reported(
+    uint8_t service,
+    const uint8_t *request,
+    int request_len,
+    const BACNET_ADDRESS *src)
+{
+    if (src) {
+        bp_service_src = *src;
+        bp_service_src_valid = true;
+    }
+    bp_service_event(service, request, request_len);
+    bp_service_src_valid = false;
+}
+
 void bp_list_element_changed(
     uint8_t service, const BACNET_LIST_ELEMENT_DATA *list_element)
 {
@@ -105,9 +119,7 @@ void bp_list_element_changed(
         bp_service_src_valid = false;                                   \
     }
 
-/* True when the handler that just ran answered with a Simple-ACK (the
-   reply is still in Handler_Transmit_Buffer). */
-static bool bp_reply_is_simple_ack(void)
+uint8_t bp_reply_pdu_type(void)
 {
     BACNET_ADDRESS dest;
     BACNET_ADDRESS src;
@@ -117,8 +129,17 @@ static bool bp_reply_is_simple_ack(void)
     len = bacnet_npdu_decode(
         &Handler_Transmit_Buffer[0], sizeof(Handler_Transmit_Buffer), &dest,
         &src, &npdu_data);
-    return len > 0 && len < (int)sizeof(Handler_Transmit_Buffer) &&
-        (Handler_Transmit_Buffer[len] & 0xF0) == PDU_TYPE_SIMPLE_ACK;
+    if (len <= 0 || len >= (int)sizeof(Handler_Transmit_Buffer) ||
+        npdu_data.network_layer_message) {
+        return 0xFF;
+    }
+    return Handler_Transmit_Buffer[len] & 0xF0;
+}
+
+/* True when the handler that just ran answered with a Simple-ACK. */
+static bool bp_reply_is_simple_ack(void)
+{
+    return bp_reply_pdu_type() == PDU_TYPE_SIMPLE_ACK;
 }
 
 static void bp_on_dcc(
@@ -349,6 +370,11 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
             SERVICE_CONFIRMED_ADD_LIST_ELEMENT, bp_on_add_list_element);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_REMOVE_LIST_ELEMENT, bp_on_remove_list_element);
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_ATOMIC_READ_FILE, handler_atomic_read_file);
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_ATOMIC_WRITE_FILE, bp_on_atomic_write_file);
+        bp_files_init();
 #if defined(INTRINSIC_REPORTING)
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_ACKNOWLEDGE_ALARM, bp_on_alarm_ack);

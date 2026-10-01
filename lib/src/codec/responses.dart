@@ -612,6 +612,51 @@ int decodeAtomicWriteFileAck(Uint8List data) {
   return start;
 }
 
+/// Decoded AtomicWriteFile request: `data` for stream access, `records`
+/// for record access.
+typedef AtomicWriteFileRequest = ({
+  BacnetObject file,
+  int start,
+  Uint8List? data,
+  List<Uint8List>? records,
+});
+
+/// Decodes an AtomicWriteFile request (ASHRAE 135 clause 14.2).
+AtomicWriteFileRequest decodeAtomicWriteFile(Uint8List data) {
+  final r = BacnetReader(data);
+  final file = switch (r.readApplicationValue()) {
+    final BacnetObject object => object,
+    final other => throw BacnetDecodeException('malformed file: $other'),
+  };
+  int signed() => switch (r.readApplicationValue()) {
+    BacnetSigned(:final value) => value,
+    BacnetUnsigned(:final value) => value,
+    final other => throw BacnetDecodeException('malformed position: $other'),
+  };
+  Uint8List octets() => switch (r.readApplicationValue()) {
+    BacnetOctetString(:final value) => value,
+    final other => throw BacnetDecodeException('malformed file data: $other'),
+  };
+  if (r.nextIsOpening(0)) {
+    r.expectOpening(0);
+    final start = signed();
+    final octetString = octets();
+    r.expectClosing(0);
+    return (file: file, start: start, data: octetString, records: null);
+  }
+  r.expectOpening(1);
+  final start = signed();
+  final count = switch (r.readApplicationValue()) {
+    BacnetUnsigned(:final value) => value,
+    final other => throw BacnetDecodeException(
+      'malformed record count: $other',
+    ),
+  };
+  final records = [for (var i = 0; i < count; i++) octets()];
+  r.expectClosing(1);
+  return (file: file, start: start, data: null, records: records);
+}
+
 /// Decoded DeviceCommunicationControl request.
 typedef DeviceCommunicationControlData = ({
   BacnetCommunicationState state,

@@ -138,6 +138,82 @@ class NativeEngine {
     );
   }
 
+  /// Sends a network layer message to [mac] (a local broadcast when
+  /// empty), on [network] to [adr] behind a router.
+  void sendNetworkMessage({
+    required int messageType,
+    required Uint8List payload,
+    List<int> mac = const [],
+    int network = 0,
+    List<int> adr = const [],
+    int vendorId = 0,
+  }) {
+    // one buffer: _withBytes reuses the same scratch memory
+    final bytes = Uint8List(mac.length + adr.length + payload.length)
+      ..setAll(0, mac)
+      ..setAll(mac.length, adr)
+      ..setAll(mac.length + adr.length, payload);
+    checkNative(
+      _withBytes(
+        bytes,
+        (data, _) => bacnet_plugin_send_network(
+          mac.isEmpty ? ffi.nullptr : data,
+          mac.length,
+          network,
+          adr.isEmpty ? ffi.nullptr : data + mac.length,
+          adr.length,
+          messageType,
+          vendorId,
+          payload.isEmpty ? ffi.nullptr : data + mac.length + adr.length,
+          payload.length,
+        ),
+      ),
+    );
+  }
+
+  /// Replaces the content of File object [instance] of the server.
+  void setFileContent(int instance, Uint8List content) {
+    checkNative(
+      _withBytes(
+        content,
+        (data, length) =>
+            bacnet_plugin_file_set_content(instance, data, length),
+      ),
+    );
+  }
+
+  /// The content of File object [instance] of the server.
+  Uint8List fileContent(int instance) {
+    final size = checkNative(
+      bacnet_plugin_file_get_content(instance, 0, ffi.nullptr, 0),
+    );
+    if (size == 0) return Uint8List(0);
+    final buffer = calloc<ffi.Uint8>(size);
+    try {
+      final now = checkNative(
+        bacnet_plugin_file_get_content(instance, 0, buffer, size),
+      );
+      return Uint8List.fromList(buffer.asTypedList(now < size ? now : size));
+    } finally {
+      calloc.free(buffer);
+    }
+  }
+
+  /// Sets File_Type and Read_Only of File object [instance] (null keeps
+  /// them).
+  void configureFile(int instance, {String? fileType, bool? readOnly}) {
+    checkNative(
+      _withOptionalString(
+        fileType,
+        (type) => bacnet_plugin_file_configure(
+          instance,
+          type,
+          readOnly == null ? -1 : (readOnly ? 1 : 0),
+        ),
+      ),
+    );
+  }
+
   /// Adds or replaces a static address binding.
   void bindDevice({
     required int deviceId,

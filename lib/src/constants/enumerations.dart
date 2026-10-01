@@ -723,6 +723,188 @@ extension type const BacnetReinitializedState(int value) implements int {
   String get label => getName(value);
 }
 
+/// How the content of a File object is accessed (BACnetFileAccessMethod).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetFileAccessMethod(value)`.
+extension type const BacnetFileAccessMethod(int value) implements int {
+  /// Record Access.
+  static const recordAccess = BacnetFileAccessMethod(0);
+
+  /// Stream Access.
+  static const streamAccess = BacnetFileAccessMethod(1);
+
+  /// Record And Stream Access.
+  static const recordAndStreamAccess = BacnetFileAccessMethod(2);
+
+  static const Map<BacnetFileAccessMethod, String> _labels = {
+    recordAccess: 'Record Access',
+    streamAccess: 'Stream Access',
+    recordAndStreamAccess: 'Record And Stream Access',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetFileAccessMethod> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) =>
+      _labels[value] ?? 'File Access Method $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
+/// Network layer message types (clause 6.2.4); 0x80 and above are proprietary.
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetNetworkMessageType(value)`.
+extension type const BacnetNetworkMessageType(int value) implements int {
+  /// Who Is Router To Network.
+  static const whoIsRouterToNetwork = BacnetNetworkMessageType(0);
+
+  /// I Am Router To Network.
+  static const iAmRouterToNetwork = BacnetNetworkMessageType(1);
+
+  /// I Could Be Router To Network.
+  static const iCouldBeRouterToNetwork = BacnetNetworkMessageType(2);
+
+  /// Reject Message To Network.
+  static const rejectMessageToNetwork = BacnetNetworkMessageType(3);
+
+  /// Router Busy To Network.
+  static const routerBusyToNetwork = BacnetNetworkMessageType(4);
+
+  /// Router Available To Network.
+  static const routerAvailableToNetwork = BacnetNetworkMessageType(5);
+
+  /// Initialize Routing Table.
+  static const initializeRoutingTable = BacnetNetworkMessageType(6);
+
+  /// Initialize Routing Table Ack.
+  static const initializeRoutingTableAck = BacnetNetworkMessageType(7);
+
+  /// Establish Connection To Network.
+  static const establishConnectionToNetwork = BacnetNetworkMessageType(8);
+
+  /// Disconnect Connection To Network.
+  static const disconnectConnectionToNetwork = BacnetNetworkMessageType(9);
+
+  /// Challenge Request.
+  static const challengeRequest = BacnetNetworkMessageType(10);
+
+  /// Security Payload.
+  static const securityPayload = BacnetNetworkMessageType(11);
+
+  /// Security Response.
+  static const securityResponse = BacnetNetworkMessageType(12);
+
+  /// Request Key Update.
+  static const requestKeyUpdate = BacnetNetworkMessageType(13);
+
+  /// Update Key Set.
+  static const updateKeySet = BacnetNetworkMessageType(14);
+
+  /// Update Distribution Key.
+  static const updateDistributionKey = BacnetNetworkMessageType(15);
+
+  /// Request Master Key.
+  static const requestMasterKey = BacnetNetworkMessageType(16);
+
+  /// Set Master Key.
+  static const setMasterKey = BacnetNetworkMessageType(17);
+
+  /// What Is Network Number.
+  static const whatIsNetworkNumber = BacnetNetworkMessageType(18);
+
+  /// Network Number Is.
+  static const networkNumberIs = BacnetNetworkMessageType(19);
+
+  static const Map<BacnetNetworkMessageType, String> _labels = {
+    whoIsRouterToNetwork: 'Who Is Router To Network',
+    iAmRouterToNetwork: 'I Am Router To Network',
+    iCouldBeRouterToNetwork: 'I Could Be Router To Network',
+    rejectMessageToNetwork: 'Reject Message To Network',
+    routerBusyToNetwork: 'Router Busy To Network',
+    routerAvailableToNetwork: 'Router Available To Network',
+    initializeRoutingTable: 'Initialize Routing Table',
+    initializeRoutingTableAck: 'Initialize Routing Table Ack',
+    establishConnectionToNetwork: 'Establish Connection To Network',
+    disconnectConnectionToNetwork: 'Disconnect Connection To Network',
+    challengeRequest: 'Challenge Request',
+    securityPayload: 'Security Payload',
+    securityResponse: 'Security Response',
+    requestKeyUpdate: 'Request Key Update',
+    updateKeySet: 'Update Key Set',
+    updateDistributionKey: 'Update Distribution Key',
+    requestMasterKey: 'Request Master Key',
+    setMasterKey: 'Set Master Key',
+    whatIsNetworkNumber: 'What Is Network Number',
+    networkNumberIs: 'Network Number Is',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetNetworkMessageType> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) =>
+      _labels[value] ?? 'Network Message $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
+/// Reasons of a Reject-Message-To-Network (clause 6.4.4).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetNetworkRejectReason(value)`.
+extension type const BacnetNetworkRejectReason(int value) implements int {
+  /// Unknown Error.
+  static const unknownError = BacnetNetworkRejectReason(0);
+
+  /// No Route.
+  static const noRoute = BacnetNetworkRejectReason(1);
+
+  /// Router Busy.
+  static const routerBusy = BacnetNetworkRejectReason(2);
+
+  /// Unknown Message Type.
+  static const unknownMessageType = BacnetNetworkRejectReason(3);
+
+  /// Message Too Long.
+  static const messageTooLong = BacnetNetworkRejectReason(4);
+
+  /// BACnet Security.
+  static const security = BacnetNetworkRejectReason(5);
+
+  /// Bad Address.
+  static const badAddress = BacnetNetworkRejectReason(6);
+
+  static const Map<BacnetNetworkRejectReason, String> _labels = {
+    unknownError: 'Unknown Error',
+    noRoute: 'No Route',
+    routerBusy: 'Router Busy',
+    unknownMessageType: 'Unknown Message Type',
+    messageTooLong: 'Message Too Long',
+    security: 'BACnet Security',
+    badAddress: 'Bad Address',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetNetworkRejectReason> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) => _labels[value] ?? 'Reject Reason $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
 /// Values of binary objects (BACnetBinaryPV).
 ///
 /// An extension type over the encoded value: it is an [int] at

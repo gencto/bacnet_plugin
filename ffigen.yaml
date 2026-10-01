@@ -27,10 +27,12 @@ functions:
       - bacnet_plugin_stats
       - bacnet_plugin_send_confirmed
       - bacnet_plugin_send_unconfirmed
+      - bacnet_plugin_send_network
       - bacnet_plugin_unbind_device
       - bacnet_plugin_device_binding
       - bacnet_plugin_local_address
       - bacnet_plugin_object_.*
+      - bacnet_plugin_file_.*
 structs:
   include:
     - bp_.*
