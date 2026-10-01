@@ -4,7 +4,13 @@ library;
 export 'src/client/bacnet_client.dart';
 export 'src/codec/log_records.dart' show decodeLogRecords;
 export 'src/codec/reader.dart';
-export 'src/codec/requests.dart' show ReadRangeType;
+export 'src/codec/requests.dart'
+    show
+        BacnetRange,
+        BacnetRangeAll,
+        BacnetRangeByPosition,
+        BacnetRangeBySequenceNumber,
+        BacnetRangeByTime;
 export 'src/codec/responses.dart'
     show
         CovNotificationData,
@@ -13,7 +19,6 @@ export 'src/codec/responses.dart'
         ReadRangeResult;
 export 'src/codec/value_encoding.dart'
     show decodeApplicationData, encodeApplicationValue;
-export 'src/codec/values.dart';
 export 'src/codec/writer.dart';
 export 'src/constants/engineering_units.dart';
 export 'src/constants/enumerations.dart';
@@ -22,12 +27,15 @@ export 'src/constants/object_types.dart';
 export 'src/constants/property_ids.dart';
 export 'src/constants/services.dart';
 export 'src/core/bacnet_config.dart';
+export 'src/core/cancel_token.dart';
 export 'src/core/exceptions.dart';
 export 'src/core/logger.dart';
 export 'src/core/types.dart';
 // Models
-export 'src/models/bacnet_object.dart';
+export 'src/models/bacnet_property.dart';
 export 'src/models/bacnet_stats.dart';
+export 'src/models/bacnet_value.dart';
+export 'src/models/complex_values.dart';
 export 'src/models/device_metadata.dart';
 export 'src/models/discovered_device.dart';
 export 'src/models/events.dart';

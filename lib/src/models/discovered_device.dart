@@ -1,6 +1,8 @@
 import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
 
+import '../constants/enumerations.dart';
+
 part 'discovered_device.g.dart';
 
 /// A BACnet device discovered on the network.
@@ -15,7 +17,7 @@ part 'discovered_device.g.dart';
 ///   deviceId: 1234,
 ///   vendorId: 123,
 ///   maxApduLength: 1476,
-///   segmentationSupported: 3,
+///   segmentationSupported: BacnetSegmentation.none,
 ///   deviceName: 'Building Controller',
 ///   modelName: 'BACnet-100',
 /// );
@@ -53,7 +55,7 @@ class DiscoveredDevice {
   final int maxApduLength;
 
   /// Segmentation support level (0-3).
-  final int segmentationSupported;
+  final BacnetSegmentation segmentationSupported;
 
   /// Human-readable device name.
   final String? deviceName;
@@ -96,7 +98,7 @@ class DiscoveredDevice {
     int? deviceId,
     int? vendorId,
     int? maxApduLength,
-    int? segmentationSupported,
+    BacnetSegmentation? segmentationSupported,
     String? deviceName,
     String? description,
     String? location,

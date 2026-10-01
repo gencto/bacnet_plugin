@@ -10,11 +10,15 @@ import 'dart:typed_data';
 import '../codec/requests.dart';
 import '../codec/responses.dart';
 import '../codec/value_encoding.dart';
+import '../constants/enumerations.dart';
+import '../constants/errors.dart';
+import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../constants/services.dart';
 import '../core/exceptions.dart';
 import '../core/types.dart';
 import '../models/bacnet_stats.dart';
+import '../models/bacnet_value.dart';
 import '../models/events.dart';
 import 'bindings.g.dart';
 import 'engine.dart';
@@ -55,6 +59,8 @@ final class _Worker implements RequestTransport {
     maxQueued: startup.maxQueued,
     bindTimeoutMs: startup.bindTimeoutMs,
     retryWindowMs: startup.apduTimeoutMs * (startup.apduRetries + 1),
+    offlineAfterTimeouts: startup.offlineAfterTimeouts,
+    offlineRetryMs: startup.offlineRetryMs,
     clock: () => _clock.elapsedMilliseconds,
   );
 
@@ -80,6 +86,7 @@ final class _Worker implements RequestTransport {
         apduRetries: startup.apduRetries,
         strictSourceCheck: startup.strictSourceCheck,
         covScanIntervalMs: startup.covScanIntervalMs,
+        maxSegments: startup.maxSegments,
       );
     } on BacnetException {
       _engine.shutdown();
@@ -169,6 +176,8 @@ final class _Worker implements RequestTransport {
     if (message is ConfirmedRequestCommand) {
       // answered once the device replies (or the scheduler gives up)
       _scheduler.enqueue(message);
+    } else if (message is CancelRequestCommand) {
+      _scheduler.cancel(message.requestId);
     } else {
       try {
         _emit(CommandResult(message.id, _execute(message)));
@@ -185,8 +194,8 @@ final class _Worker implements RequestTransport {
   /// Executes a command that completes immediately and returns its result.
   Object? _execute(WorkerCommand command) {
     switch (command) {
-      case ConfirmedRequestCommand():
-        throw StateError('confirmed requests are scheduled');
+      case ConfirmedRequestCommand() || CancelRequestCommand():
+        throw StateError('handled by the scheduler');
       case UnconfirmedRequestCommand():
         _engine.sendUnconfirmed(
           command.service,
@@ -322,6 +331,8 @@ final class _Worker implements RequestTransport {
       eventsDropped: native.eventsDropped,
       boundDevices: native.boundDevices,
       bindingDevices: _scheduler.binding,
+      offlineDevices: _scheduler.offline,
+      segmentedReplies: native.segmentedReplies,
       freeTransactions: native.freeTransactions,
       pollCalls: native.pollCalls,
     );
@@ -352,11 +363,13 @@ final class _Worker implements RequestTransport {
         if (_scheduler.complete(event.invokeId) case final command?) {
           _requestSucceeded(command);
         }
-      case BP_EVENT_ERROR ||
-          BP_EVENT_REJECT ||
-          BP_EVENT_ABORT ||
-          BP_EVENT_TIMEOUT:
+      case BP_EVENT_ERROR || BP_EVENT_REJECT || BP_EVENT_ABORT:
         if (_scheduler.complete(event.invokeId) case final command?) {
+          _requestFailed(command, _failure(command.deviceId, event));
+        }
+      case BP_EVENT_TIMEOUT:
+        final command = _scheduler.complete(event.invokeId, answered: false);
+        if (command != null) {
           _requestFailed(command, _failure(command.deviceId, event));
         }
       case BP_EVENT_UNCONFIRMED:
@@ -380,28 +393,34 @@ final class _Worker implements RequestTransport {
   BacnetException _failure(int deviceId, NativeEvent event) {
     switch (event.kind) {
       case BP_EVENT_ERROR:
-        var (errorClass, errorCode) = (event.a, event.b);
+        var error = BacnetError(
+          BacnetErrorClass(event.a),
+          BacnetErrorCode(event.b),
+        );
         if (event.hasFlag(BP_FLAG_COMPLEX)) {
           try {
-            (errorClass, errorCode) = decodeComplexError(event.data);
+            error = decodeComplexError(event.data);
           } on BacnetDecodeException {
-            (errorClass, errorCode) = (-1, -1);
+            error = const BacnetError(
+              BacnetErrorClass(-1),
+              BacnetErrorCode(-1),
+            );
           }
         }
         return BacnetProtocolException(
           'device $deviceId returned an error',
-          errorClass: errorClass,
-          errorCode: errorCode,
+          errorClass: error.errorClass,
+          errorCode: error.errorCode,
         );
       case BP_EVENT_REJECT:
         return BacnetRejectException(
           'device $deviceId rejected the request',
-          reason: event.a,
+          reason: BacnetRejectReason(event.a),
         );
       case BP_EVENT_ABORT:
         return BacnetAbortException(
           'transaction with device $deviceId aborted',
-          reason: event.a,
+          reason: BacnetAbortReason(event.a),
           fromServer: event.hasFlag(BP_FLAG_ABORT_FROM_SERVER),
         );
       default:
@@ -435,7 +454,7 @@ final class _Worker implements RequestTransport {
             len: event.data.length,
             maxApdu: event.a,
             vendorId: event.b,
-            segmentation: event.c,
+            segmentation: BacnetSegmentation(event.c),
             adr: event.sourceAdr,
           ),
         );
@@ -443,8 +462,47 @@ final class _Worker implements RequestTransport {
       case BacnetUnconfirmedService.covNotification:
         _emitCov(event.data, confirmed: false);
       default:
-        _emit(_serviceEvent(event, confirmed: false));
+        _emit(_unconfirmedEvent(event));
     }
+  }
+
+  /// The typed event of an unconfirmed service, or the raw request when it
+  /// is not decoded or malformed.
+  BacnetEvent _unconfirmedEvent(NativeEvent event) {
+    try {
+      switch (event.service) {
+        case BacnetUnconfirmedService.iHave:
+          final i = decodeIHave(event.data);
+          return IHaveEvent(
+            deviceId: i.device.instance,
+            object: i.object,
+            objectName: i.name,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+        case BacnetUnconfirmedService.textMessage:
+          final t = decodeTextMessage(event.data);
+          return TextMessageEvent(
+            sourceDeviceId: t.source.instance,
+            message: t.message,
+            urgent: t.urgent,
+            classNumber: t.classNumber,
+            classText: t.classText,
+          );
+        case BacnetUnconfirmedService.privateTransfer:
+          final p = decodePrivateTransfer(event.data);
+          return PrivateTransferEvent(
+            vendorId: p.vendorId,
+            serviceNumber: p.serviceNumber,
+            parameters: p.parameters,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+      }
+    } on BacnetDecodeException catch (e) {
+      _log(BacnetLogLevel.warning, 'malformed service ${event.service}: $e');
+    }
+    return _serviceEvent(event, confirmed: false);
   }
 
   UnconfirmedServiceEvent _serviceEvent(
@@ -460,16 +518,16 @@ final class _Worker implements RequestTransport {
 
   PropertyWriteEvent _writeEvent(NativeEvent event) {
     final raw = Uint8List.fromList(event.data);
-    Object? value;
+    BacnetValue? value;
     try {
       value = decodeApplicationData(raw);
     } on BacnetDecodeException {
-      value = raw;
+      value = null;
     }
     return PropertyWriteEvent(
-      objectType: event.a,
+      objectType: BacnetObjectType(event.a),
       instance: event.b,
-      propertyId: event.c,
+      propertyId: BacnetPropertyId(event.c),
       index: event.d,
       priority: event.priority,
       value: value,

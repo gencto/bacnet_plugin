@@ -29,7 +29,7 @@ Future<void> main(List<String> args) async {
       name: 'AV-$i',
       units: BacnetEngineeringUnits.degreesCelsius,
       covIncrement: 0.1,
-      presentValue: i.toDouble(),
+      presentValue: BacnetReal(i.toDouble()),
     );
   }
   await server.addObject(BacnetObjectType.binaryValue, 0, name: 'BV-0');
@@ -38,7 +38,7 @@ Future<void> main(List<String> args) async {
     0,
     name: 'MSV-0',
     stateTexts: ['Off', 'On', 'Auto'],
-    presentValue: 1,
+    presentValue: const BacnetUnsigned(1),
   );
   server.writeEvents.listen((e) => print('WRITE $e'));
   print('READY ${server.config.port} device $deviceId objects $objects');
@@ -50,7 +50,7 @@ Future<void> main(List<String> args) async {
         BacnetPresentValueUpdate(
           objectType: BacnetObjectType.analogValue,
           instance: i,
-          value: i + random.nextDouble() * 10,
+          value: BacnetReal(i + random.nextDouble() * 10),
         ),
     ]);
   });

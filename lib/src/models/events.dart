@@ -2,8 +2,11 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../constants/enumerations.dart';
+import '../constants/object_types.dart';
+import '../constants/property_ids.dart';
 import '../core/types.dart';
-import 'bacnet_object.dart';
+import 'bacnet_value.dart';
 
 /// Base class of the unsolicited events delivered by the BACnet stack.
 ///
@@ -67,7 +70,7 @@ class IAmEvent extends BacnetEvent {
     required this.len,
     this.maxApdu = 1476,
     this.vendorId = 0,
-    this.segmentation = 3,
+    this.segmentation = BacnetSegmentation.none,
     this.adr = const [],
   });
 
@@ -90,7 +93,7 @@ class IAmEvent extends BacnetEvent {
   final int vendorId;
 
   /// Segmentation supported (0 both, 1 transmit, 2 receive, 3 none).
-  final int segmentation;
+  final BacnetSegmentation segmentation;
 
   /// MAC address of the device behind a router (empty for local devices).
   final List<int> adr;
@@ -123,7 +126,7 @@ class CovNotificationEvent extends BacnetEvent {
   });
 
   /// Object type of the monitored object.
-  final int objectType;
+  final BacnetObjectType objectType;
 
   /// Instance of the monitored object.
   final int instance;
@@ -140,15 +143,21 @@ class CovNotificationEvent extends BacnetEvent {
   /// Remaining subscription lifetime in seconds (0 = indefinite).
   final int timeRemaining;
 
-  /// Reported property values (property id → value), typically
-  /// present-value and status-flags.
-  final Map<int, Object?> values;
+  /// Reported property values, typically Present_Value and Status_Flags.
+  final Map<BacnetPropertyId, BacnetValue> values;
 
   /// True for a confirmed notification.
   final bool confirmed;
 
   /// The monitored object.
   BacnetObject get object => BacnetObject(type: objectType, instance: instance);
+
+  /// The reported Present_Value, if any.
+  BacnetValue? get presentValue => values[BacnetPropertyId.presentValue];
+
+  /// The reported Status_Flags, if any.
+  BacnetStatusFlags? get statusFlags =>
+      values[BacnetPropertyId.statusFlags]?.asStatusFlags;
 
   @override
   String toString() =>
@@ -163,23 +172,25 @@ class PropertyWriteEvent extends BacnetEvent {
     required this.objectType,
     required this.instance,
     required this.propertyId,
-    this.value,
+    required this.value,
     this.index = -1,
     this.priority = 16,
     this.rawValue,
   });
 
   /// Object type written to.
-  final int objectType;
+  final BacnetObjectType objectType;
 
   /// Object instance written to.
   final int instance;
 
   /// Property identifier written.
-  final int propertyId;
+  final BacnetPropertyId propertyId;
 
-  /// Decoded written value.
-  final Object? value;
+  /// The written value; null only if [rawValue] could not be decoded.
+  ///
+  /// A [BacnetNull] relinquished [priority].
+  final BacnetValue? value;
 
   /// Array index written (-1 for the whole property).
   final int index;
@@ -196,8 +207,103 @@ class PropertyWriteEvent extends BacnetEvent {
       'property $propertyId = $value @ $priority)';
 }
 
+/// An I-Have: [deviceId] hosts [object] named [objectName] (the answer to
+/// `BacnetClient.sendWhoHas`).
+class IHaveEvent extends BacnetEvent {
+  /// Creates an I-Have event.
+  const IHaveEvent({
+    required this.deviceId,
+    required this.object,
+    required this.objectName,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// Device hosting the object.
+  final int deviceId;
+
+  /// The object.
+  final BacnetObject object;
+
+  /// Name of the object.
+  final String objectName;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  @override
+  String toString() => 'IHaveEvent(device: $deviceId, $object "$objectName")';
+}
+
+/// An UnconfirmedTextMessage sent to this device.
+class TextMessageEvent extends BacnetEvent {
+  /// Creates a text message event.
+  const TextMessageEvent({
+    required this.sourceDeviceId,
+    required this.message,
+    this.urgent = false,
+    this.classNumber,
+    this.classText,
+  });
+
+  /// Device that sent the message.
+  final int sourceDeviceId;
+
+  /// The text.
+  final String message;
+
+  /// True for an urgent message (otherwise normal priority).
+  final bool urgent;
+
+  /// Numeric message class, if the sender gave one.
+  final int? classNumber;
+
+  /// Character message class, if the sender gave one.
+  final String? classText;
+
+  @override
+  String toString() =>
+      'TextMessageEvent(from $sourceDeviceId${urgent ? ', urgent' : ''}: '
+      '$message)';
+}
+
+/// An UnconfirmedPrivateTransfer: a vendor specific service.
+class PrivateTransferEvent extends BacnetEvent {
+  /// Creates a private transfer event.
+  const PrivateTransferEvent({
+    required this.vendorId,
+    required this.serviceNumber,
+    this.parameters,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// Vendor identifier defining the service.
+  final int vendorId;
+
+  /// Vendor specific service number.
+  final int serviceNumber;
+
+  /// Service parameters, defined by the vendor.
+  final BacnetValue? parameters;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  @override
+  String toString() =>
+      'PrivateTransferEvent(vendor $vendorId, service $serviceNumber, '
+      '$parameters)';
+}
+
 /// Any other unconfirmed service request or confirmed notification
-/// (I-Have, event notifications, text messages, private transfers).
+/// (event notifications) and requests that could not be decoded.
 class UnconfirmedServiceEvent extends BacnetEvent {
   /// Creates an unconfirmed service event.
   const UnconfirmedServiceEvent({

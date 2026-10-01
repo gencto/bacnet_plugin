@@ -14,7 +14,8 @@ cd bacnet_plugin
 dart pub get --no-example
 ```
 
-`native/bacnet-stack` is a git submodule pinned to a bacnet-stack release.
+`native/bacnet-stack` is a git submodule pinned to a reviewed bacnet-stack
+commit.
 The native library is compiled by `hook/build.dart` the first time a test,
 app or benchmark runs, so a C compiler is required: clang or gcc on Linux,
 Xcode on macOS/iOS, Visual Studio with the C++ workload on Windows, the
@@ -25,16 +26,19 @@ Android NDK installed by Flutter for Android.
 ```
 lib/
   bacnet_plugin.dart     public API (everything else in lib/src is private)
+  testing.dart           FakeBacnetClient for application tests
   src/
     client/              BacnetClient
     server/              BacnetServer
     utilities/           DeviceScanner, PropertyMonitor
-    models/              value types and events
+    models/              values (sealed BacnetValue), constructed datatypes,
+                         typed properties, models and events
     core/                configuration, exceptions, logging
     constants/           BACnet enumerations (generated)
+    testing/             FakeBacnetClient and in-memory devices
     codec/               bounds checked BACnet encoder/decoder
       reader.dart, writer.dart       tags and primitive values
-      value_encoding.dart            application values, datatype inference
+      value_encoding.dart            BacnetValue encoding and decoding
       requests.dart, responses.dart  service encoders/decoders
     native/              worker isolate and FFI
       bacnet_system.dart  main isolate side, reference counted stack

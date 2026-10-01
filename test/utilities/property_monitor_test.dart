@@ -6,9 +6,16 @@ import 'package:test/test.dart';
 
 class MockBacnetClient extends Mock implements BacnetClient {}
 
+/// The value of a [PropertyValueUpdate], or the error of a
+/// [PropertyErrorUpdate].
+Object valueOrError(PropertyUpdate update) => switch (update) {
+  PropertyValueUpdate(:final value) => value,
+  PropertyErrorUpdate(:final error) => error,
+};
+
 void main() {
   const deviceId = 1234;
-  const object = BacnetObject(type: 0, instance: 1);
+  const object = BacnetObject(type: BacnetObjectType.analogInput, instance: 1);
   const propertyId = BacnetPropertyId.presentValue;
 
   late MockBacnetClient client;
@@ -41,8 +48,13 @@ void main() {
     when(() => client.covEvents).thenAnswer((_) => covController.stream);
     when(() => client.allocateProcessId()).thenReturn(42);
     when(
-      () => client.readProperty(deviceId, 0, 1, propertyId),
-    ).thenAnswer((_) async => 100.0);
+      () => client.readProperty(
+        deviceId,
+        BacnetObjectType.analogInput,
+        1,
+        propertyId,
+      ),
+    ).thenAnswer((_) async => const BacnetReal(100));
     when(
       () => client.unsubscribeCOV(
         any(),
@@ -66,8 +78,36 @@ void main() {
           .monitor(deviceId: deviceId, object: object, propertyId: propertyId)
           .first;
 
-      expect(update.value, 100.0);
+      expect(valueOrError(update), const BacnetReal(100));
       expect(update.source, UpdateSource.manual);
+      expect(update.objectIdentifier, object);
+      expect(update.propertyIdentifier, propertyId);
+    });
+
+    test('emits read failures as error updates', () async {
+      stubSubscribe();
+      when(
+        () => client.readProperty(
+          deviceId,
+          BacnetObjectType.analogInput,
+          1,
+          propertyId,
+        ),
+      ).thenThrow(const BacnetTimeoutException('no answer'));
+      final monitor = PropertyMonitor(client);
+
+      final update = await monitor
+          .monitor(deviceId: deviceId, object: object, propertyId: propertyId)
+          .first;
+
+      expect(
+        update,
+        isA<PropertyErrorUpdate>().having(
+          (u) => u.error,
+          'error',
+          isA<BacnetTimeoutException>(),
+        ),
+      );
     });
 
     test('emits COV values without additional reads', () async {
@@ -88,40 +128,55 @@ void main() {
         ..add(
           const CovNotificationEvent(
             deviceId: deviceId,
-            objectType: 0,
+            objectType: BacnetObjectType.analogInput,
             instance: 1,
             timestamp: 'now',
             subscriberProcessId: 7,
-            values: {propertyId: 1.0},
+            values: {propertyId: BacnetReal(1)},
           ),
         )
         ..add(
           const CovNotificationEvent(
             deviceId: deviceId,
-            objectType: 0,
+            objectType: BacnetObjectType.analogInput,
             instance: 1,
             timestamp: 'now',
             subscriberProcessId: 42,
-            values: {propertyId: 150.0},
+            values: {propertyId: BacnetReal(150)},
           ),
         );
       await Future<void>.delayed(const Duration(milliseconds: 20));
       await subscription.cancel();
 
-      expect(updates.map((u) => u.value), [100.0, 150.0]);
+      expect(updates.map(valueOrError), const [
+        BacnetReal(100),
+        BacnetReal(150),
+      ]);
       expect(updates.last.source, UpdateSource.cov);
-      verify(() => client.readProperty(deviceId, 0, 1, propertyId)).called(1);
+      verify(
+        () => client.readProperty(
+          deviceId,
+          BacnetObjectType.analogInput,
+          1,
+          propertyId,
+        ),
+      ).called(1);
       verify(
         () => client.subscribeCOV(
           deviceId,
-          0,
+          BacnetObjectType.analogInput,
           1,
           processId: 42,
           lifetime: any(named: 'lifetime'),
         ),
       ).called(1);
       verify(
-        () => client.unsubscribeCOV(deviceId, 0, 1, processId: 42),
+        () => client.unsubscribeCOV(
+          deviceId,
+          BacnetObjectType.analogInput,
+          1,
+          processId: 42,
+        ),
       ).called(1);
     });
 

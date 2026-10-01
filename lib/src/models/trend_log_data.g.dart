@@ -26,13 +26,17 @@ Map<String, dynamic> _$TrendLogDataToJson(TrendLogData instance) =>
 TrendLogEntry _$TrendLogEntryFromJson(Map<String, dynamic> json) =>
     TrendLogEntry(
       timestamp: DateTime.parse(json['timestamp'] as String),
-      value: json['value'],
-      status: json['status'] as String,
+      datum: TrendLogDatum.fromJson(json['datum'] as Map<String, dynamic>),
+      statusFlags: json['statusFlags'] == null
+          ? null
+          : BacnetStatusFlags.fromJson(
+              json['statusFlags'] as Map<String, dynamic>,
+            ),
     );
 
 Map<String, dynamic> _$TrendLogEntryToJson(TrendLogEntry instance) =>
     <String, dynamic>{
       'timestamp': instance.timestamp.toIso8601String(),
-      'value': instance.value,
-      'status': instance.status,
+      'datum': instance.datum.toJson(),
+      'statusFlags': instance.statusFlags?.toJson(),
     };

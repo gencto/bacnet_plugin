@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../format_value.dart';
 
 /// A widget that monitors and displays a BACnet property value in real-time.
 ///
@@ -26,13 +27,13 @@ class PropertyMonitorWidget extends StatefulWidget {
   final int deviceId;
 
   /// The object type.
-  final int objectType;
+  final BacnetObjectType objectType;
 
   /// The object instance.
   final int instance;
 
-  /// The property ID to monitor.
-  final int propertyId;
+  /// The property to monitor.
+  final BacnetPropertyId propertyId;
 
   /// Optional human-readable property name.
   final String? propertyName;
@@ -48,7 +49,7 @@ class PropertyMonitorWidget extends StatefulWidget {
 }
 
 class _PropertyMonitorWidgetState extends State<PropertyMonitorWidget> {
-  dynamic _currentValue;
+  BacnetValue? _currentValue;
   DateTime? _lastUpdate;
   bool _isLoading = false;
   String? _errorMessage;
@@ -88,7 +89,7 @@ class _PropertyMonitorWidgetState extends State<PropertyMonitorWidget> {
           if (event.deviceId == widget.deviceId &&
               event.objectType == widget.objectType &&
               event.instance == widget.instance &&
-              event.values.containsKey(widget.propertyId) &&
+              event.values[widget.propertyId] != null &&
               mounted) {
             setState(() {
               _currentValue = event.values[widget.propertyId];
@@ -150,14 +151,8 @@ class _PropertyMonitorWidgetState extends State<PropertyMonitorWidget> {
     }
   }
 
-  String _formatValue(dynamic value) {
-    if (value == null) return 'null';
-    if (value is double) return value.toStringAsFixed(2);
-    if (value is BacnetObject) {
-      return '${BacnetObjectType.getName(value.type)}:${value.instance}';
-    }
-    return value.toString();
-  }
+  String _formatValue(BacnetValue? value) =>
+      value == null ? '-' : formatValue(value);
 
   String _formatTimestamp(DateTime? timestamp) {
     if (timestamp == null) return 'Never';

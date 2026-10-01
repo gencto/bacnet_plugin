@@ -6,6 +6,7 @@
  *   bp_client.c      confirmed/unconfirmed requests, replies, bindings
  *   bp_server.c      local device, COV detection, object lifecycle
  *   bp_objects.c     local object properties, local Read/WriteProperty
+ *   bp_segments.c    reception of segmented answers
  *   bp_events.c      event buffer drained by Dart
  *   bp_tables.c      device address table and string storage
  *   bp_io.c          wakeup socket, waiting for traffic, socket options
@@ -73,6 +74,10 @@ typedef struct {
     uint32_t deleted;
 } bp_string_table_t;
 
+/* Segments accepted per answer unless BP_OPTION_MAX_SEGMENTS says otherwise
+   (32 segments of 1476 bytes fit into one event). */
+#define BP_DEFAULT_MAX_SEGMENTS 32
+
 /* Slots of the string table per object. */
 #define BP_STRING_NAME 0
 #define BP_STRING_DESCRIPTION 1
@@ -81,11 +86,16 @@ typedef struct {
 
 /* ---- outstanding confirmed requests ----------------------------------- */
 
+/** Reassembly of a segmented ComplexACK (bp_segments.c). */
+typedef struct bp_segments bp_segments_t;
+
 typedef struct {
     bool active;
     uint8_t service;
     uint32_t device_id;
     BACNET_ADDRESS dest;
+    /* set while the answer arrives in segments */
+    bp_segments_t *segments;
 } bp_transaction_t;
 
 /* ---- engine state ------------------------------------------------------ */
@@ -102,6 +112,11 @@ typedef struct {
     uint32_t cov_scan_interval_ms;
     uint32_t cov_scan_budget;
     int socket_buffer_size;
+    /* segmentation: segments accepted per answer, last invoke id we used,
+       transactions receiving segments */
+    uint8_t max_segments;
+    uint8_t last_invoke_id;
+    uint32_t segmenting;
     /* foreign device registration */
     BACNET_IP_ADDRESS fdr_bbmd;
     uint16_t fdr_ttl;
@@ -166,6 +181,16 @@ void bp_apply_socket_buffer(int sock);
 /** Transaction of invoke_id, or NULL when it is not one of ours. */
 bp_transaction_t *bp_tx_for(uint8_t invoke_id);
 void bp_register_client_handlers(void);
+
+/* ---- bp_segments.c ----------------------------------------------------- */
+
+/** Handles a segmented ComplexACK (APDU without NPDU) from src. */
+void bp_segment_received(
+    const BACNET_ADDRESS *src, const uint8_t *apdu, uint16_t apdu_len);
+/** Times out transactions whose segments stopped arriving. */
+void bp_segments_timer(uint32_t now);
+/** Ends a transaction and releases its reassembly buffer. */
+void bp_tx_end(bp_transaction_t *tx);
 
 /* ---- bp_server.c ------------------------------------------------------- */
 

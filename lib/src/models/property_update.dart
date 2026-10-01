@@ -1,6 +1,11 @@
+/// @docImport '../utilities/property_monitor.dart';
+library;
+
 import 'package:meta/meta.dart';
 
-import 'bacnet_object.dart';
+import '../constants/property_ids.dart';
+import '../core/exceptions.dart';
+import 'bacnet_value.dart';
 
 /// Source of the property update.
 enum UpdateSource {
@@ -14,67 +19,128 @@ enum UpdateSource {
   manual,
 }
 
-/// Represents a property value update.
+/// An update of a monitored property, emitted by [PropertyMonitor]: a new
+/// [PropertyValueUpdate] or a [PropertyErrorUpdate] when reading failed.
+///
+/// The class is sealed, so the value is only reachable once the update is
+/// known to carry one:
+///
+/// ```dart
+/// monitor.monitorPresentValue(1234, sensor).listen((update) {
+///   switch (update) {
+///     case PropertyValueUpdate(:final value):
+///       print('now ${value.asDouble}');
+///     case PropertyErrorUpdate(:final error):
+///       print('read failed: $error');
+///   }
+/// });
+/// ```
 @immutable
-class PropertyUpdate {
-  /// Creates a property update.
+sealed class PropertyUpdate {
   const PropertyUpdate({
     required this.deviceId,
     required this.objectIdentifier,
     required this.propertyIdentifier,
-    required this.value,
     required this.timestamp,
     required this.source,
-    this.error,
   });
 
-  /// Device ID that originated the update.
+  /// Device that hosts the property.
   final int deviceId;
 
-  /// Object identifier of the property.
+  /// Object of the property.
   final BacnetObject objectIdentifier;
 
   /// Property identifier.
-  final int propertyIdentifier;
-
-  /// New property value.
-  final dynamic value;
+  final BacnetPropertyId propertyIdentifier;
 
   /// Time of the update.
   final DateTime timestamp;
 
   /// Source of the update.
   final UpdateSource source;
+}
 
-  /// Error object if the update represents a failure.
-  final Object? error;
+/// A new value of a monitored property.
+final class PropertyValueUpdate extends PropertyUpdate {
+  /// Creates a value update.
+  const PropertyValueUpdate({
+    required super.deviceId,
+    required super.objectIdentifier,
+    required super.propertyIdentifier,
+    required this.value,
+    required super.timestamp,
+    required super.source,
+  });
+
+  /// The new value.
+  final BacnetValue value;
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is PropertyUpdate &&
-          runtimeType == other.runtimeType &&
-          deviceId == other.deviceId &&
-          objectIdentifier == other.objectIdentifier &&
-          propertyIdentifier == other.propertyIdentifier &&
-          value == other.value &&
-          timestamp == other.timestamp &&
-          source == other.source &&
-          error == other.error;
+      other is PropertyValueUpdate &&
+      other.deviceId == deviceId &&
+      other.objectIdentifier == objectIdentifier &&
+      other.propertyIdentifier == propertyIdentifier &&
+      other.value == value &&
+      other.timestamp == timestamp &&
+      other.source == source;
 
   @override
-  int get hashCode =>
-      deviceId.hashCode ^
-      objectIdentifier.hashCode ^
-      propertyIdentifier.hashCode ^
-      value.hashCode ^
-      timestamp.hashCode ^
-      source.hashCode ^
-      error.hashCode;
+  int get hashCode => Object.hash(
+    deviceId,
+    objectIdentifier,
+    propertyIdentifier,
+    value,
+    timestamp,
+    source,
+  );
 
   @override
-  String toString() {
-    return 'PropertyUpdate{deviceId: $deviceId, object: $objectIdentifier, '
-        'property: $propertyIdentifier, value: $value, source: $source}';
-  }
+  String toString() =>
+      'PropertyValueUpdate(device: $deviceId, object: $objectIdentifier, '
+      'property: ${propertyIdentifier.label}, value: $value, '
+      'source: ${source.name})';
+}
+
+/// Reading a monitored property failed.
+final class PropertyErrorUpdate extends PropertyUpdate {
+  /// Creates an error update.
+  const PropertyErrorUpdate({
+    required super.deviceId,
+    required super.objectIdentifier,
+    required super.propertyIdentifier,
+    required this.error,
+    required super.timestamp,
+    required super.source,
+  });
+
+  /// Why the read failed.
+  final BacnetException error;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PropertyErrorUpdate &&
+      other.deviceId == deviceId &&
+      other.objectIdentifier == objectIdentifier &&
+      other.propertyIdentifier == propertyIdentifier &&
+      other.error == error &&
+      other.timestamp == timestamp &&
+      other.source == source;
+
+  @override
+  int get hashCode => Object.hash(
+    deviceId,
+    objectIdentifier,
+    propertyIdentifier,
+    error,
+    timestamp,
+    source,
+  );
+
+  @override
+  String toString() =>
+      'PropertyErrorUpdate(device: $deviceId, object: $objectIdentifier, '
+      'property: ${propertyIdentifier.label}, error: $error, '
+      'source: ${source.name})';
 }

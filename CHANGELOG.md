@@ -5,6 +5,125 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-01
+
+Typed identifiers and values, read coalescing, segmentation and request
+control. Breaking changes are marked; see *Migrating from 0.1.x* in the
+README.
+
+### Changed
+
+- **Breaking — typed identifiers**: `BacnetObjectType`, `BacnetPropertyId`,
+  `BacnetEngineeringUnits`, error classes/codes, reasons, services and the
+  other enumerations are extension types over `int`. The client, server,
+  models, events and exceptions use them, so a property id passed as an
+  object type no longer compiles; `.label` names a value.
+- **Breaking — typed values**: property values are the sealed class
+  `BacnetValue` with one subclass per BACnet datatype (`BacnetReal`,
+  `BacnetUnsigned`, `BacnetEnumerated`, `BacnetCharacterString`,
+  `BacnetObject`, `BacnetList`, ...); no public API returns or accepts
+  `dynamic` or `Object?` values any more:
+  - `readProperty` (client and server) returns `Future<BacnetValue>`;
+    Unsigned and Enumerated are no longer both decoded to `int`, and NULL
+    is `BacnetNull` instead of `null`. Accessors `asDouble`, `asInt`,
+    `asBool`, `asString`, `asStatusFlags` and `asList`.
+  - `readMultiple` and `DeviceScanner.scanDevice` return
+    `Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>`
+    (a `BacnetValue` or a `BacnetError` per property; `valueOf`/`errorOf`)
+    instead of `'type:instance'` → `int` → `dynamic` maps, and reject
+    specifications that request a property twice.
+  - `writeProperty`, `BacnetPropertyValue`, `BacnetServer.setPresentValue`,
+    `setProperty`, `addObject` and `BacnetPresentValueUpdate` take a
+    `BacnetValue`; the `tag:` parameters are removed.
+    `BacnetValue.infer` converts untyped input explicitly.
+  - `BacnetObject` is an identifier and the ObjectIdentifier value; its
+    `properties` map and the getters based on it are removed.
+  - `CovNotificationEvent.values` is `Map<BacnetPropertyId, BacnetValue>`
+    (`presentValue`, `statusFlags`); `PropertyWriteEvent.value` is a
+    `BacnetValue?`.
+  - `PropertyUpdate` is sealed: `PropertyValueUpdate` and
+    `PropertyErrorUpdate` (with a `BacnetException`).
+  - `TrendLogEntry` has a sealed `datum` (`TrendLogValue`,
+    `TrendLogStatus`, `TrendLogFailure`, `TrendLogTimeChange`) and
+    `BacnetStatusFlags? statusFlags` instead of `value` and `status`.
+  - `readRange` takes a sealed `BacnetRange` instead of
+    `type`/`reference`/`count`; `ReadRangeType` is removed.
+  - `BacnetError` moved next to the values; `BacnetBitString`,
+    `BacnetDate`, `BacnetTime` are `BacnetValue`s.
+- **Breaking**: `scanDevice` takes `background`/`cancelToken` instead of
+  the ignored `endDeviceId`.
+- `DeviceScanner` sends background requests by default (`background`).
+- **Breaking**: I-Have, UnconfirmedTextMessage and
+  UnconfirmedPrivateTransfer arrive as typed events;
+  `UnconfirmedServiceEvent` remains for event notifications and requests
+  that cannot be decoded.
+- **Dependencies**: bacnet-stack 1.7.0-rc4 (security fixes for BVLC header
+  encoding, enclosed data and constructed value decoding); the server
+  object table gains Averaging, and Accumulator supports COV.
+- Request methods use callbacks instead of `async` functions (see
+  *Fixed*); 50 000 concurrent reads run at 170–196k reads/s (AOT,
+  loopback) instead of 123–138k.
+
+### Added
+
+- **Read coalescing**: concurrent `readProperty` calls to one device are
+  merged into ReadPropertyMultiple requests (`coalesceReads`,
+  `maxCoalescedReads`, `coalescingWindow`); identical reads share one
+  result, devices without RPM support are detected. 50 000 concurrent
+  reads need 24× fewer requests and run about 3× faster on loopback.
+- **Segmentation**: segmented ComplexACKs (large object lists, schedules,
+  RPM results) are acknowledged window by window, reassembled and decoded
+  like unsegmented answers; lost segments are requested again and stalled
+  transfers time out. Requests advertise `maxSegmentsAccepted` (default 32,
+  0 disables). `BacnetStats.segmentedReplies` counts them.
+- **Background requests**: `background: true` queues requests behind
+  interactive ones and limits them to 3/4 of the transaction slots and one
+  slot less per device.
+- **Offline devices**: after `offlineAfterTimeouts` consecutive timeouts
+  requests to a device fail immediately with `BacnetDeviceOfflineException`
+  (a `BacnetTimeoutException`); one request probes it after
+  `offlineRetryInterval` (doubling while it stays silent), an I-Am brings
+  it back. `BacnetStats.offlineDevices` counts them.
+- **Cancellation**: `BacnetCancelToken` cancels reads, writes, ReadRange
+  and raw requests (`BacnetCancelledException`); queued requests are
+  dropped from the worker queue.
+- **Testing**: `package:bacnet_plugin/testing.dart` with
+  `FakeBacnetClient`, `FakeBacnetDevice` and `FakeBacnetObject`: in-memory
+  devices with discovery, real error codes, priority arrays, COV
+  notifications, trend log records, latency and offline simulation, and a
+  request log for assertions.
+- **Typed properties**: `BacnetProperty<T>`/`BacnetWritableProperty<T>`
+  and the `BacnetProperties` catalogue of standard properties;
+  `client.read`/`client.write` (also on `BacnetServer` and
+  `FakeBacnetClient`) return and accept the Dart type, read-only
+  properties cannot be written, and `get` reads `readMultiple` results.
+- **Constructed datatypes**: `BacnetWeeklySchedule`, `BacnetTimeValue`,
+  `BacnetSpecialEvent`, `BacnetCalendarEntry`, `BacnetDateRange`,
+  `BacnetWeekNDay`, `BacnetDateTime`, `BacnetTimeStamp`,
+  `BacnetDeviceObjectPropertyReference`, `BacnetAddressBinding`,
+  `BacnetPriorityArray`, `BacnetEventTransitionBits` and
+  `BacnetLimitEnable` convert from and to the values of schedules,
+  calendars, trend logs and event reporting. Checked against
+  bacnet-stack's `bacserv`.
+- **Typed service events**: `IHaveEvent`, `TextMessageEvent` and
+  `PrivateTransferEvent` instead of raw `UnconfirmedServiceEvent`s;
+  `sendWhoHas` (answered by `FakeBacnetDevice`s too).
+- JSON for values, write specifications and trend logs
+  (`{"datatype": "real", "value": 21.5}`).
+- Constants `BacnetBinaryPV` and `BacnetPolarity`.
+
+### Fixed
+
+- In JIT mode (debug builds, `dart run`) bursts of tens of thousands of
+  requests stalled for seconds: the client kept one suspended `async` call
+  per request, and the VM deoptimizes each of them separately when the
+  function's optimized code is invalidated. Request methods now use
+  callbacks; non-BACnet errors of merged reads fail the reads instead of
+  escaping as uncaught errors.
+- Unsigned and Enumerated values of 64 bits wrapped to negative numbers;
+  they are now rejected with `BacnetDecodeException`.
+- Datatype inference wrote REAL to Accumulator present values (Unsigned).
+
 ## [0.1.0] - 2026-10-01
 
 Reworked for high-load client and server deployments. See the migration

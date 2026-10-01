@@ -32,7 +32,7 @@ Future<void> main(List<String> args) async {
         BacnetPresentValueUpdate(
           objectType: BacnetObjectType.analogValue,
           instance: i,
-          value: i * 0.5 + round,
+          value: BacnetReal(i * 0.5 + round),
         ),
     ]);
     final ms = clock.elapsedMicroseconds / 1000;
@@ -48,11 +48,15 @@ Future<void> main(List<String> args) async {
       server.setPresentValue(
         BacnetObjectType.analogValue,
         i % count,
-        i.toDouble(),
+        BacnetReal(i.toDouble()),
       ),
   ]);
   print('2000 single updates in ${clock.elapsedMilliseconds} ms');
-  final value = await server.readProperty(BacnetObjectType.analogValue, 1, 85);
+  final value = await server.readProperty(
+    BacnetObjectType.analogValue,
+    1,
+    BacnetPropertyId.presentValue,
+  );
   print('AV-1 present value: $value');
   await server.close();
   exit(0);

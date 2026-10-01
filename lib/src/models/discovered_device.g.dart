@@ -11,7 +11,8 @@ DiscoveredDevice _$DiscoveredDeviceFromJson(Map<String, dynamic> json) =>
       deviceId: (json['deviceId'] as num).toInt(),
       vendorId: (json['vendorId'] as num).toInt(),
       maxApduLength: (json['maxApduLength'] as num).toInt(),
-      segmentationSupported: (json['segmentationSupported'] as num).toInt(),
+      segmentationSupported:
+          json['segmentationSupported'] as BacnetSegmentation,
       deviceName: json['deviceName'] as String?,
       description: json['description'] as String?,
       location: json['location'] as String?,

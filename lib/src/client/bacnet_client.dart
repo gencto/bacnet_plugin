@@ -8,22 +8,25 @@ import 'dart:typed_data';
 import '../codec/log_records.dart';
 import '../codec/requests.dart';
 import '../codec/responses.dart';
-import '../codec/values.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../constants/services.dart';
 import '../core/bacnet_config.dart';
+import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
-import '../models/bacnet_object.dart';
+import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
+import '../models/bacnet_value.dart';
 import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
 import '../models/wpm_models.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
+import 'read_coalescer.dart';
+import 'read_specs.dart';
 
 /// BACnet client for communication with BACnet devices.
 ///
@@ -45,6 +48,12 @@ import '../native/protocol.dart';
 /// ]);
 /// ```
 ///
+/// Request methods accept `background: true` for bulk work that should
+/// wait behind interactive requests, and a [BacnetCancelToken] to drop
+/// requests nobody waits for any more. Devices that stop answering are
+/// considered offline after [BacnetConfig.offlineAfterTimeouts] timeouts
+/// ([BacnetDeviceOfflineException]).
+///
 /// Unknown device addresses are resolved automatically with a targeted
 /// Who-Is; failures are reported with typed exceptions
 /// ([BacnetTimeoutException], [BacnetProtocolException],
@@ -63,6 +72,13 @@ class BacnetClient {
 
   final BacnetConfig _config;
   final BacnetSystem _system = BacnetSystem.instance;
+  late final ReadCoalescer _reads = ReadCoalescer(
+    readProperty: _readSingle,
+    readMultiple: (deviceId, specs, timeout, {background = false}) =>
+        readMultiple(deviceId, specs, timeout: timeout, background: background),
+    maxBatchSize: _config.maxCoalescedReads,
+    window: _config.coalescingWindow,
+  );
   bool _started = false;
   int _nextProcessId = 1;
 
@@ -126,12 +142,47 @@ class BacnetClient {
     );
   }
 
+  /// Sends a Who-Has for [object] or for the object named [objectName]
+  /// (exactly one of them). Devices hosting it answer with an
+  /// [IHaveEvent] (see [events]).
+  ///
+  /// [lowLimit] and [highLimit] limit the device instance range (-1 for no
+  /// limit); [network] selects the broadcast as for [sendWhoIs].
+  Future<void> sendWhoHas({
+    BacnetObject? object,
+    String? objectName,
+    int lowLimit = -1,
+    int highLimit = -1,
+    int network = 0xFFFF,
+  }) {
+    return Future.sync(() {
+      final payload = encodeWhoHas(
+        object: object,
+        objectName: objectName,
+        lowLimit: lowLimit < 0 ? null : lowLimit,
+        highLimit: highLimit < 0 ? null : highLimit,
+      );
+      return _system.call<void>(
+        (id) => UnconfirmedRequestCommand(
+          id,
+          service: BacnetUnconfirmedService.whoHas,
+          payload: payload,
+          network: network,
+        ),
+      );
+    });
+  }
+
   /// Reads a property of an object.
   ///
-  /// Returns the decoded value: [double] (REAL), [int] (Unsigned, Signed,
-  /// Enumerated), [bool], [String], [BacnetObject] (object identifiers),
-  /// [BacnetBitString], [BacnetDate], [BacnetTime], [Uint8List] (octet
-  /// strings), `null`, or a [List] for arrays and lists.
+  /// Returns the value with its BACnet datatype ([BacnetReal],
+  /// [BacnetEnumerated], [BacnetCharacterString], ...; see [BacnetValue]);
+  /// arrays and lists are a [BacnetList]. Errors returned by the device
+  /// throw a [BacnetProtocolException].
+  ///
+  /// Concurrent reads of one device are merged into ReadPropertyMultiple
+  /// requests unless [BacnetConfig.coalesceReads] is off; reads of an
+  /// [arrayIndex] are always sent alone.
   ///
   /// ```dart
   /// final value = await client.readProperty(
@@ -140,14 +191,115 @@ class BacnetClient {
   ///   1,
   ///   BacnetPropertyId.presentValue,
   /// );
+  /// switch (value) {
+  ///   case BacnetReal(:final value):
+  ///     print('$value °C');
+  ///   default:
+  ///     print('unexpected $value');
+  /// }
+  /// print(value.asDouble); // or null for other datatypes
   /// ```
-  Future<dynamic> readProperty(
+  Future<BacnetValue> readProperty(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance,
-    int propertyId, {
+    BacnetPropertyId propertyId, {
     int arrayIndex = -1,
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    if (_config.coalesceReads && arrayIndex == -1) {
+      final read = _reads.read(
+        deviceId,
+        objectType,
+        instance,
+        propertyId,
+        timeout: timeout,
+        background: background,
+      );
+      return cancelToken == null ? read : cancelToken.guard(read);
+    }
+    return _readSingle(
+      deviceId,
+      objectType,
+      instance,
+      propertyId,
+      timeout,
+      arrayIndex: arrayIndex,
+      background: background,
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// Reads [property] of [object] as its Dart type.
+  ///
+  /// Throws a [BacnetDecodeException] if the device returned another
+  /// datatype than the property defines, besides the errors of
+  /// [readProperty].
+  ///
+  /// ```dart
+  /// final name = await client.read(1234, sensor, BacnetProperties.objectName);
+  /// final schedule = await client.read(
+  ///     1234, schedule1, BacnetProperties.weeklySchedule);
+  /// print(schedule[DateTime.monday]);
+  /// ```
+  Future<T> read<T>(
+    int deviceId,
+    BacnetObject object,
+    BacnetProperty<T> property, {
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => readProperty(
+    deviceId,
+    object.type,
+    object.instance,
+    property.id,
+    timeout: timeout,
+    background: background,
+    cancelToken: cancelToken,
+  ).then(property.decode);
+
+  /// Writes [value] to [property] of [object]; only writable properties
+  /// are accepted.
+  ///
+  /// ```dart
+  /// await client.write(1234, output, BacnetProperties.analogPresentValue,
+  ///     21.5, priority: 8);
+  /// ```
+  Future<void> write<T>(
+    int deviceId,
+    BacnetObject object,
+    BacnetWritableProperty<T> property,
+    T value, {
+    int priority = 16,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => Future.sync(
+    () => writeProperty(
+      deviceId,
+      object.type,
+      object.instance,
+      property.id,
+      property.encode(value),
+      priority: priority,
+      timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
+    ),
+  );
+
+  Future<BacnetValue> _readSingle(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance,
+    BacnetPropertyId propertyId,
+    Duration? timeout, {
+    int arrayIndex = -1,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) {
     return _system.confirmed(
       deviceId: deviceId,
@@ -160,46 +312,113 @@ class BacnetClient {
       ),
       decoding: AckDecoding.readProperty,
       timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
     );
   }
 
   /// Reads multiple properties of multiple objects with
   /// ReadPropertyMultiple.
   ///
-  /// Returns `'type:instance'` → property id → value; properties that could
-  /// not be read map to a [BacnetError]. Requests whose answer does not fit
+  /// Returns object → property → result: a [BacnetValue], or a
+  /// [BacnetError] for a property the device could not return. A property
+  /// may appear only once per object. Requests whose answer does not fit
   /// into one APDU are split automatically.
-  Future<Map<String, Map<int, dynamic>>> readMultiple(
+  ///
+  /// ```dart
+  /// const sensor = BacnetObject(
+  ///   type: BacnetObjectType.analogInput,
+  ///   instance: 1,
+  /// );
+  /// final results = await client.readMultiple(1234, [
+  ///   const BacnetReadAccessSpecification(
+  ///     objectIdentifier: sensor,
+  ///     properties: [
+  ///       BacnetPropertyReference(
+  ///         propertyIdentifier: BacnetPropertyId.presentValue,
+  ///       ),
+  ///       BacnetPropertyReference(
+  ///         propertyIdentifier: BacnetPropertyId.objectName,
+  ///       ),
+  ///     ],
+  ///   ),
+  /// ]);
+  /// final properties = results[sensor] ?? const {};
+  /// print(properties.valueOf(BacnetPropertyId.objectName)?.asString);
+  /// switch (properties[BacnetPropertyId.presentValue]) {
+  ///   case BacnetReal(:final value):
+  ///     print('$value °C');
+  ///   case BacnetError(:final errorCode):
+  ///     print('not readable: ${errorCode.label}');
+  ///   case _:
+  ///     print('missing or unexpected');
+  /// }
+  /// ```
+  Future<Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>>
+  readMultiple(
     int deviceId,
     List<BacnetReadAccessSpecification> specs, {
     Duration? timeout,
-  }) async {
-    if (specs.isEmpty) return {};
-    try {
-      final result = await _system.confirmed(
-        deviceId: deviceId,
-        service: BacnetConfirmedService.readPropertyMultiple,
-        payload: encodeReadPropertyMultiple(specs),
-        decoding: AckDecoding.readPropertyMultiple,
-        timeout: timeout,
-      );
-      return result! as Map<String, Map<int, dynamic>>;
-    } on BacnetAbortException catch (e) {
-      if (!e.isSegmentationNotSupported) rethrow;
-      final halves = _splitSpecs(specs);
-      if (halves == null) rethrow;
-      final parts = await Future.wait([
-        readMultiple(deviceId, halves.$1, timeout: timeout),
-        readMultiple(deviceId, halves.$2, timeout: timeout),
-      ]);
-      final merged = <String, Map<int, dynamic>>{};
-      for (final part in parts) {
-        for (final entry in part.entries) {
-          (merged[entry.key] ??= <int, dynamic>{}).addAll(entry.value);
-        }
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    if (specs.isEmpty) return Future.value({});
+    // Request methods use callbacks instead of async/await: under load
+    // thousands of calls are pending, and in JIT mode suspended async calls
+    // are deoptimized one by one when the function's code is invalidated.
+    return Future.sync(() {
+      checkUniqueProperties(specs);
+      return _system
+          .confirmed<
+            Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>
+          >(
+            deviceId: deviceId,
+            service: BacnetConfirmedService.readPropertyMultiple,
+            payload: encodeReadPropertyMultiple(specs),
+            decoding: AckDecoding.readPropertyMultiple,
+            timeout: timeout,
+            background: background,
+            cancelToken: cancelToken,
+          )
+          .catchError(
+            (Object error, StackTrace stack) {
+              final halves = _splitSpecs(specs);
+              if (halves == null) Error.throwWithStackTrace(error, stack);
+              return Future.wait([
+                readMultiple(
+                  deviceId,
+                  halves.$1,
+                  timeout: timeout,
+                  background: background,
+                  cancelToken: cancelToken,
+                ),
+                readMultiple(
+                  deviceId,
+                  halves.$2,
+                  timeout: timeout,
+                  background: background,
+                  cancelToken: cancelToken,
+                ),
+              ]).then(_merge);
+            },
+            test: (error) =>
+                error is BacnetAbortException &&
+                error.isSegmentationNotSupported,
+          );
+    });
+  }
+
+  static Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>> _merge(
+    List<Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>> parts,
+  ) {
+    final merged =
+        <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
+    for (final part in parts) {
+      for (final MapEntry(key: object, value: properties) in part.entries) {
+        (merged[object] ??= {}).addAll(properties);
       }
-      return merged;
     }
+    return merged;
   }
 
   static (
@@ -240,11 +459,11 @@ class BacnetClient {
 
   /// Writes a property value.
   ///
-  /// The BACnet datatype is inferred from the object type, the property
-  /// and the Dart value (REAL for analog present values, ENUMERATED for
-  /// binary ones, UNSIGNED for multi-state ones, ...). Use [tag] (see
-  /// [BacnetApplicationTag]) or a [BacnetValue] to force it. `null` writes
-  /// NULL, which relinquishes the given [priority].
+  /// The class of [value] decides the BACnet datatype, e.g. [BacnetReal]
+  /// for analog present values, [BacnetEnumerated] for binary ones and
+  /// [BacnetUnsigned] for multi-state ones. A [BacnetNull] relinquishes
+  /// [priority]. [BacnetValue.infer] converts values whose type is only
+  /// known at run time.
   ///
   /// ```dart
   /// await client.writeProperty(
@@ -252,34 +471,38 @@ class BacnetClient {
   ///   BacnetObjectType.analogOutput,
   ///   1,
   ///   BacnetPropertyId.presentValue,
-  ///   75.5,
+  ///   const BacnetReal(75.5),
   ///   priority: 8,
   /// );
   /// ```
   Future<void> writeProperty(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance,
-    int propertyId,
-    dynamic value, {
+    BacnetPropertyId propertyId,
+    BacnetValue value, {
     int priority = 16,
-    int? tag,
     int arrayIndex = -1,
     Duration? timeout,
-  }) async {
-    await _system.confirmed(
-      deviceId: deviceId,
-      service: BacnetConfirmedService.writeProperty,
-      payload: encodeWriteProperty(
-        objectType,
-        instance,
-        propertyId,
-        value,
-        tag: tag,
-        arrayIndex: arrayIndex,
-        priority: priority,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    return Future.sync(
+      () => _system.confirmed<void>(
+        deviceId: deviceId,
+        service: BacnetConfirmedService.writeProperty,
+        payload: encodeWriteProperty(
+          objectType,
+          instance,
+          propertyId,
+          value,
+          arrayIndex: arrayIndex,
+          priority: priority,
+        ),
+        timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
       ),
-      timeout: timeout,
     );
   }
 
@@ -289,13 +512,19 @@ class BacnetClient {
     int deviceId,
     List<BacnetWriteAccessSpecification> specs, {
     Duration? timeout,
-  }) async {
-    if (specs.isEmpty) return;
-    await _system.confirmed(
-      deviceId: deviceId,
-      service: BacnetConfirmedService.writePropertyMultiple,
-      payload: encodeWritePropertyMultiple(specs),
-      timeout: timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    if (specs.isEmpty) return Future.value();
+    return Future.sync(
+      () => _system.confirmed<void>(
+        deviceId: deviceId,
+        service: BacnetConfirmedService.writePropertyMultiple,
+        payload: encodeWritePropertyMultiple(specs),
+        timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
+      ),
     );
   }
 
@@ -316,17 +545,21 @@ class BacnetClient {
   ///
   /// Reads the whole Object_List at once and falls back to reading it
   /// element by element when the device cannot send it in one APDU.
-  /// [endDeviceId] is ignored (kept for compatibility).
   Future<List<BacnetObject>> scanDevice(
-    int deviceId, [
-    int? endDeviceId,
-  ]) async {
+    int deviceId, {
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) async {
     try {
-      final value = await readProperty(
+      // a large array: never merged with other reads
+      final value = await _readSingle(
         deviceId,
         BacnetObjectType.device,
         deviceId,
         BacnetPropertyId.objectList,
+        null,
+        background: background,
+        cancelToken: cancelToken,
       );
       return _objects(value);
     } on BacnetAbortException catch (e) {
@@ -334,14 +567,17 @@ class BacnetClient {
     } on BacnetProtocolException {
       // some devices refuse to return the whole array
     }
-    final count = await readProperty(
+    final length = await readProperty(
       deviceId,
       BacnetObjectType.device,
       deviceId,
       BacnetPropertyId.objectList,
       arrayIndex: 0,
+      background: background,
+      cancelToken: cancelToken,
     );
-    if (count is! int || count <= 0) return const [];
+    final count = length.asInt ?? 0;
+    if (count <= 0) return const [];
     final elements = await Future.wait([
       for (var i = 1; i <= count; i++)
         readProperty(
@@ -350,16 +586,15 @@ class BacnetClient {
           deviceId,
           BacnetPropertyId.objectList,
           arrayIndex: i,
+          background: background,
+          cancelToken: cancelToken,
         ),
     ]);
-    return _objects(elements);
+    return _objects(BacnetList(elements));
   }
 
-  static List<BacnetObject> _objects(Object? value) => switch (value) {
-    final BacnetObject object => [object],
-    final List<Object?> list => list.whereType<BacnetObject>().toList(),
-    _ => const [],
-  };
+  static List<BacnetObject> _objects(BacnetValue value) =>
+      value.asList.whereType<BacnetObject>().toList();
 
   /// Adds (or replaces) a static device address binding.
   ///
@@ -411,90 +646,95 @@ class BacnetClient {
   /// [covEvents] for the notifications.
   Future<void> subscribeCOV(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance, {
-    int propId = BacnetPropertyId.presentValue,
+    BacnetPropertyId propId = BacnetPropertyId.presentValue,
     int processId = 1,
     Duration lifetime = const Duration(minutes: 5),
     bool confirmed = false,
     double? covIncrement,
     Duration? timeout,
-  }) async {
+  }) {
     final lifetimeSeconds = lifetime.inSeconds;
     final usePropertyService =
         propId != BacnetPropertyId.presentValue || covIncrement != null;
-    await _system.confirmed(
-      deviceId: deviceId,
-      service: usePropertyService
-          ? BacnetConfirmedService.subscribeCovProperty
-          : BacnetConfirmedService.subscribeCov,
-      payload: usePropertyService
-          ? encodeSubscribeCovProperty(
-              subscriberProcessId: processId,
-              objectType: objectType,
-              instance: instance,
-              propertyId: propId,
-              confirmed: confirmed,
-              lifetime: lifetimeSeconds,
-              covIncrement: covIncrement,
-            )
-          : encodeSubscribeCov(
-              subscriberProcessId: processId,
-              objectType: objectType,
-              instance: instance,
-              confirmed: confirmed,
-              lifetime: lifetimeSeconds,
-            ),
-      timeout: timeout,
+    return Future.sync(
+      () => _system.confirmed<void>(
+        deviceId: deviceId,
+        service: usePropertyService
+            ? BacnetConfirmedService.subscribeCovProperty
+            : BacnetConfirmedService.subscribeCov,
+        payload: usePropertyService
+            ? encodeSubscribeCovProperty(
+                subscriberProcessId: processId,
+                objectType: objectType,
+                instance: instance,
+                propertyId: propId,
+                confirmed: confirmed,
+                lifetime: lifetimeSeconds,
+                covIncrement: covIncrement,
+              )
+            : encodeSubscribeCov(
+                subscriberProcessId: processId,
+                objectType: objectType,
+                instance: instance,
+                confirmed: confirmed,
+                lifetime: lifetimeSeconds,
+              ),
+        timeout: timeout,
+      ),
     );
   }
 
   /// Cancels a COV subscription created with [subscribeCOV].
   Future<void> unsubscribeCOV(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance, {
-    int propId = BacnetPropertyId.presentValue,
+    BacnetPropertyId propId = BacnetPropertyId.presentValue,
     int processId = 1,
     Duration? timeout,
-  }) async {
+  }) {
     final usePropertyService = propId != BacnetPropertyId.presentValue;
-    await _system.confirmed(
-      deviceId: deviceId,
-      service: usePropertyService
-          ? BacnetConfirmedService.subscribeCovProperty
-          : BacnetConfirmedService.subscribeCov,
-      payload: usePropertyService
-          ? encodeSubscribeCovProperty(
-              subscriberProcessId: processId,
-              objectType: objectType,
-              instance: instance,
-              propertyId: propId,
-              cancel: true,
-            )
-          : encodeSubscribeCov(
-              subscriberProcessId: processId,
-              objectType: objectType,
-              instance: instance,
-              cancel: true,
-            ),
-      timeout: timeout,
+    return Future.sync(
+      () => _system.confirmed<void>(
+        deviceId: deviceId,
+        service: usePropertyService
+            ? BacnetConfirmedService.subscribeCovProperty
+            : BacnetConfirmedService.subscribeCov,
+        payload: usePropertyService
+            ? encodeSubscribeCovProperty(
+                subscriberProcessId: processId,
+                objectType: objectType,
+                instance: instance,
+                propertyId: propId,
+                cancel: true,
+              )
+            : encodeSubscribeCov(
+                subscriberProcessId: processId,
+                objectType: objectType,
+                instance: instance,
+                cancel: true,
+              ),
+        timeout: timeout,
+      ),
     );
   }
 
-  /// Reads a range of a list property with ReadRange.
+  /// Reads the items of a list property selected by [range] with
+  /// ReadRange (the whole list by default).
   Future<ReadRangeResult> readRange(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance,
-    int propertyId, {
-    ReadRangeType type = ReadRangeType.all,
-    Object? reference,
-    int count = 0,
+    BacnetPropertyId propertyId, {
+    BacnetRange range = const BacnetRange.all(),
     int arrayIndex = -1,
     Duration? timeout,
-  }) async {
-    final result = await _system.confirmed(
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    return _system.confirmed(
       deviceId: deviceId,
       service: BacnetConfirmedService.readRange,
       payload: encodeReadRange(
@@ -502,14 +742,13 @@ class BacnetClient {
         instance,
         propertyId,
         arrayIndex: arrayIndex,
-        type: type,
-        reference: reference,
-        count: count,
+        range: range,
       ),
       decoding: AckDecoding.readRange,
       timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
     );
-    return result! as ReadRangeResult;
   }
 
   /// Reads records of a Trend Log object.
@@ -520,10 +759,12 @@ class BacnetClient {
   Future<TrendLogData> getTrendLog(
     int deviceId,
     int instance, {
-    int logBufferPropId = BacnetPropertyId.logBuffer,
+    BacnetPropertyId logBufferPropId = BacnetPropertyId.logBuffer,
     int count = 100,
     int? fromSequenceNumber,
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) async {
     final ReadRangeResult result;
     if (fromSequenceNumber != null) {
@@ -532,10 +773,10 @@ class BacnetClient {
         BacnetObjectType.trendLog,
         instance,
         logBufferPropId,
-        type: ReadRangeType.bySequenceNumber,
-        reference: fromSequenceNumber,
-        count: count,
+        range: BacnetRange.bySequenceNumber(fromSequenceNumber, count),
         timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
       );
     } else {
       final recordCount = await readProperty(
@@ -544,8 +785,10 @@ class BacnetClient {
         instance,
         BacnetPropertyId.recordCount,
         timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
       );
-      final total = recordCount is int ? recordCount : 0;
+      final total = recordCount.asInt ?? 0;
       if (total == 0) {
         return const TrendLogData(itemCount: 0, totalRecords: 0);
       }
@@ -554,10 +797,10 @@ class BacnetClient {
         BacnetObjectType.trendLog,
         instance,
         logBufferPropId,
-        type: ReadRangeType.byPosition,
-        reference: total,
-        count: -count,
+        range: BacnetRange.byPosition(total, -count),
         timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
       );
     }
     final entries = decodeLogRecords(result.items);
@@ -593,18 +836,21 @@ class BacnetClient {
   /// the raw service ACK data (empty for a Simple-ACK).
   Future<Uint8List> sendConfirmedRaw(
     int deviceId,
-    int service,
+    BacnetConfirmedService service,
     Uint8List serviceData, {
     Duration? timeout,
-  }) async {
-    final result = await _system.confirmed(
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    return _system.confirmed(
       deviceId: deviceId,
       service: service,
       payload: serviceData,
       decoding: AckDecoding.raw,
       timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
     );
-    return result is Uint8List ? result : Uint8List(0);
   }
 
   /// Returns runtime statistics of the engine.

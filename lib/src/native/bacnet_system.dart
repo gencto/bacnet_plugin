@@ -7,6 +7,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import '../core/bacnet_config.dart';
+import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
@@ -154,6 +155,9 @@ class BacnetSystem {
       maxInFlightPerDevice: config.maxConcurrentRequestsPerDevice,
       maxQueued: config.maxQueuedRequests,
       bindTimeoutMs: config.bindTimeout.inMilliseconds,
+      offlineAfterTimeouts: config.offlineAfterTimeouts,
+      offlineRetryMs: config.offlineRetryInterval.inMilliseconds,
+      maxSegments: config.maxSegmentsAccepted.clamp(0, 32),
       logLevel: config.logLevel,
     );
     try {
@@ -245,27 +249,49 @@ class BacnetSystem {
     return future.then((value) => value as T);
   }
 
-  /// Sends a confirmed request and returns the decoded answer.
-  Future<Object?> confirmed({
+  /// Sends a confirmed request and returns the answer decoded as
+  /// [decoding] says (`null` for [AckDecoding.none]); [T] must match it.
+  ///
+  /// [background] requests wait behind normal ones; [cancelToken] drops
+  /// the request (see [BacnetCancelToken]).
+  Future<T> confirmed<T>({
     required int deviceId,
     required int service,
     required Uint8List payload,
     AckDecoding decoding = AckDecoding.none,
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) {
+    if (cancelToken?.isCancelled ?? false) {
+      return Future.error(const BacnetCancelledException());
+    }
     final effective = timeout ?? _config.requestTimeout;
-    return call<Object?>(
+    int? requestId;
+    final future = call<T>(
       (id) => ConfirmedRequestCommand(
-        id,
+        requestId = id,
         deviceId: deviceId,
         service: service,
         payload: payload,
         timeoutMs: effective.inMilliseconds,
         decoding: decoding,
+        background: background,
       ),
       // the worker enforces the deadline; this only guards a dead worker
       timeout: effective + const Duration(seconds: 5),
     );
+    if (cancelToken == null) return future;
+    final remove = cancelToken.onCancel(() {
+      final id = requestId;
+      if (id == null) return;
+      final completer = _pending.remove(id);
+      if (completer == null) return;
+      completer.completeError(const BacnetCancelledException());
+      _commands?.send(CancelRequestCommand(id));
+      bacnet_plugin_wakeup();
+    });
+    return future.whenComplete(remove);
   }
 
   /// Returns runtime statistics of the engine.

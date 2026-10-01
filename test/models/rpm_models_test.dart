@@ -130,7 +130,7 @@ void main() {
     });
 
     test('copyWith updates values', () {
-      const obj = BacnetObject(type: 0, instance: 1);
+      const obj = BacnetObject(type: BacnetObjectType.analogInput, instance: 1);
       const original = BacnetReadAccessSpecification(
         objectIdentifier: obj,
         properties: [],
@@ -148,9 +148,18 @@ void main() {
     });
 
     test('equality based on object identifier', () {
-      const obj1 = BacnetObject(type: 0, instance: 1);
-      const obj2 = BacnetObject(type: 0, instance: 1);
-      const obj3 = BacnetObject(type: 0, instance: 2);
+      const obj1 = BacnetObject(
+        type: BacnetObjectType.analogInput,
+        instance: 1,
+      );
+      const obj2 = BacnetObject(
+        type: BacnetObjectType.analogInput,
+        instance: 1,
+      );
+      const obj3 = BacnetObject(
+        type: BacnetObjectType.analogInput,
+        instance: 2,
+      );
 
       const spec1 = BacnetReadAccessSpecification(
         objectIdentifier: obj1,
@@ -173,7 +182,10 @@ void main() {
 
     group('JSON serialization', () {
       test('toJson serializes nested objects', () {
-        const obj = BacnetObject(type: 0, instance: 1);
+        const obj = BacnetObject(
+          type: BacnetObjectType.analogInput,
+          instance: 1,
+        );
         const spec = BacnetReadAccessSpecification(
           objectIdentifier: obj,
           properties: [
@@ -192,7 +204,10 @@ void main() {
 
       test('roundtrip preserves data', () {
         const original = BacnetReadAccessSpecification(
-          objectIdentifier: BacnetObject(type: 0, instance: 1),
+          objectIdentifier: BacnetObject(
+            type: BacnetObjectType.analogInput,
+            instance: 1,
+          ),
           properties: [
             BacnetPropertyReference(
               propertyIdentifier: BacnetPropertyId.presentValue,

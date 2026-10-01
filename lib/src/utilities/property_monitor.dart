@@ -7,7 +7,7 @@ import '../client/bacnet_client.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
 import '../core/types.dart';
-import '../models/bacnet_object.dart';
+import '../models/bacnet_value.dart';
 import '../models/events.dart';
 import '../models/property_update.dart';
 
@@ -23,10 +23,20 @@ import '../models/property_update.dart';
 /// monitor
 ///     .monitor(
 ///       deviceId: 1234,
-///       object: const BacnetObject(type: 0, instance: 1),
+///       object: const BacnetObject(
+///         type: BacnetObjectType.analogInput,
+///         instance: 1,
+///       ),
 ///       propertyId: BacnetPropertyId.presentValue,
 ///     )
-///     .listen((update) => print('${update.value} (${update.source.name})'));
+///     .listen((update) {
+///       switch (update) {
+///         case PropertyValueUpdate(:final value, :final source):
+///           print('$value (${source.name})');
+///         case PropertyErrorUpdate(:final error):
+///           print('read failed: $error');
+///       }
+///     });
 /// ```
 class PropertyMonitor {
   /// Creates a property monitor using the provided BACnet client.
@@ -52,7 +62,7 @@ class PropertyMonitor {
   Stream<PropertyUpdate> monitor({
     required int deviceId,
     required BacnetObject object,
-    required int propertyId,
+    required BacnetPropertyId propertyId,
     Duration pollingInterval = const Duration(seconds: 2),
     bool preferPolling = false,
     bool confirmed = false,
@@ -72,20 +82,21 @@ class PropertyMonitor {
     var polling = false;
     var closed = false;
 
-    void emit(Object? value, UpdateSource source, [Object? error]) {
+    void emit(PropertyUpdate update) {
       if (closed || controller.isClosed) return;
-      controller.add(
-        PropertyUpdate(
-          deviceId: deviceId,
-          objectIdentifier: object,
-          propertyIdentifier: propertyId,
-          value: value,
-          timestamp: DateTime.now(),
-          source: source,
-          error: error,
-        ),
-      );
+      controller.add(update);
     }
+
+    void emitValue(BacnetValue value, UpdateSource source) => emit(
+      PropertyValueUpdate(
+        deviceId: deviceId,
+        objectIdentifier: object,
+        propertyIdentifier: propertyId,
+        value: value,
+        timestamp: DateTime.now(),
+        source: source,
+      ),
+    );
 
     Future<void> poll(UpdateSource source) async {
       try {
@@ -95,9 +106,18 @@ class PropertyMonitor {
           object.instance,
           propertyId,
         );
-        emit(value, source);
-      } on BacnetException catch (e) {
-        emit(null, source, e);
+        emitValue(value, source);
+      } on BacnetException catch (error) {
+        emit(
+          PropertyErrorUpdate(
+            deviceId: deviceId,
+            objectIdentifier: object,
+            propertyIdentifier: propertyId,
+            error: error,
+            timestamp: DateTime.now(),
+            source: source,
+          ),
+        );
       }
     }
 
@@ -165,8 +185,8 @@ class PropertyMonitor {
             event.subscriberProcessId != processId) {
           return;
         }
-        if (event.values.containsKey(propertyId)) {
-          emit(event.values[propertyId], UpdateSource.cov);
+        if (event.values[propertyId] case final value?) {
+          emitValue(value, UpdateSource.cov);
         }
       });
 

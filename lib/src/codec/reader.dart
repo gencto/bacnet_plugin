@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../constants/object_types.dart';
 import '../core/exceptions.dart';
-import '../models/bacnet_object.dart';
-import 'values.dart';
+import '../models/bacnet_value.dart';
 
 /// A decoded BACnet tag header.
 class BacnetTag {
@@ -193,13 +193,28 @@ class BacnetReader {
     _need(length);
     var value = 0;
     for (var i = 0; i < length; i++) {
-      value = (value << 8) | _data[_offset++];
+      value = _appendOctet(value, _data[_offset++]);
     }
     return value;
   }
 
+  /// Largest value that can take one more octet without exceeding 63 bits.
+  static const int _maxBeforeShift = 0x7FFFFFFFFFFFFF;
+
+  /// Appends [octet] to an unsigned [value]; values of 64 bits and more do
+  /// not fit into an [int].
+  static int _appendOctet(int value, int octet) {
+    if (value > _maxBeforeShift) {
+      throw const BacnetDecodeException('unsigned value exceeds 63 bits');
+    }
+    return (value << 8) | octet;
+  }
+
   int _signed(int length) {
     if (length == 0) return 0;
+    if (length > 8) {
+      throw BacnetDecodeException('signed value of $length octets');
+    }
     _need(length);
     var value = _data[_offset] & 0x80 != 0 ? -1 : 0;
     for (var i = 0; i < length; i++) {
@@ -239,6 +254,10 @@ class BacnetReader {
     return _objectId();
   }
 
+  /// Reads context tag [number] as character string.
+  String readContextCharacterString(int number) =>
+      _characterString(_expectContext(number).length);
+
   /// Reads context tag [number] as bit string.
   BacnetBitString readContextBitString(int number) =>
       _bitString(_expectContext(number).length);
@@ -272,7 +291,7 @@ class BacnetReader {
   BacnetObject _objectId() {
     final value = _unsigned(4);
     return BacnetObject(
-      type: (value >> 22) & 0x3FF,
+      type: BacnetObjectType((value >> 22) & 0x3FF),
       instance: value & 0x3FFFFF,
     );
   }
@@ -361,27 +380,28 @@ class BacnetReader {
   }
 
   /// Decodes the content of application tag [tag] that was just read.
-  Object? decodeApplicationContent(BacnetTag tag) {
+  BacnetValue decodeApplicationContent(BacnetTag tag) {
     switch (tag.number) {
       case BacnetApplicationTag.nullValue:
-        return null;
+        return const BacnetNull();
       case BacnetApplicationTag.boolean:
-        return tag.length != 0;
+        return BacnetBoolean(tag.length != 0);
       case BacnetApplicationTag.unsignedInt:
+        return BacnetUnsigned(_unsigned(tag.length));
       case BacnetApplicationTag.enumerated:
-        return _unsigned(tag.length);
+        return BacnetEnumerated(_unsigned(tag.length));
       case BacnetApplicationTag.signedInt:
-        return _signed(tag.length);
+        return BacnetSigned(_signed(tag.length));
       case BacnetApplicationTag.real:
         if (tag.length != 4) throw const BacnetDecodeException('bad REAL');
-        return _real();
+        return BacnetReal(_real());
       case BacnetApplicationTag.doubleValue:
         if (tag.length != 8) throw const BacnetDecodeException('bad DOUBLE');
-        return _double();
+        return BacnetDouble(_double());
       case BacnetApplicationTag.octetString:
-        return readBytes(tag.length);
+        return BacnetOctetString(readBytes(tag.length));
       case BacnetApplicationTag.characterString:
-        return _characterString(tag.length);
+        return BacnetCharacterString(_characterString(tag.length));
       case BacnetApplicationTag.bitString:
         return _bitString(tag.length);
       case BacnetApplicationTag.date:
@@ -400,7 +420,7 @@ class BacnetReader {
   }
 
   /// Reads one application tagged value.
-  Object? readApplicationValue() {
+  BacnetValue readApplicationValue() {
     final tag = readTag();
     if (tag.isContext) {
       throw BacnetDecodeException('expected application tag, got $tag');
@@ -411,7 +431,7 @@ class BacnetReader {
   /// Reads one value of any kind: application values are decoded, context
   /// primitives are returned as [BacnetContextValue] and constructed values
   /// as [BacnetConstructedValue].
-  Object? readAnyValue() {
+  BacnetValue readAnyValue() {
     final tag = readTag();
     if (tag.isApplication) {
       return decodeApplicationContent(tag);
@@ -429,12 +449,12 @@ class BacnetReader {
   }
 
   /// Reads values until closing tag [number] and consumes the closing tag.
-  List<Object?> readValuesUntilClosing(int number) {
+  List<BacnetValue> readValuesUntilClosing(int number) {
     if (++_depth > maxNesting) {
       throw const BacnetDecodeException('constructed values nested too deep');
     }
     try {
-      final values = <Object?>[];
+      final values = <BacnetValue>[];
       while (true) {
         if (isAtEnd) {
           throw BacnetDecodeException('missing closing tag $number');
@@ -469,7 +489,7 @@ class BacnetReader {
   static int unsignedFrom(Uint8List bytes) {
     var value = 0;
     for (final b in bytes) {
-      value = (value << 8) | b;
+      value = _appendOctet(value, b);
     }
     return value;
   }
@@ -477,6 +497,9 @@ class BacnetReader {
   /// Decodes big endian two's complement content octets.
   static int signedFrom(Uint8List bytes) {
     if (bytes.isEmpty) return 0;
+    if (bytes.length > 8) {
+      throw BacnetDecodeException('signed value of ${bytes.length} octets');
+    }
     var value = bytes[0] & 0x80 != 0 ? -1 : 0;
     for (final b in bytes) {
       value = (value << 8) | b;
@@ -497,4 +520,30 @@ class BacnetReader {
   /// Decodes character string content octets.
   static String characterStringFrom(Uint8List bytes) =>
       BacnetReader(bytes)._characterString(bytes.length);
+
+  /// Decodes the content octets of a context tagged primitive as
+  /// application datatype [applicationTag] (see [BacnetApplicationTag]).
+  ///
+  /// Constructed datatypes tag their fields with context tags, so the
+  /// generic decoder keeps them as [BacnetContextValue]s; their datatype is
+  /// known only from the definition of the construct.
+  static BacnetValue primitiveFrom(Uint8List content, int applicationTag) {
+    if (applicationTag == BacnetApplicationTag.boolean) {
+      // context booleans have one content octet
+      if (content.length != 1) {
+        throw const BacnetDecodeException('bad context BOOLEAN');
+      }
+      return BacnetBoolean(content[0] != 0);
+    }
+    final reader = BacnetReader(content);
+    final value = reader.decodeApplicationContent(
+      BacnetTag._(applicationTag, false, content.length),
+    );
+    if (!reader.isAtEnd) {
+      throw BacnetDecodeException(
+        'extra octets in context value of application tag $applicationTag',
+      );
+    }
+    return value;
+  }
 }

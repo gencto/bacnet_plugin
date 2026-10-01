@@ -15,7 +15,7 @@ updates:
     schedule:
       interval: monthly
 
-  # bacnet-stack is pinned to a release: review updates (and regenerate
+  # bacnet-stack is pinned to a reviewed commit: review updates (and regenerate
   # bp_object_table.h and the constants) before merging
   - package-ecosystem: gitsubmodule
     directory: /

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
+import '../constants/errors.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
 import 'bindings.g.dart';
@@ -21,6 +22,7 @@ typedef NativeStats = ({
   int boundDevices,
   int freeTransactions,
   int pollCalls,
+  int segmentedReplies,
 });
 
 /// Typed facade over the native engine (`native/src/bacnet_plugin.h`).
@@ -65,6 +67,7 @@ class NativeEngine {
     required int apduRetries,
     required bool strictSourceCheck,
     required int covScanIntervalMs,
+    required int maxSegments,
   }) {
     checkNative(
       bacnet_plugin_set_option(BP_OPTION_APDU_TIMEOUT_MS, apduTimeoutMs),
@@ -82,6 +85,7 @@ class NativeEngine {
         covScanIntervalMs,
       ),
     );
+    checkNative(bacnet_plugin_set_option(BP_OPTION_MAX_SEGMENTS, maxSegments));
   }
 
   /// Waits up to [timeoutMs] for traffic and processes up to [maxPackets].
@@ -245,8 +249,8 @@ class NativeEngine {
       if (created == BP_ERR_OBJECT) {
         throw BacnetProtocolException(
           'CreateObject $objectType:$instance failed',
-          errorClass: errorClass.value,
-          errorCode: errorCode.value,
+          errorClass: BacnetErrorClass(errorClass.value),
+          errorCode: BacnetErrorCode(errorCode.value),
         );
       }
       return checkNative(created);
@@ -370,8 +374,8 @@ class NativeEngine {
       if (rc == BP_ERR_OBJECT) {
         throw BacnetProtocolException(
           'write $objectType:$instance property $propertyId failed',
-          errorClass: errorClass.value,
-          errorCode: errorCode.value,
+          errorClass: BacnetErrorClass(errorClass.value),
+          errorCode: BacnetErrorCode(errorCode.value),
         );
       }
       checkNative(rc);
@@ -407,8 +411,8 @@ class NativeEngine {
       if (length == BP_ERR_OBJECT) {
         throw BacnetProtocolException(
           'read $objectType:$instance property $propertyId failed',
-          errorClass: errorClass.value,
-          errorCode: errorCode.value,
+          errorClass: BacnetErrorClass(errorClass.value),
+          errorCode: BacnetErrorCode(errorCode.value),
         );
       }
       return Uint8List.fromList(buffer.asTypedList(checkNative(length)));
@@ -434,6 +438,7 @@ class NativeEngine {
         boundDevices: s.bound_devices,
         freeTransactions: s.tsm_idle,
         pollCalls: s.poll_calls,
+        segmentedReplies: s.segmented_replies,
       );
     } finally {
       calloc.free(stats);

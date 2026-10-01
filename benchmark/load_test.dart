@@ -1,5 +1,7 @@
 // Client load test: issues many concurrent ReadProperty / ReadPropertyMultiple
 // requests against one or more devices and reports throughput and latency.
+// Concurrent ReadProperty calls are merged into ReadPropertyMultiple unless
+// `--coalesce false` is given.
 //
 // Start servers first (e.g. `dart run tool/demo_server.dart 47811 1001 100`)
 // then run:
@@ -30,6 +32,7 @@ Future<void> main(List<String> args) async {
       maxConcurrentRequests: int.parse(options['concurrency'] ?? '200'),
       maxConcurrentRequestsPerDevice: int.parse(options['per-device'] ?? '8'),
       maxQueuedRequests: total + 1000,
+      coalesceReads: options['coalesce'] != 'false',
       logLevel: BacnetLogLevel.warning,
       logger: const ConsoleBacnetLogger(),
     ),
@@ -44,40 +47,44 @@ Future<void> main(List<String> args) async {
   final latencies = <int>[];
   var errors = 0;
   final clock = Stopwatch()..start();
-  await Future.wait([
-    for (var i = 0; i < total; i++)
-      () async {
-        final target = targets[i % targets.length];
-        final started = clock.elapsedMicroseconds;
-        try {
-          if (mode == 'rpm') {
-            await client.readMultiple(target.device, [
-              for (var o = 0; o < 10; o++)
-                BacnetReadAccessSpecification(
-                  objectIdentifier: BacnetObject(
-                    type: BacnetObjectType.analogValue,
-                    instance: (i + o) % objects,
-                  ),
-                  properties: const [
-                    BacnetPropertyReference(propertyIdentifier: 85),
-                    BacnetPropertyReference(propertyIdentifier: 111),
-                  ],
+  // Callbacks instead of one async closure per request: in JIT mode
+  // (`dart run`) tens of thousands of suspended async calls are expensive
+  // to deoptimize and would measure the VM instead of the client.
+  Future<void> request(int i) {
+    final target = targets[i % targets.length];
+    final started = clock.elapsedMicroseconds;
+    final Future<Object> response = mode == 'rpm'
+        ? client.readMultiple(target.device, [
+            for (var o = 0; o < 10; o++)
+              BacnetReadAccessSpecification(
+                objectIdentifier: BacnetObject(
+                  type: BacnetObjectType.analogValue,
+                  instance: (i + o) % objects,
                 ),
-            ]);
-          } else {
-            await client.readProperty(
-              target.device,
-              BacnetObjectType.analogValue,
-              i % objects,
-              BacnetPropertyId.presentValue,
-            );
-          }
-          latencies.add(clock.elapsedMicroseconds - started);
-        } on BacnetException {
+                properties: const [
+                  BacnetPropertyReference(
+                    propertyIdentifier: BacnetPropertyId.presentValue,
+                  ),
+                  BacnetPropertyReference(
+                    propertyIdentifier: BacnetPropertyId.statusFlags,
+                  ),
+                ],
+              ),
+          ])
+        : client.readProperty(
+            target.device,
+            BacnetObjectType.analogValue,
+            i % objects,
+            BacnetPropertyId.presentValue,
+          );
+    return response
+        .then((_) => latencies.add(clock.elapsedMicroseconds - started))
+        .catchError((Object _) {
           errors++;
-        }
-      }(),
-  ]);
+        }, test: (error) => error is BacnetException);
+  }
+
+  await Future.wait([for (var i = 0; i < total; i++) request(i)]);
   final seconds = clock.elapsedMicroseconds / 1e6;
   latencies.sort();
   String pct(double p) => latencies.isEmpty
@@ -107,7 +114,7 @@ Map<String, String> _parse(List<String> args) {
     stderr.writeln(
       'usage: load_test.dart --targets host:port:device[,...] '
       '[--requests N] [--mode rp|rpm] [--interface lo] [--concurrency 200] '
-      '[--per-device 8] [--objects 100]',
+      '[--per-device 8] [--objects 100] [--coalesce true|false]',
     );
     exit(64);
   }

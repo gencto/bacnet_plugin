@@ -6,11 +6,13 @@ import 'dart:async';
 import 'package:meta/meta.dart';
 
 import '../client/bacnet_client.dart';
+import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
 import '../core/types.dart';
-import '../models/bacnet_object.dart';
+import '../models/bacnet_property.dart';
+import '../models/bacnet_value.dart';
 import '../models/device_metadata.dart';
 import '../models/discovered_device.dart';
 import '../models/events.dart';
@@ -84,13 +86,21 @@ const _detailProperties = [
 @immutable
 class DeviceScanner {
   /// Creates a device scanner using the provided BACnet client.
-  const DeviceScanner(this.client, {this.concurrency = 32});
+  const DeviceScanner(
+    this.client, {
+    this.concurrency = 32,
+    this.background = true,
+  });
 
   /// The BACnet client used for communication.
   final BacnetClient client;
 
   /// Maximum number of devices or batches processed in parallel.
   final int concurrency;
+
+  /// Send the scan requests as background requests, so that interactive
+  /// requests of the application overtake a running scan.
+  final bool background;
 
   /// Discovers devices on the network.
   ///
@@ -171,50 +181,43 @@ class DeviceScanner {
     }
   }
 
-  Future<Map<int, dynamic>?> _readDeviceProperties(
+  Future<Map<BacnetPropertyId, BacnetPropertyResult>?> _readDeviceProperties(
     int deviceId,
     List<BacnetPropertyReference> properties,
   ) async {
-    final results = await client.readMultiple(deviceId, [
-      BacnetReadAccessSpecification(
-        objectIdentifier: BacnetObject(
-          type: BacnetObjectType.device,
-          instance: deviceId,
-        ),
-        properties: properties,
-      ),
-    ]);
-    return results['${BacnetObjectType.device}:$deviceId'];
+    final device = BacnetObject(
+      type: BacnetObjectType.device,
+      instance: deviceId,
+    );
+    final results = await client
+        .readMultiple(deviceId, background: background, [
+          BacnetReadAccessSpecification(
+            objectIdentifier: device,
+            properties: properties,
+          ),
+        ]);
+    return results[device];
   }
 
-  static T? _value<T>(Map<int, dynamic> props, int propertyId) {
-    final value = props[propertyId];
-    return value is T ? value : null;
-  }
-
-  DiscoveredDevice _merge(DiscoveredDevice device, Map<int, dynamic> props) {
+  DiscoveredDevice _merge(
+    DiscoveredDevice device,
+    Map<BacnetPropertyId, BacnetPropertyResult> props,
+  ) {
     return device.copyWith(
-      vendorId: _value<int>(props, BacnetPropertyId.vendorIdentifier),
-      maxApduLength: _value<int>(props, BacnetPropertyId.maxApduLengthAccepted),
-      segmentationSupported: _value<int>(
-        props,
-        BacnetPropertyId.segmentationSupported,
+      vendorId: props.get(BacnetProperties.vendorIdentifier),
+      maxApduLength: props.get(BacnetProperties.maxApduLengthAccepted),
+      segmentationSupported: props.get(BacnetProperties.segmentationSupported),
+      deviceName: props.get(BacnetProperties.objectName),
+      description: props.get(BacnetProperties.description),
+      location: props.get(BacnetProperties.location),
+      modelName: props.get(BacnetProperties.modelName),
+      vendorName: props.get(BacnetProperties.vendorName),
+      firmwareRevision: props.get(BacnetProperties.firmwareRevision),
+      applicationSoftwareVersion: props.get(
+        BacnetProperties.applicationSoftwareVersion,
       ),
-      deviceName: _value<String>(props, BacnetPropertyId.objectName),
-      description: _value<String>(props, BacnetPropertyId.description),
-      location: _value<String>(props, BacnetPropertyId.location),
-      modelName: _value<String>(props, BacnetPropertyId.modelName),
-      vendorName: _value<String>(props, BacnetPropertyId.vendorName),
-      firmwareRevision: _value<String>(
-        props,
-        BacnetPropertyId.firmwareRevision,
-      ),
-      applicationSoftwareVersion: _value<String>(
-        props,
-        BacnetPropertyId.applicationSoftwareVersion,
-      ),
-      protocolVersion: _value<int>(props, BacnetPropertyId.protocolVersion),
-      protocolRevision: _value<int>(props, BacnetPropertyId.protocolRevision),
+      protocolVersion: props.get(BacnetProperties.protocolVersion),
+      protocolRevision: props.get(BacnetProperties.protocolRevision),
     );
   }
 
@@ -231,7 +234,7 @@ class DeviceScanner {
         deviceId: deviceId,
         vendorId: 0,
         maxApduLength: 480,
-        segmentationSupported: 0,
+        segmentationSupported: BacnetSegmentation.none,
       ),
       props,
     );
@@ -242,19 +245,32 @@ class DeviceScanner {
   /// Reads the object list and, when [propertyIds] are given, those
   /// properties of up to [maxObjects] objects with ReadPropertyMultiple
   /// batches of [batchSize] objects (batches run in parallel and are split
-  /// automatically when an answer exceeds the device's APDU size).
-  Future<Map<BacnetObject, Map<int, dynamic>>> scanDevice(
+  /// automatically when an answer exceeds the device's APDU size). Objects
+  /// of failed batches have no properties.
+  ///
+  /// ```dart
+  /// final objects = await scanner.scanDevice(
+  ///   1234,
+  ///   propertyIds: [BacnetPropertyId.objectName, BacnetPropertyId.units],
+  /// );
+  /// for (final MapEntry(key: object, value: properties) in objects.entries) {
+  ///   print('$object: '
+  ///       '${properties.valueOf(BacnetPropertyId.objectName)?.asString}');
+  /// }
+  /// ```
+  Future<Map<BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>>
+  scanDevice(
     int deviceId, {
-    List<int>? propertyIds,
+    List<BacnetPropertyId>? propertyIds,
     int maxObjects = 100,
     int batchSize = 20,
   }) async {
-    final objects = await client.scanDevice(deviceId);
+    final objects = await client.scanDevice(deviceId, background: background);
     final targets = objects.length > maxObjects
         ? objects.sublist(0, maxObjects)
         : objects;
-    final results = <BacnetObject, Map<int, dynamic>>{
-      for (final object in targets) object: <int, dynamic>{},
+    final results = <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{
+      for (final object in targets) object: const {},
     };
     if (propertyIds == null || propertyIds.isEmpty) {
       return results;
@@ -279,16 +295,15 @@ class DeviceScanner {
           ),
       ];
       try {
-        final batchResults = await client.readMultiple(deviceId, specs);
-        for (final entry in batchResults.entries) {
-          final parts = entry.key.split(':');
-          if (parts.length != 2) continue;
-          final type = int.tryParse(parts[0]);
-          final instance = int.tryParse(parts[1]);
-          if (type == null || instance == null) continue;
-          final object = BacnetObject(type: type, instance: instance);
+        final batchResults = await client.readMultiple(
+          deviceId,
+          specs,
+          background: background,
+        );
+        for (final MapEntry(key: object, value: properties)
+            in batchResults.entries) {
           if (results.containsKey(object)) {
-            results[object] = entry.value;
+            results[object] = Map.unmodifiable(properties);
           }
         }
       } on BacnetException catch (e, st) {
@@ -308,7 +323,7 @@ class DeviceScanner {
     int deviceId, {
     int maxObjects = 100,
   }) async {
-    final objects = await client.scanDevice(deviceId);
+    final objects = await client.scanDevice(deviceId, background: background);
     return DeviceMetadata(
       deviceId: deviceId,
       objectCount: objects.length,

@@ -10,8 +10,8 @@ String hex(Uint8List data) =>
     data.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
 
 /// Encodes [value] as application data and decodes it again.
-Object? roundTrip(Object? value, {int? tag}) {
+BacnetValue roundTrip(BacnetValue value) {
   final writer = BacnetWriter();
-  encodeApplicationValue(writer, value, tag: tag);
-  return BacnetReader(writer.toBytes()).readApplicationValue();
+  encodeApplicationValue(writer, value);
+  return decodeApplicationData(writer.toBytes());
 }

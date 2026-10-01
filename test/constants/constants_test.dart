@@ -109,4 +109,51 @@ void main() {
       expect(BacnetDeviceStatus.getName(0), 'Operational');
     });
   });
+
+  group('extension types', () {
+    test('are ints at runtime', () {
+      const int raw = BacnetPropertyId.presentValue;
+      expect(raw, 85);
+      expect(const BacnetPropertyId(85), BacnetPropertyId.presentValue);
+      expect(<int, String>{85: 'pv'}[BacnetPropertyId.presentValue], 'pv');
+      expect(BacnetObjectType.analogInput + 1, BacnetObjectType.analogOutput);
+    });
+
+    test('expose labels and the known values', () {
+      expect(BacnetObjectType.multiStateValue.label, 'Multi-state Value');
+      expect(const BacnetObjectType(200).label, 'Unknown (200)');
+      expect(BacnetErrorCode.unknownObject.label, 'Unknown Object');
+      expect(
+        BacnetObjectType.values,
+        containsAll([BacnetObjectType.device, BacnetObjectType.networkPort]),
+      );
+    });
+
+    test('work in switch statements', () {
+      String kind(BacnetObjectType type) => switch (type) {
+        BacnetObjectType.analogInput ||
+        BacnetObjectType.analogOutput ||
+        BacnetObjectType.analogValue => 'analog',
+        _ => 'other',
+      };
+      expect(kind(BacnetObjectType.analogValue), 'analog');
+      expect(kind(BacnetObjectType.device), 'other');
+    });
+
+    test('survive JSON round trips of models', () {
+      const object = BacnetObject(
+        type: BacnetObjectType.binaryValue,
+        instance: 3,
+      );
+      final copy = BacnetObject.fromJson(object.toJson());
+      expect(copy.type, BacnetObjectType.binaryValue);
+      final units = BacnetValue.fromJson(
+        const BacnetEnumerated(BacnetEngineeringUnits.degreesCelsius).toJson(),
+      );
+      expect(
+        BacnetEngineeringUnits(units.asInt!),
+        BacnetEngineeringUnits.degreesCelsius,
+      );
+    });
+  });
 }

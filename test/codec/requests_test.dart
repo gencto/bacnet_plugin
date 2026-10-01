@@ -20,10 +20,17 @@ void main() {
     test('ReadPropertyMultiple', () {
       final payload = encodeReadPropertyMultiple(const [
         BacnetReadAccessSpecification(
-          objectIdentifier: BacnetObject(type: 0, instance: 16),
+          objectIdentifier: BacnetObject(
+            type: BacnetObjectType.analogInput,
+            instance: 16,
+          ),
           properties: [
-            BacnetPropertyReference(propertyIdentifier: 85),
-            BacnetPropertyReference(propertyIdentifier: 103),
+            BacnetPropertyReference(
+              propertyIdentifier: BacnetPropertyId.presentValue,
+            ),
+            BacnetPropertyReference(
+              propertyIdentifier: BacnetPropertyId.reliability,
+            ),
           ],
         ),
       ]);
@@ -37,7 +44,7 @@ void main() {
             BacnetObjectType.analogValue,
             1,
             85,
-            180.0,
+            const BacnetReal(180),
             priority: 8,
           ),
         ),
@@ -48,9 +55,15 @@ void main() {
     test('WritePropertyMultiple', () {
       final payload = encodeWritePropertyMultiple(const [
         BacnetWriteAccessSpecification(
-          objectIdentifier: BacnetObject(type: 2, instance: 5),
+          objectIdentifier: BacnetObject(
+            type: BacnetObjectType.analogValue,
+            instance: 5,
+          ),
           listOfProperties: [
-            BacnetPropertyValue(propertyIdentifier: 85, value: 67.0),
+            BacnetPropertyValue(
+              propertyIdentifier: BacnetPropertyId.presentValue,
+              value: BacnetReal(67),
+            ),
           ],
         ),
       ]);
@@ -83,24 +96,47 @@ void main() {
       );
     });
 
+    test('Who-Has (Annex F.1.11)', () {
+      expect(
+        hex(encodeWhoHas(objectName: 'OATemp')),
+        '3d 07 00 4f 41 54 65 6d 70',
+      );
+      expect(
+        hex(
+          encodeWhoHas(
+            object: const BacnetObject(
+              type: BacnetObjectType.analogInput,
+              instance: 3,
+            ),
+            lowLimit: 1,
+            highLimit: 10,
+          ),
+        ),
+        '09 01 19 0a 2c 00 00 00 03',
+      );
+      expect(encodeWhoHas, throwsArgumentError);
+    });
+
     test('Who-Is', () {
       expect(hex(encodeWhoIs(lowLimit: 3, highLimit: 3)), '09 03 19 03');
       expect(encodeWhoIs(), isEmpty);
     });
 
-    test('ReadRange by position', () {
+    test('ReadRange', () {
+      String encode(BacnetRange range) =>
+          hex(encodeReadRange(20, 1, 131, range: range));
+      expect(encode(const BacnetRange.all()), '0c 05 00 00 01 19 83');
       expect(
-        hex(
-          encodeReadRange(
-            20,
-            1,
-            131,
-            type: ReadRangeType.byPosition,
-            reference: 1,
-            count: 4,
-          ),
-        ),
+        encode(const BacnetRange.byPosition(1, 4)),
         '0c 05 00 00 01 19 83 3e 21 01 31 04 3f',
+      );
+      expect(
+        encode(const BacnetRange.bySequenceNumber(300, -2)),
+        '0c 05 00 00 01 19 83 6e 22 01 2c 31 fe 6f',
+      );
+      expect(
+        encode(BacnetRange.byTime(DateTime(2026, 10, 1, 12, 30), 10)),
+        '0c 05 00 00 01 19 83 7e a4 7e 0a 01 04 b4 0c 1e 00 00 31 0a 7f',
       );
     });
   });

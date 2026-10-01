@@ -1,4 +1,3 @@
-/// @docImport '../constants/errors.dart';
 /// @docImport 'logger.dart';
 library;
 
@@ -17,22 +16,4 @@ enum BacnetLogLevel {
 
   /// Error messages for failures.
   error,
-}
-
-/// Represents a BACnet protocol error.
-///
-/// Contains the error class and error code as defined in the BACnet standard.
-/// Use [BacnetErrorClass] and [BacnetErrorCode] constants for interpreting values.
-class BacnetError {
-  /// Creates a BACnet error.
-  const BacnetError(this.errorClass, this.errorCode);
-
-  /// The error class (e.g., device, object, property).
-  final int errorClass;
-
-  /// The specific error code within the error class.
-  final int errorCode;
-
-  @override
-  String toString() => 'BacnetError(class: $errorClass, code: $errorCode)';
 }

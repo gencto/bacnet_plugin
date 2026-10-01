@@ -24,6 +24,9 @@ class WorkerStartup {
     required this.maxInFlightPerDevice,
     required this.maxQueued,
     required this.bindTimeoutMs,
+    required this.offlineAfterTimeouts,
+    required this.offlineRetryMs,
+    required this.maxSegments,
     required this.logLevel,
   });
 
@@ -41,6 +44,9 @@ class WorkerStartup {
   final int maxInFlightPerDevice;
   final int maxQueued;
   final int bindTimeoutMs;
+  final int offlineAfterTimeouts;
+  final int offlineRetryMs;
+  final int maxSegments;
   final BacnetLogLevel logLevel;
 }
 
@@ -76,6 +82,7 @@ class ConfirmedRequestCommand extends WorkerCommand {
     required this.timeoutMs,
     this.decoding = AckDecoding.none,
     this.priority = 0,
+    this.background = false,
   });
 
   final int deviceId;
@@ -83,7 +90,20 @@ class ConfirmedRequestCommand extends WorkerCommand {
   final Uint8List payload;
   final int timeoutMs;
   final AckDecoding decoding;
+
+  /// Network priority of the NPDU.
   final int priority;
+
+  /// Queued behind normal requests and limited to part of the slots.
+  final bool background;
+}
+
+/// Drops a queued confirmed request whose caller gave up. No result.
+class CancelRequestCommand extends WorkerCommand {
+  const CancelRequestCommand(this.requestId) : super(0);
+
+  /// Id of the cancelled [ConfirmedRequestCommand].
+  final int requestId;
 }
 
 /// An unconfirmed request (broadcast when [deviceId] is null).

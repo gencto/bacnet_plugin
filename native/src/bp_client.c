@@ -78,7 +78,7 @@ static void bp_on_complex_ack(
     } else {
         bp_event_push(&hdr, service_request, service_len);
     }
-    tx->active = false;
+    bp_tx_end(tx);
 }
 
 static void bp_on_simple_ack(BACNET_ADDRESS *src, uint8_t invoke_id)
@@ -87,7 +87,7 @@ static void bp_on_simple_ack(BACNET_ADDRESS *src, uint8_t invoke_id)
 
     if (tx) {
         bp_tx_event(tx, BP_EVENT_SIMPLE_ACK, invoke_id, src);
-        tx->active = false;
+        bp_tx_end(tx);
     }
 }
 
@@ -111,7 +111,7 @@ static void bp_on_error(
     hdr.b = (uint32_t)error_code;
     bp_event_src(&hdr, src);
     bp_event_push(&hdr, NULL, 0);
-    tx->active = false;
+    bp_tx_end(tx);
 }
 
 static void bp_on_complex_error(
@@ -137,7 +137,7 @@ static void bp_on_complex_error(
     hdr.b = 0xFFFFFFFFu;
     bp_event_src(&hdr, src);
     bp_event_push(&hdr, service_request, service_len);
-    tx->active = false;
+    bp_tx_end(tx);
 }
 
 static void bp_on_abort(
@@ -161,7 +161,7 @@ static void bp_on_abort(
     hdr.a = abort_reason;
     bp_event_src(&hdr, src);
     bp_event_push(&hdr, NULL, 0);
-    tx->active = false;
+    bp_tx_end(tx);
 }
 
 static void
@@ -180,7 +180,7 @@ bp_on_reject(BACNET_ADDRESS *src, uint8_t invoke_id, uint8_t reject_reason)
     hdr.a = reject_reason;
     bp_event_src(&hdr, src);
     bp_event_push(&hdr, NULL, 0);
-    tx->active = false;
+    bp_tx_end(tx);
 }
 
 static void bp_on_timeout(uint8_t invoke_id)
@@ -193,7 +193,7 @@ static void bp_on_timeout(uint8_t invoke_id)
         return;
     }
     bp_tx_event(tx, BP_EVENT_TIMEOUT, invoke_id, &tx->dest);
-    tx->active = false;
+    bp_tx_end(tx);
     bp_state.stats.timeouts++;
     /* a failed transaction keeps its TSM slot until freed */
     tsm_free_invoke_id(invoke_id);
@@ -410,8 +410,11 @@ BP_API int32_t bacnet_plugin_send_confirmed(
         tsm_free_invoke_id(invoke_id);
         return BP_ERR_APDU_TOO_LARGE;
     }
-    bp_state.tx_buf[pdu_len] = PDU_TYPE_CONFIRMED_SERVICE_REQUEST;
-    bp_state.tx_buf[pdu_len + 1] = encode_max_segs_max_apdu(0, MAX_APDU);
+    /* segmented answers are reassembled by bp_segments.c */
+    bp_state.tx_buf[pdu_len] = PDU_TYPE_CONFIRMED_SERVICE_REQUEST |
+        (bp_state.max_segments > 1 ? 0x02 : 0x00);
+    bp_state.tx_buf[pdu_len + 1] =
+        encode_max_segs_max_apdu(bp_state.max_segments, MAX_APDU);
     bp_state.tx_buf[pdu_len + 2] = invoke_id;
     bp_state.tx_buf[pdu_len + 3] = service;
     if (data_len) {
@@ -420,6 +423,11 @@ BP_API int32_t bacnet_plugin_send_confirmed(
     pdu_len += apdu_len;
     tsm_set_confirmed_unsegmented_transaction(
         invoke_id, &dest, &npdu_data, &bp_state.tx_buf[0], (uint16_t)pdu_len);
+    bp_state.last_invoke_id = invoke_id;
+    if (bp_state.tx[invoke_id].active) {
+        /* the stack recycled the invoke id: release what is left of it */
+        bp_tx_end(&bp_state.tx[invoke_id]);
+    }
     bp_state.tx[invoke_id].active = true;
     bp_state.tx[invoke_id].service = service;
     bp_state.tx[invoke_id].device_id = device_id;

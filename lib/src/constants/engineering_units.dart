@@ -2,1289 +2,1294 @@
 // bacnet-stack bacenum.h. Do not edit.
 
 /// BACnet engineering units (BACnetEngineeringUnits).
-abstract final class BacnetEngineeringUnits {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetEngineeringUnits(value)`.
+extension type const BacnetEngineeringUnits(int value) implements int {
   /// Square Meters.
-  static const int squareMeters = 0;
+  static const squareMeters = BacnetEngineeringUnits(0);
 
   /// Square Feet.
-  static const int squareFeet = 1;
+  static const squareFeet = BacnetEngineeringUnits(1);
 
   /// Milliamperes.
-  static const int milliamperes = 2;
+  static const milliamperes = BacnetEngineeringUnits(2);
 
   /// Amperes.
-  static const int amperes = 3;
+  static const amperes = BacnetEngineeringUnits(3);
 
   /// Ohms.
-  static const int ohms = 4;
+  static const ohms = BacnetEngineeringUnits(4);
 
   /// Volts.
-  static const int volts = 5;
+  static const volts = BacnetEngineeringUnits(5);
 
   /// Kilovolts.
-  static const int kilovolts = 6;
+  static const kilovolts = BacnetEngineeringUnits(6);
 
   /// Megavolts.
-  static const int megavolts = 7;
+  static const megavolts = BacnetEngineeringUnits(7);
 
   /// Volt Amperes.
-  static const int voltAmperes = 8;
+  static const voltAmperes = BacnetEngineeringUnits(8);
 
   /// Kilovolt Amperes.
-  static const int kilovoltAmperes = 9;
+  static const kilovoltAmperes = BacnetEngineeringUnits(9);
 
   /// Megavolt Amperes.
-  static const int megavoltAmperes = 10;
+  static const megavoltAmperes = BacnetEngineeringUnits(10);
 
   /// Volt Amperes Reactive.
-  static const int voltAmperesReactive = 11;
+  static const voltAmperesReactive = BacnetEngineeringUnits(11);
 
   /// Kilovolt Amperes Reactive.
-  static const int kilovoltAmperesReactive = 12;
+  static const kilovoltAmperesReactive = BacnetEngineeringUnits(12);
 
   /// Megavolt Amperes Reactive.
-  static const int megavoltAmperesReactive = 13;
+  static const megavoltAmperesReactive = BacnetEngineeringUnits(13);
 
   /// Degrees Phase.
-  static const int degreesPhase = 14;
+  static const degreesPhase = BacnetEngineeringUnits(14);
 
   /// Power Factor.
-  static const int powerFactor = 15;
+  static const powerFactor = BacnetEngineeringUnits(15);
 
   /// Joules.
-  static const int joules = 16;
+  static const joules = BacnetEngineeringUnits(16);
 
   /// Kilojoules.
-  static const int kilojoules = 17;
+  static const kilojoules = BacnetEngineeringUnits(17);
 
   /// Watt Hours.
-  static const int wattHours = 18;
+  static const wattHours = BacnetEngineeringUnits(18);
 
   /// Kilowatt Hours.
-  static const int kilowattHours = 19;
+  static const kilowattHours = BacnetEngineeringUnits(19);
 
   /// BTUs.
-  static const int btus = 20;
+  static const btus = BacnetEngineeringUnits(20);
 
   /// Therms.
-  static const int therms = 21;
+  static const therms = BacnetEngineeringUnits(21);
 
   /// Ton Hours.
-  static const int tonHours = 22;
+  static const tonHours = BacnetEngineeringUnits(22);
 
   /// Joules Per Kilogram Dry Air.
-  static const int joulesPerKilogramDryAir = 23;
+  static const joulesPerKilogramDryAir = BacnetEngineeringUnits(23);
 
   /// BTUs Per Pound Dry Air.
-  static const int btusPerPoundDryAir = 24;
+  static const btusPerPoundDryAir = BacnetEngineeringUnits(24);
 
   /// Cycles Per Hour.
-  static const int cyclesPerHour = 25;
+  static const cyclesPerHour = BacnetEngineeringUnits(25);
 
   /// Cycles Per Minute.
-  static const int cyclesPerMinute = 26;
+  static const cyclesPerMinute = BacnetEngineeringUnits(26);
 
   /// Hertz.
-  static const int hertz = 27;
+  static const hertz = BacnetEngineeringUnits(27);
 
   /// Grams Of Water Per Kilogram Dry Air.
-  static const int gramsOfWaterPerKilogramDryAir = 28;
+  static const gramsOfWaterPerKilogramDryAir = BacnetEngineeringUnits(28);
 
   /// Percent Relative Humidity.
-  static const int percentRelativeHumidity = 29;
+  static const percentRelativeHumidity = BacnetEngineeringUnits(29);
 
   /// Millimeters.
-  static const int millimeters = 30;
+  static const millimeters = BacnetEngineeringUnits(30);
 
   /// Meters.
-  static const int meters = 31;
+  static const meters = BacnetEngineeringUnits(31);
 
   /// Inches.
-  static const int inches = 32;
+  static const inches = BacnetEngineeringUnits(32);
 
   /// Feet.
-  static const int feet = 33;
+  static const feet = BacnetEngineeringUnits(33);
 
   /// Watts Per Square Foot.
-  static const int wattsPerSquareFoot = 34;
+  static const wattsPerSquareFoot = BacnetEngineeringUnits(34);
 
   /// Watts Per Square Meter.
-  static const int wattsPerSquareMeter = 35;
+  static const wattsPerSquareMeter = BacnetEngineeringUnits(35);
 
   /// Lumens.
-  static const int lumens = 36;
+  static const lumens = BacnetEngineeringUnits(36);
 
   /// Luxes.
-  static const int luxes = 37;
+  static const luxes = BacnetEngineeringUnits(37);
 
   /// Foot Candles.
-  static const int footCandles = 38;
+  static const footCandles = BacnetEngineeringUnits(38);
 
   /// Kilograms.
-  static const int kilograms = 39;
+  static const kilograms = BacnetEngineeringUnits(39);
 
   /// Pounds Mass.
-  static const int poundsMass = 40;
+  static const poundsMass = BacnetEngineeringUnits(40);
 
   /// Tons.
-  static const int tons = 41;
+  static const tons = BacnetEngineeringUnits(41);
 
   /// Kilograms Per Second.
-  static const int kilogramsPerSecond = 42;
+  static const kilogramsPerSecond = BacnetEngineeringUnits(42);
 
   /// Kilograms Per Minute.
-  static const int kilogramsPerMinute = 43;
+  static const kilogramsPerMinute = BacnetEngineeringUnits(43);
 
   /// Kilograms Per Hour.
-  static const int kilogramsPerHour = 44;
+  static const kilogramsPerHour = BacnetEngineeringUnits(44);
 
   /// Pounds Mass Per Minute.
-  static const int poundsMassPerMinute = 45;
+  static const poundsMassPerMinute = BacnetEngineeringUnits(45);
 
   /// Pounds Mass Per Hour.
-  static const int poundsMassPerHour = 46;
+  static const poundsMassPerHour = BacnetEngineeringUnits(46);
 
   /// Watts.
-  static const int watts = 47;
+  static const watts = BacnetEngineeringUnits(47);
 
   /// Kilowatts.
-  static const int kilowatts = 48;
+  static const kilowatts = BacnetEngineeringUnits(48);
 
   /// Megawatts.
-  static const int megawatts = 49;
+  static const megawatts = BacnetEngineeringUnits(49);
 
   /// BTUs Per Hour.
-  static const int btusPerHour = 50;
+  static const btusPerHour = BacnetEngineeringUnits(50);
 
   /// Horsepower.
-  static const int horsepower = 51;
+  static const horsepower = BacnetEngineeringUnits(51);
 
   /// Tons Refrigeration.
-  static const int tonsRefrigeration = 52;
+  static const tonsRefrigeration = BacnetEngineeringUnits(52);
 
   /// Pascals.
-  static const int pascals = 53;
+  static const pascals = BacnetEngineeringUnits(53);
 
   /// Kilopascals.
-  static const int kilopascals = 54;
+  static const kilopascals = BacnetEngineeringUnits(54);
 
   /// Bars.
-  static const int bars = 55;
+  static const bars = BacnetEngineeringUnits(55);
 
   /// Pounds Force Per Square Inch.
-  static const int poundsForcePerSquareInch = 56;
+  static const poundsForcePerSquareInch = BacnetEngineeringUnits(56);
 
   /// Centimeters Of Water.
-  static const int centimetersOfWater = 57;
+  static const centimetersOfWater = BacnetEngineeringUnits(57);
 
   /// Inches Of Water.
-  static const int inchesOfWater = 58;
+  static const inchesOfWater = BacnetEngineeringUnits(58);
 
   /// Millimeters Of Mercury.
-  static const int millimetersOfMercury = 59;
+  static const millimetersOfMercury = BacnetEngineeringUnits(59);
 
   /// Centimeters Of Mercury.
-  static const int centimetersOfMercury = 60;
+  static const centimetersOfMercury = BacnetEngineeringUnits(60);
 
   /// Inches Of Mercury.
-  static const int inchesOfMercury = 61;
+  static const inchesOfMercury = BacnetEngineeringUnits(61);
 
   /// Degrees Celsius.
-  static const int degreesCelsius = 62;
+  static const degreesCelsius = BacnetEngineeringUnits(62);
 
   /// Kelvin.
-  static const int kelvin = 63;
+  static const kelvin = BacnetEngineeringUnits(63);
 
   /// Degrees Fahrenheit.
-  static const int degreesFahrenheit = 64;
+  static const degreesFahrenheit = BacnetEngineeringUnits(64);
 
   /// Degree Days Celsius.
-  static const int degreeDaysCelsius = 65;
+  static const degreeDaysCelsius = BacnetEngineeringUnits(65);
 
   /// Degree Days Fahrenheit.
-  static const int degreeDaysFahrenheit = 66;
+  static const degreeDaysFahrenheit = BacnetEngineeringUnits(66);
 
   /// Years.
-  static const int years = 67;
+  static const years = BacnetEngineeringUnits(67);
 
   /// Months.
-  static const int months = 68;
+  static const months = BacnetEngineeringUnits(68);
 
   /// Weeks.
-  static const int weeks = 69;
+  static const weeks = BacnetEngineeringUnits(69);
 
   /// Days.
-  static const int days = 70;
+  static const days = BacnetEngineeringUnits(70);
 
   /// Hours.
-  static const int hours = 71;
+  static const hours = BacnetEngineeringUnits(71);
 
   /// Minutes.
-  static const int minutes = 72;
+  static const minutes = BacnetEngineeringUnits(72);
 
   /// Seconds.
-  static const int seconds = 73;
+  static const seconds = BacnetEngineeringUnits(73);
 
   /// Meters Per Second.
-  static const int metersPerSecond = 74;
+  static const metersPerSecond = BacnetEngineeringUnits(74);
 
   /// Kilometers Per Hour.
-  static const int kilometersPerHour = 75;
+  static const kilometersPerHour = BacnetEngineeringUnits(75);
 
   /// Feet Per Second.
-  static const int feetPerSecond = 76;
+  static const feetPerSecond = BacnetEngineeringUnits(76);
 
   /// Feet Per Minute.
-  static const int feetPerMinute = 77;
+  static const feetPerMinute = BacnetEngineeringUnits(77);
 
   /// Miles Per Hour.
-  static const int milesPerHour = 78;
+  static const milesPerHour = BacnetEngineeringUnits(78);
 
   /// Cubic Feet.
-  static const int cubicFeet = 79;
+  static const cubicFeet = BacnetEngineeringUnits(79);
 
   /// Cubic Meters.
-  static const int cubicMeters = 80;
+  static const cubicMeters = BacnetEngineeringUnits(80);
 
   /// Imperial Gallons.
-  static const int imperialGallons = 81;
+  static const imperialGallons = BacnetEngineeringUnits(81);
 
   /// Liters.
-  static const int liters = 82;
+  static const liters = BacnetEngineeringUnits(82);
 
   /// Us Gallons.
-  static const int usGallons = 83;
+  static const usGallons = BacnetEngineeringUnits(83);
 
   /// Cubic Feet Per Minute.
-  static const int cubicFeetPerMinute = 84;
+  static const cubicFeetPerMinute = BacnetEngineeringUnits(84);
 
   /// Cubic Meters Per Second.
-  static const int cubicMetersPerSecond = 85;
+  static const cubicMetersPerSecond = BacnetEngineeringUnits(85);
 
   /// Imperial Gallons Per Minute.
-  static const int imperialGallonsPerMinute = 86;
+  static const imperialGallonsPerMinute = BacnetEngineeringUnits(86);
 
   /// Liters Per Second.
-  static const int litersPerSecond = 87;
+  static const litersPerSecond = BacnetEngineeringUnits(87);
 
   /// Liters Per Minute.
-  static const int litersPerMinute = 88;
+  static const litersPerMinute = BacnetEngineeringUnits(88);
 
   /// Us Gallons Per Minute.
-  static const int usGallonsPerMinute = 89;
+  static const usGallonsPerMinute = BacnetEngineeringUnits(89);
 
   /// Degrees Angular.
-  static const int degreesAngular = 90;
+  static const degreesAngular = BacnetEngineeringUnits(90);
 
   /// Degrees Celsius Per Hour.
-  static const int degreesCelsiusPerHour = 91;
+  static const degreesCelsiusPerHour = BacnetEngineeringUnits(91);
 
   /// Degrees Celsius Per Minute.
-  static const int degreesCelsiusPerMinute = 92;
+  static const degreesCelsiusPerMinute = BacnetEngineeringUnits(92);
 
   /// Degrees Fahrenheit Per Hour.
-  static const int degreesFahrenheitPerHour = 93;
+  static const degreesFahrenheitPerHour = BacnetEngineeringUnits(93);
 
   /// Degrees Fahrenheit Per Minute.
-  static const int degreesFahrenheitPerMinute = 94;
+  static const degreesFahrenheitPerMinute = BacnetEngineeringUnits(94);
 
   /// No Units.
-  static const int noUnits = 95;
+  static const noUnits = BacnetEngineeringUnits(95);
 
   /// Parts Per Million.
-  static const int partsPerMillion = 96;
+  static const partsPerMillion = BacnetEngineeringUnits(96);
 
   /// Parts Per Billion.
-  static const int partsPerBillion = 97;
+  static const partsPerBillion = BacnetEngineeringUnits(97);
 
   /// Percent.
-  static const int percent = 98;
+  static const percent = BacnetEngineeringUnits(98);
 
   /// Percent Per Second.
-  static const int percentPerSecond = 99;
+  static const percentPerSecond = BacnetEngineeringUnits(99);
 
   /// Per Minute.
-  static const int perMinute = 100;
+  static const perMinute = BacnetEngineeringUnits(100);
 
   /// Per Second.
-  static const int perSecond = 101;
+  static const perSecond = BacnetEngineeringUnits(101);
 
   /// Psi Per Degree Fahrenheit.
-  static const int psiPerDegreeFahrenheit = 102;
+  static const psiPerDegreeFahrenheit = BacnetEngineeringUnits(102);
 
   /// Radians.
-  static const int radians = 103;
+  static const radians = BacnetEngineeringUnits(103);
 
   /// Revolutions Per Minute.
-  static const int revolutionsPerMinute = 104;
+  static const revolutionsPerMinute = BacnetEngineeringUnits(104);
 
   /// Currency1.
-  static const int currency1 = 105;
+  static const currency1 = BacnetEngineeringUnits(105);
 
   /// Currency2.
-  static const int currency2 = 106;
+  static const currency2 = BacnetEngineeringUnits(106);
 
   /// Currency3.
-  static const int currency3 = 107;
+  static const currency3 = BacnetEngineeringUnits(107);
 
   /// Currency4.
-  static const int currency4 = 108;
+  static const currency4 = BacnetEngineeringUnits(108);
 
   /// Currency5.
-  static const int currency5 = 109;
+  static const currency5 = BacnetEngineeringUnits(109);
 
   /// Currency6.
-  static const int currency6 = 110;
+  static const currency6 = BacnetEngineeringUnits(110);
 
   /// Currency7.
-  static const int currency7 = 111;
+  static const currency7 = BacnetEngineeringUnits(111);
 
   /// Currency8.
-  static const int currency8 = 112;
+  static const currency8 = BacnetEngineeringUnits(112);
 
   /// Currency9.
-  static const int currency9 = 113;
+  static const currency9 = BacnetEngineeringUnits(113);
 
   /// Currency10.
-  static const int currency10 = 114;
+  static const currency10 = BacnetEngineeringUnits(114);
 
   /// Square Inches.
-  static const int squareInches = 115;
+  static const squareInches = BacnetEngineeringUnits(115);
 
   /// Square Centimeters.
-  static const int squareCentimeters = 116;
+  static const squareCentimeters = BacnetEngineeringUnits(116);
 
   /// BTUs Per Pound.
-  static const int btusPerPound = 117;
+  static const btusPerPound = BacnetEngineeringUnits(117);
 
   /// Centimeters.
-  static const int centimeters = 118;
+  static const centimeters = BacnetEngineeringUnits(118);
 
   /// Pounds Mass Per Second.
-  static const int poundsMassPerSecond = 119;
+  static const poundsMassPerSecond = BacnetEngineeringUnits(119);
 
   /// Delta Degrees Fahrenheit.
-  static const int deltaDegreesFahrenheit = 120;
+  static const deltaDegreesFahrenheit = BacnetEngineeringUnits(120);
 
   /// Delta Kelvin.
-  static const int deltaKelvin = 121;
+  static const deltaKelvin = BacnetEngineeringUnits(121);
 
   /// Kilohms.
-  static const int kilohms = 122;
+  static const kilohms = BacnetEngineeringUnits(122);
 
   /// Megohms.
-  static const int megohms = 123;
+  static const megohms = BacnetEngineeringUnits(123);
 
   /// Millivolts.
-  static const int millivolts = 124;
+  static const millivolts = BacnetEngineeringUnits(124);
 
   /// Kilojoules Per Kilogram.
-  static const int kilojoulesPerKilogram = 125;
+  static const kilojoulesPerKilogram = BacnetEngineeringUnits(125);
 
   /// Megajoules.
-  static const int megajoules = 126;
+  static const megajoules = BacnetEngineeringUnits(126);
 
   /// Joules Per Degree Kelvin.
-  static const int joulesPerDegreeKelvin = 127;
+  static const joulesPerDegreeKelvin = BacnetEngineeringUnits(127);
 
   /// Joules Per Kilogram Degree Kelvin.
-  static const int joulesPerKilogramDegreeKelvin = 128;
+  static const joulesPerKilogramDegreeKelvin = BacnetEngineeringUnits(128);
 
   /// Kilohertz.
-  static const int kilohertz = 129;
+  static const kilohertz = BacnetEngineeringUnits(129);
 
   /// Megahertz.
-  static const int megahertz = 130;
+  static const megahertz = BacnetEngineeringUnits(130);
 
   /// Per Hour.
-  static const int perHour = 131;
+  static const perHour = BacnetEngineeringUnits(131);
 
   /// Milliwatts.
-  static const int milliwatts = 132;
+  static const milliwatts = BacnetEngineeringUnits(132);
 
   /// Hectopascals.
-  static const int hectopascals = 133;
+  static const hectopascals = BacnetEngineeringUnits(133);
 
   /// Millibars.
-  static const int millibars = 134;
+  static const millibars = BacnetEngineeringUnits(134);
 
   /// Cubic Meters Per Hour.
-  static const int cubicMetersPerHour = 135;
+  static const cubicMetersPerHour = BacnetEngineeringUnits(135);
 
   /// Liters Per Hour.
-  static const int litersPerHour = 136;
+  static const litersPerHour = BacnetEngineeringUnits(136);
 
   /// Kw Hours Per Square Meter.
-  static const int kwHoursPerSquareMeter = 137;
+  static const kwHoursPerSquareMeter = BacnetEngineeringUnits(137);
 
   /// Kw Hours Per Square Foot.
-  static const int kwHoursPerSquareFoot = 138;
+  static const kwHoursPerSquareFoot = BacnetEngineeringUnits(138);
 
   /// Megajoules Per Square Meter.
-  static const int megajoulesPerSquareMeter = 139;
+  static const megajoulesPerSquareMeter = BacnetEngineeringUnits(139);
 
   /// Megajoules Per Square Foot.
-  static const int megajoulesPerSquareFoot = 140;
+  static const megajoulesPerSquareFoot = BacnetEngineeringUnits(140);
 
   /// Watts Per Square Meter Degree Kelvin.
-  static const int wattsPerSquareMeterDegreeKelvin = 141;
+  static const wattsPerSquareMeterDegreeKelvin = BacnetEngineeringUnits(141);
 
   /// Cubic Feet Per Second.
-  static const int cubicFeetPerSecond = 142;
+  static const cubicFeetPerSecond = BacnetEngineeringUnits(142);
 
   /// Percent Obscuration Per Foot.
-  static const int percentObscurationPerFoot = 143;
+  static const percentObscurationPerFoot = BacnetEngineeringUnits(143);
 
   /// Percent Obscuration Per Meter.
-  static const int percentObscurationPerMeter = 144;
+  static const percentObscurationPerMeter = BacnetEngineeringUnits(144);
 
   /// Milliohms.
-  static const int milliohms = 145;
+  static const milliohms = BacnetEngineeringUnits(145);
 
   /// Megawatt Hours.
-  static const int megawattHours = 146;
+  static const megawattHours = BacnetEngineeringUnits(146);
 
   /// Kilo BTUs.
-  static const int kiloBtus = 147;
+  static const kiloBtus = BacnetEngineeringUnits(147);
 
   /// Mega BTUs.
-  static const int megaBtus = 148;
+  static const megaBtus = BacnetEngineeringUnits(148);
 
   /// Kilojoules Per Kilogram Dry Air.
-  static const int kilojoulesPerKilogramDryAir = 149;
+  static const kilojoulesPerKilogramDryAir = BacnetEngineeringUnits(149);
 
   /// Megajoules Per Kilogram Dry Air.
-  static const int megajoulesPerKilogramDryAir = 150;
+  static const megajoulesPerKilogramDryAir = BacnetEngineeringUnits(150);
 
   /// Kilojoules Per Degree Kelvin.
-  static const int kilojoulesPerDegreeKelvin = 151;
+  static const kilojoulesPerDegreeKelvin = BacnetEngineeringUnits(151);
 
   /// Megajoules Per Degree Kelvin.
-  static const int megajoulesPerDegreeKelvin = 152;
+  static const megajoulesPerDegreeKelvin = BacnetEngineeringUnits(152);
 
   /// Newton.
-  static const int newton = 153;
+  static const newton = BacnetEngineeringUnits(153);
 
   /// Grams Per Second.
-  static const int gramsPerSecond = 154;
+  static const gramsPerSecond = BacnetEngineeringUnits(154);
 
   /// Grams Per Minute.
-  static const int gramsPerMinute = 155;
+  static const gramsPerMinute = BacnetEngineeringUnits(155);
 
   /// Tons Per Hour.
-  static const int tonsPerHour = 156;
+  static const tonsPerHour = BacnetEngineeringUnits(156);
 
   /// Kilo BTUs Per Hour.
-  static const int kiloBtusPerHour = 157;
+  static const kiloBtusPerHour = BacnetEngineeringUnits(157);
 
   /// Hundredths Seconds.
-  static const int hundredthsSeconds = 158;
+  static const hundredthsSeconds = BacnetEngineeringUnits(158);
 
   /// Milliseconds.
-  static const int milliseconds = 159;
+  static const milliseconds = BacnetEngineeringUnits(159);
 
   /// Newton Meters.
-  static const int newtonMeters = 160;
+  static const newtonMeters = BacnetEngineeringUnits(160);
 
   /// Millimeters Per Second.
-  static const int millimetersPerSecond = 161;
+  static const millimetersPerSecond = BacnetEngineeringUnits(161);
 
   /// Millimeters Per Minute.
-  static const int millimetersPerMinute = 162;
+  static const millimetersPerMinute = BacnetEngineeringUnits(162);
 
   /// Meters Per Minute.
-  static const int metersPerMinute = 163;
+  static const metersPerMinute = BacnetEngineeringUnits(163);
 
   /// Meters Per Hour.
-  static const int metersPerHour = 164;
+  static const metersPerHour = BacnetEngineeringUnits(164);
 
   /// Cubic Meters Per Minute.
-  static const int cubicMetersPerMinute = 165;
+  static const cubicMetersPerMinute = BacnetEngineeringUnits(165);
 
   /// Meters Per Second Per Second.
-  static const int metersPerSecondPerSecond = 166;
+  static const metersPerSecondPerSecond = BacnetEngineeringUnits(166);
 
   /// Amperes Per Meter.
-  static const int amperesPerMeter = 167;
+  static const amperesPerMeter = BacnetEngineeringUnits(167);
 
   /// Amperes Per Square Meter.
-  static const int amperesPerSquareMeter = 168;
+  static const amperesPerSquareMeter = BacnetEngineeringUnits(168);
 
   /// Ampere Square Meters.
-  static const int ampereSquareMeters = 169;
+  static const ampereSquareMeters = BacnetEngineeringUnits(169);
 
   /// Farads.
-  static const int farads = 170;
+  static const farads = BacnetEngineeringUnits(170);
 
   /// Henrys.
-  static const int henrys = 171;
+  static const henrys = BacnetEngineeringUnits(171);
 
   /// Ohm Meters.
-  static const int ohmMeters = 172;
+  static const ohmMeters = BacnetEngineeringUnits(172);
 
   /// Siemens.
-  static const int siemens = 173;
+  static const siemens = BacnetEngineeringUnits(173);
 
   /// Siemens Per Meter.
-  static const int siemensPerMeter = 174;
+  static const siemensPerMeter = BacnetEngineeringUnits(174);
 
   /// Teslas.
-  static const int teslas = 175;
+  static const teslas = BacnetEngineeringUnits(175);
 
   /// Volts Per Degree Kelvin.
-  static const int voltsPerDegreeKelvin = 176;
+  static const voltsPerDegreeKelvin = BacnetEngineeringUnits(176);
 
   /// Volts Per Meter.
-  static const int voltsPerMeter = 177;
+  static const voltsPerMeter = BacnetEngineeringUnits(177);
 
   /// Webers.
-  static const int webers = 178;
+  static const webers = BacnetEngineeringUnits(178);
 
   /// Candelas.
-  static const int candelas = 179;
+  static const candelas = BacnetEngineeringUnits(179);
 
   /// Candelas Per Square Meter.
-  static const int candelasPerSquareMeter = 180;
+  static const candelasPerSquareMeter = BacnetEngineeringUnits(180);
 
   /// Kelvin Per Hour.
-  static const int kelvinPerHour = 181;
+  static const kelvinPerHour = BacnetEngineeringUnits(181);
 
   /// Kelvin Per Minute.
-  static const int kelvinPerMinute = 182;
+  static const kelvinPerMinute = BacnetEngineeringUnits(182);
 
   /// Joule Seconds.
-  static const int jouleSeconds = 183;
+  static const jouleSeconds = BacnetEngineeringUnits(183);
 
   /// Radians Per Second.
-  static const int radiansPerSecond = 184;
+  static const radiansPerSecond = BacnetEngineeringUnits(184);
 
   /// Square Meters Per Newton.
-  static const int squareMetersPerNewton = 185;
+  static const squareMetersPerNewton = BacnetEngineeringUnits(185);
 
   /// Kilograms Per Cubic Meter.
-  static const int kilogramsPerCubicMeter = 186;
+  static const kilogramsPerCubicMeter = BacnetEngineeringUnits(186);
 
   /// Newton Seconds.
-  static const int newtonSeconds = 187;
+  static const newtonSeconds = BacnetEngineeringUnits(187);
 
   /// Newtons Per Meter.
-  static const int newtonsPerMeter = 188;
+  static const newtonsPerMeter = BacnetEngineeringUnits(188);
 
   /// Watts Per Meter Per Degree Kelvin.
-  static const int wattsPerMeterPerDegreeKelvin = 189;
+  static const wattsPerMeterPerDegreeKelvin = BacnetEngineeringUnits(189);
 
   /// Microsiemens.
-  static const int microsiemens = 190;
+  static const microsiemens = BacnetEngineeringUnits(190);
 
   /// Cubic Feet Per Hour.
-  static const int cubicFeetPerHour = 191;
+  static const cubicFeetPerHour = BacnetEngineeringUnits(191);
 
   /// Us Gallons Per Hour.
-  static const int usGallonsPerHour = 192;
+  static const usGallonsPerHour = BacnetEngineeringUnits(192);
 
   /// Kilometers.
-  static const int kilometers = 193;
+  static const kilometers = BacnetEngineeringUnits(193);
 
   /// Micrometers.
-  static const int micrometers = 194;
+  static const micrometers = BacnetEngineeringUnits(194);
 
   /// Grams.
-  static const int grams = 195;
+  static const grams = BacnetEngineeringUnits(195);
 
   /// Milligrams.
-  static const int milligrams = 196;
+  static const milligrams = BacnetEngineeringUnits(196);
 
   /// Milliliters.
-  static const int milliliters = 197;
+  static const milliliters = BacnetEngineeringUnits(197);
 
   /// Milliliters Per Second.
-  static const int millilitersPerSecond = 198;
+  static const millilitersPerSecond = BacnetEngineeringUnits(198);
 
   /// Decibels.
-  static const int decibels = 199;
+  static const decibels = BacnetEngineeringUnits(199);
 
   /// Decibels Millivolt.
-  static const int decibelsMillivolt = 200;
+  static const decibelsMillivolt = BacnetEngineeringUnits(200);
 
   /// Decibels Volt.
-  static const int decibelsVolt = 201;
+  static const decibelsVolt = BacnetEngineeringUnits(201);
 
   /// Millisiemens.
-  static const int millisiemens = 202;
+  static const millisiemens = BacnetEngineeringUnits(202);
 
   /// Watt Reactive Hours.
-  static const int wattReactiveHours = 203;
+  static const wattReactiveHours = BacnetEngineeringUnits(203);
 
   /// Kilowatt Reactive Hours.
-  static const int kilowattReactiveHours = 204;
+  static const kilowattReactiveHours = BacnetEngineeringUnits(204);
 
   /// Megawatt Reactive Hours.
-  static const int megawattReactiveHours = 205;
+  static const megawattReactiveHours = BacnetEngineeringUnits(205);
 
   /// Millimeters Of Water.
-  static const int millimetersOfWater = 206;
+  static const millimetersOfWater = BacnetEngineeringUnits(206);
 
   /// Per Mille.
-  static const int perMille = 207;
+  static const perMille = BacnetEngineeringUnits(207);
 
   /// Grams Per Gram.
-  static const int gramsPerGram = 208;
+  static const gramsPerGram = BacnetEngineeringUnits(208);
 
   /// Kilograms Per Kilogram.
-  static const int kilogramsPerKilogram = 209;
+  static const kilogramsPerKilogram = BacnetEngineeringUnits(209);
 
   /// Grams Per Kilogram.
-  static const int gramsPerKilogram = 210;
+  static const gramsPerKilogram = BacnetEngineeringUnits(210);
 
   /// Milligrams Per Gram.
-  static const int milligramsPerGram = 211;
+  static const milligramsPerGram = BacnetEngineeringUnits(211);
 
   /// Milligrams Per Kilogram.
-  static const int milligramsPerKilogram = 212;
+  static const milligramsPerKilogram = BacnetEngineeringUnits(212);
 
   /// Grams Per Milliliter.
-  static const int gramsPerMilliliter = 213;
+  static const gramsPerMilliliter = BacnetEngineeringUnits(213);
 
   /// Grams Per Liter.
-  static const int gramsPerLiter = 214;
+  static const gramsPerLiter = BacnetEngineeringUnits(214);
 
   /// Milligrams Per Liter.
-  static const int milligramsPerLiter = 215;
+  static const milligramsPerLiter = BacnetEngineeringUnits(215);
 
   /// Micrograms Per Liter.
-  static const int microgramsPerLiter = 216;
+  static const microgramsPerLiter = BacnetEngineeringUnits(216);
 
   /// Grams Per Cubic Meter.
-  static const int gramsPerCubicMeter = 217;
+  static const gramsPerCubicMeter = BacnetEngineeringUnits(217);
 
   /// Milligrams Per Cubic Meter.
-  static const int milligramsPerCubicMeter = 218;
+  static const milligramsPerCubicMeter = BacnetEngineeringUnits(218);
 
   /// Micrograms Per Cubic Meter.
-  static const int microgramsPerCubicMeter = 219;
+  static const microgramsPerCubicMeter = BacnetEngineeringUnits(219);
 
   /// Nanograms Per Cubic Meter.
-  static const int nanogramsPerCubicMeter = 220;
+  static const nanogramsPerCubicMeter = BacnetEngineeringUnits(220);
 
   /// Grams Per Cubic Centimeter.
-  static const int gramsPerCubicCentimeter = 221;
+  static const gramsPerCubicCentimeter = BacnetEngineeringUnits(221);
 
   /// Becquerels.
-  static const int becquerels = 222;
+  static const becquerels = BacnetEngineeringUnits(222);
 
   /// Kilobecquerels.
-  static const int kilobecquerels = 223;
+  static const kilobecquerels = BacnetEngineeringUnits(223);
 
   /// Megabecquerels.
-  static const int megabecquerels = 224;
+  static const megabecquerels = BacnetEngineeringUnits(224);
 
   /// Gray.
-  static const int gray = 225;
+  static const gray = BacnetEngineeringUnits(225);
 
   /// Milligray.
-  static const int milligray = 226;
+  static const milligray = BacnetEngineeringUnits(226);
 
   /// Microgray.
-  static const int microgray = 227;
+  static const microgray = BacnetEngineeringUnits(227);
 
   /// Sieverts.
-  static const int sieverts = 228;
+  static const sieverts = BacnetEngineeringUnits(228);
 
   /// Millisieverts.
-  static const int millisieverts = 229;
+  static const millisieverts = BacnetEngineeringUnits(229);
 
   /// Microsieverts.
-  static const int microsieverts = 230;
+  static const microsieverts = BacnetEngineeringUnits(230);
 
   /// Microsieverts Per Hour.
-  static const int microsievertsPerHour = 231;
+  static const microsievertsPerHour = BacnetEngineeringUnits(231);
 
   /// Decibels A.
-  static const int decibelsA = 232;
+  static const decibelsA = BacnetEngineeringUnits(232);
 
   /// Nephelometric Turbidity Unit.
-  static const int nephelometricTurbidityUnit = 233;
+  static const nephelometricTurbidityUnit = BacnetEngineeringUnits(233);
 
   /// Ph.
-  static const int ph = 234;
+  static const ph = BacnetEngineeringUnits(234);
 
   /// Grams Per Square Meter.
-  static const int gramsPerSquareMeter = 235;
+  static const gramsPerSquareMeter = BacnetEngineeringUnits(235);
 
   /// Minutes Per Degree Kelvin.
-  static const int minutesPerDegreeKelvin = 236;
+  static const minutesPerDegreeKelvin = BacnetEngineeringUnits(236);
 
   /// Ohm Meter Squared Per Meter.
-  static const int ohmMeterSquaredPerMeter = 237;
+  static const ohmMeterSquaredPerMeter = BacnetEngineeringUnits(237);
 
   /// Ampere Seconds.
-  static const int ampereSeconds = 238;
+  static const ampereSeconds = BacnetEngineeringUnits(238);
 
   /// Volt Ampere Hours.
-  static const int voltAmpereHours = 239;
+  static const voltAmpereHours = BacnetEngineeringUnits(239);
 
   /// Kilovolt Ampere Hours.
-  static const int kilovoltAmpereHours = 240;
+  static const kilovoltAmpereHours = BacnetEngineeringUnits(240);
 
   /// Megavolt Ampere Hours.
-  static const int megavoltAmpereHours = 241;
+  static const megavoltAmpereHours = BacnetEngineeringUnits(241);
 
   /// Volt Ampere Reactive Hours.
-  static const int voltAmpereReactiveHours = 242;
+  static const voltAmpereReactiveHours = BacnetEngineeringUnits(242);
 
   /// Kilovolt Ampere Reactive Hours.
-  static const int kilovoltAmpereReactiveHours = 243;
+  static const kilovoltAmpereReactiveHours = BacnetEngineeringUnits(243);
 
   /// Megavolt Ampere Reactive Hours.
-  static const int megavoltAmpereReactiveHours = 244;
+  static const megavoltAmpereReactiveHours = BacnetEngineeringUnits(244);
 
   /// Volt Square Hours.
-  static const int voltSquareHours = 245;
+  static const voltSquareHours = BacnetEngineeringUnits(245);
 
   /// Ampere Square Hours.
-  static const int ampereSquareHours = 246;
+  static const ampereSquareHours = BacnetEngineeringUnits(246);
 
   /// Joule Per Hours.
-  static const int joulePerHours = 247;
+  static const joulePerHours = BacnetEngineeringUnits(247);
 
   /// Cubic Feet Per Day.
-  static const int cubicFeetPerDay = 248;
+  static const cubicFeetPerDay = BacnetEngineeringUnits(248);
 
   /// Cubic Meters Per Day.
-  static const int cubicMetersPerDay = 249;
+  static const cubicMetersPerDay = BacnetEngineeringUnits(249);
 
   /// Watt Hours Per Cubic Meter.
-  static const int wattHoursPerCubicMeter = 250;
+  static const wattHoursPerCubicMeter = BacnetEngineeringUnits(250);
 
   /// Joules Per Cubic Meter.
-  static const int joulesPerCubicMeter = 251;
+  static const joulesPerCubicMeter = BacnetEngineeringUnits(251);
 
   /// Mole Percent.
-  static const int molePercent = 252;
+  static const molePercent = BacnetEngineeringUnits(252);
 
   /// Pascal Seconds.
-  static const int pascalSeconds = 253;
+  static const pascalSeconds = BacnetEngineeringUnits(253);
 
   /// Million Standard Cubic Feet Per Minute.
-  static const int millionStandardCubicFeetPerMinute = 254;
+  static const millionStandardCubicFeetPerMinute = BacnetEngineeringUnits(254);
 
   /// Standard Cubic Feet Per Day.
-  static const int standardCubicFeetPerDay = 47808;
+  static const standardCubicFeetPerDay = BacnetEngineeringUnits(47808);
 
   /// Million Standard Cubic Feet Per Day.
-  static const int millionStandardCubicFeetPerDay = 47809;
+  static const millionStandardCubicFeetPerDay = BacnetEngineeringUnits(47809);
 
   /// Thousand Cubic Feet Per Day.
-  static const int thousandCubicFeetPerDay = 47810;
+  static const thousandCubicFeetPerDay = BacnetEngineeringUnits(47810);
 
   /// Thousand Standard Cubic Feet Per Day.
-  static const int thousandStandardCubicFeetPerDay = 47811;
+  static const thousandStandardCubicFeetPerDay = BacnetEngineeringUnits(47811);
 
   /// Pounds Mass Per Day.
-  static const int poundsMassPerDay = 47812;
+  static const poundsMassPerDay = BacnetEngineeringUnits(47812);
 
   /// Millirems.
-  static const int millirems = 47814;
+  static const millirems = BacnetEngineeringUnits(47814);
 
   /// Millirems Per Hour.
-  static const int milliremsPerHour = 47815;
+  static const milliremsPerHour = BacnetEngineeringUnits(47815);
 
   /// Degrees Lovibond.
-  static const int degreesLovibond = 47816;
+  static const degreesLovibond = BacnetEngineeringUnits(47816);
 
   /// Alcohol By Volume.
-  static const int alcoholByVolume = 47817;
+  static const alcoholByVolume = BacnetEngineeringUnits(47817);
 
   /// International Bittering Units.
-  static const int internationalBitteringUnits = 47818;
+  static const internationalBitteringUnits = BacnetEngineeringUnits(47818);
 
   /// European Bitterness Units.
-  static const int europeanBitternessUnits = 47819;
+  static const europeanBitternessUnits = BacnetEngineeringUnits(47819);
 
   /// Degrees Plato.
-  static const int degreesPlato = 47820;
+  static const degreesPlato = BacnetEngineeringUnits(47820);
 
   /// Specific Gravity.
-  static const int specificGravity = 47821;
+  static const specificGravity = BacnetEngineeringUnits(47821);
 
   /// European Brewing Convention.
-  static const int europeanBrewingConvention = 47822;
+  static const europeanBrewingConvention = BacnetEngineeringUnits(47822);
 
   /// Per Day.
-  static const int perDay = 47823;
+  static const perDay = BacnetEngineeringUnits(47823);
 
   /// Per Millisecond.
-  static const int perMillisecond = 47824;
+  static const perMillisecond = BacnetEngineeringUnits(47824);
 
   /// Yards.
-  static const int yards = 47825;
+  static const yards = BacnetEngineeringUnits(47825);
 
   /// Miles.
-  static const int miles = 47826;
+  static const miles = BacnetEngineeringUnits(47826);
 
   /// Nautical Miles.
-  static const int nauticalMiles = 47827;
+  static const nauticalMiles = BacnetEngineeringUnits(47827);
 
   /// Nanograms.
-  static const int nanograms = 47828;
+  static const nanograms = BacnetEngineeringUnits(47828);
 
   /// Micrograms.
-  static const int micrograms = 47829;
+  static const micrograms = BacnetEngineeringUnits(47829);
 
   /// Metric Tonnes.
-  static const int metricTonnes = 47830;
+  static const metricTonnes = BacnetEngineeringUnits(47830);
 
   /// Short Tons.
-  static const int shortTons = 47831;
+  static const shortTons = BacnetEngineeringUnits(47831);
 
   /// Long Tons.
-  static const int longTons = 47832;
+  static const longTons = BacnetEngineeringUnits(47832);
 
   /// Grams Per Hour.
-  static const int gramsPerHour = 47833;
+  static const gramsPerHour = BacnetEngineeringUnits(47833);
 
   /// Grams Per Day.
-  static const int gramsPerDay = 47834;
+  static const gramsPerDay = BacnetEngineeringUnits(47834);
 
   /// Kilograms Per Day.
-  static const int kilogramsPerDay = 47835;
+  static const kilogramsPerDay = BacnetEngineeringUnits(47835);
 
   /// Short Tons Per Second.
-  static const int shortTonsPerSecond = 47836;
+  static const shortTonsPerSecond = BacnetEngineeringUnits(47836);
 
   /// Short Tons Per Minute.
-  static const int shortTonsPerMinute = 47837;
+  static const shortTonsPerMinute = BacnetEngineeringUnits(47837);
 
   /// Short Tons Per Hour.
-  static const int shortTonsPerHour = 47838;
+  static const shortTonsPerHour = BacnetEngineeringUnits(47838);
 
   /// Short Tons Per Day.
-  static const int shortTonsPerDay = 47839;
+  static const shortTonsPerDay = BacnetEngineeringUnits(47839);
 
   /// Metric Tonnes Per Second.
-  static const int metricTonnesPerSecond = 47840;
+  static const metricTonnesPerSecond = BacnetEngineeringUnits(47840);
 
   /// Metric Tonnes Per Minute.
-  static const int metricTonnesPerMinute = 47841;
+  static const metricTonnesPerMinute = BacnetEngineeringUnits(47841);
 
   /// Metric Tonnes Per Hour.
-  static const int metricTonnesPerHour = 47842;
+  static const metricTonnesPerHour = BacnetEngineeringUnits(47842);
 
   /// Metric Tonnes Per Day.
-  static const int metricTonnesPerDay = 47843;
+  static const metricTonnesPerDay = BacnetEngineeringUnits(47843);
 
   /// Long Tons Per Second.
-  static const int longTonsPerSecond = 47844;
+  static const longTonsPerSecond = BacnetEngineeringUnits(47844);
 
   /// Long Tons Per Minute.
-  static const int longTonsPerMinute = 47845;
+  static const longTonsPerMinute = BacnetEngineeringUnits(47845);
 
   /// Long Tons Per Hour.
-  static const int longTonsPerHour = 47846;
+  static const longTonsPerHour = BacnetEngineeringUnits(47846);
 
   /// Long Tons Per Day.
-  static const int longTonsPerDay = 47847;
+  static const longTonsPerDay = BacnetEngineeringUnits(47847);
 
   /// BTUs Per Second.
-  static const int btusPerSecond = 47848;
+  static const btusPerSecond = BacnetEngineeringUnits(47848);
 
   /// BTUs Per Minute.
-  static const int btusPerMinute = 47849;
+  static const btusPerMinute = BacnetEngineeringUnits(47849);
 
   /// BTUs Per Day.
-  static const int btusPerDay = 47850;
+  static const btusPerDay = BacnetEngineeringUnits(47850);
 
   /// Kilo BTUs Per Second.
-  static const int kiloBtusPerSecond = 47851;
+  static const kiloBtusPerSecond = BacnetEngineeringUnits(47851);
 
   /// Kilo BTUs Per Minute.
-  static const int kiloBtusPerMinute = 47852;
+  static const kiloBtusPerMinute = BacnetEngineeringUnits(47852);
 
   /// Kilo BTUs Per Day.
-  static const int kiloBtusPerDay = 47853;
+  static const kiloBtusPerDay = BacnetEngineeringUnits(47853);
 
   /// Mega BTUs Per Second.
-  static const int megaBtusPerSecond = 47854;
+  static const megaBtusPerSecond = BacnetEngineeringUnits(47854);
 
   /// Mega BTUs Per Minute.
-  static const int megaBtusPerMinute = 47855;
+  static const megaBtusPerMinute = BacnetEngineeringUnits(47855);
 
   /// Mega BTUs Per Hour.
-  static const int megaBtusPerHour = 47856;
+  static const megaBtusPerHour = BacnetEngineeringUnits(47856);
 
   /// Mega BTUs Per Day.
-  static const int megaBtusPerDay = 47857;
+  static const megaBtusPerDay = BacnetEngineeringUnits(47857);
 
   /// Joules Per Second.
-  static const int joulesPerSecond = 47858;
+  static const joulesPerSecond = BacnetEngineeringUnits(47858);
 
   /// Joules Per Minute.
-  static const int joulesPerMinute = 47859;
+  static const joulesPerMinute = BacnetEngineeringUnits(47859);
 
   /// Joules Per Day.
-  static const int joulesPerDay = 47860;
+  static const joulesPerDay = BacnetEngineeringUnits(47860);
 
   /// Kilojoules Per Second.
-  static const int kilojoulesPerSecond = 47861;
+  static const kilojoulesPerSecond = BacnetEngineeringUnits(47861);
 
   /// Kilojoules Per Minute.
-  static const int kilojoulesPerMinute = 47862;
+  static const kilojoulesPerMinute = BacnetEngineeringUnits(47862);
 
   /// Kilojoules Per Hour.
-  static const int kilojoulesPerHour = 47863;
+  static const kilojoulesPerHour = BacnetEngineeringUnits(47863);
 
   /// Kilojoules Per Day.
-  static const int kilojoulesPerDay = 47864;
+  static const kilojoulesPerDay = BacnetEngineeringUnits(47864);
 
   /// Megajoules Per Second.
-  static const int megajoulesPerSecond = 47865;
+  static const megajoulesPerSecond = BacnetEngineeringUnits(47865);
 
   /// Megajoules Per Minute.
-  static const int megajoulesPerMinute = 47866;
+  static const megajoulesPerMinute = BacnetEngineeringUnits(47866);
 
   /// Megajoules Per Hour.
-  static const int megajoulesPerHour = 47867;
+  static const megajoulesPerHour = BacnetEngineeringUnits(47867);
 
   /// Megajoules Per Day.
-  static const int megajoulesPerDay = 47868;
+  static const megajoulesPerDay = BacnetEngineeringUnits(47868);
 
   /// Degrees Celsius Per Day.
-  static const int degreesCelsiusPerDay = 47869;
+  static const degreesCelsiusPerDay = BacnetEngineeringUnits(47869);
 
   /// Kelvin Per Day.
-  static const int kelvinPerDay = 47870;
+  static const kelvinPerDay = BacnetEngineeringUnits(47870);
 
   /// Degrees Fahrenheit Per Day.
-  static const int degreesFahrenheitPerDay = 47871;
+  static const degreesFahrenheitPerDay = BacnetEngineeringUnits(47871);
 
   /// Delta Degrees Celsius.
-  static const int deltaDegreesCelsius = 47872;
+  static const deltaDegreesCelsius = BacnetEngineeringUnits(47872);
 
   /// Million Cubic Feet Per Minute.
-  static const int millionCubicFeetPerMinute = 47873;
+  static const millionCubicFeetPerMinute = BacnetEngineeringUnits(47873);
 
   /// Million Cubic Feet Per Day.
-  static const int millionCubicFeetPerDay = 47874;
+  static const millionCubicFeetPerDay = BacnetEngineeringUnits(47874);
 
   /// Imperial Gallons Per Second.
-  static const int imperialGallonsPerSecond = 47875;
+  static const imperialGallonsPerSecond = BacnetEngineeringUnits(47875);
 
   /// Imperial Gallons Per Hour.
-  static const int imperialGallonsPerHour = 47876;
+  static const imperialGallonsPerHour = BacnetEngineeringUnits(47876);
 
   /// Imperial Gallons Per Day.
-  static const int imperialGallonsPerDay = 47877;
+  static const imperialGallonsPerDay = BacnetEngineeringUnits(47877);
 
   /// Liters Per Day.
-  static const int litersPerDay = 47878;
+  static const litersPerDay = BacnetEngineeringUnits(47878);
 
   /// Us Gallons Per Second.
-  static const int usGallonsPerSecond = 47879;
+  static const usGallonsPerSecond = BacnetEngineeringUnits(47879);
 
   /// Us Gallons Per Day.
-  static const int usGallonsPerDay = 47880;
+  static const usGallonsPerDay = BacnetEngineeringUnits(47880);
 
   /// Percent Per Minute.
-  static const int percentPerMinute = 47881;
+  static const percentPerMinute = BacnetEngineeringUnits(47881);
 
   /// Percent Per Hour.
-  static const int percentPerHour = 47882;
+  static const percentPerHour = BacnetEngineeringUnits(47882);
 
   /// Percent Per Day.
-  static const int percentPerDay = 47883;
+  static const percentPerDay = BacnetEngineeringUnits(47883);
 
   /// Per Million.
-  static const int perMillion = 47884;
+  static const perMillion = BacnetEngineeringUnits(47884);
 
   /// Per Billion.
-  static const int perBillion = 47885;
+  static const perBillion = BacnetEngineeringUnits(47885);
 
   /// Micrograms Per Gram.
-  static const int microgramsPerGram = 47886;
+  static const microgramsPerGram = BacnetEngineeringUnits(47886);
 
   /// Nanograms Per Gram.
-  static const int nanogramsPerGram = 47887;
+  static const nanogramsPerGram = BacnetEngineeringUnits(47887);
 
   /// Micrograms Per Kilogram.
-  static const int microgramsPerKilogram = 47888;
+  static const microgramsPerKilogram = BacnetEngineeringUnits(47888);
 
   /// Nanograms Per Kilogram.
-  static const int nanogramsPerKilogram = 47889;
+  static const nanogramsPerKilogram = BacnetEngineeringUnits(47889);
 
   /// Milligrams Per Milliliter.
-  static const int milligramsPerMilliliter = 47890;
+  static const milligramsPerMilliliter = BacnetEngineeringUnits(47890);
 
   /// Micrograms Per Milliliter.
-  static const int microgramsPerMilliliter = 47891;
+  static const microgramsPerMilliliter = BacnetEngineeringUnits(47891);
 
   /// Nanograms Per Milliliter.
-  static const int nanogramsPerMilliliter = 47892;
+  static const nanogramsPerMilliliter = BacnetEngineeringUnits(47892);
 
   /// Kilograms Per Liter.
-  static const int kilogramsPerLiter = 47893;
+  static const kilogramsPerLiter = BacnetEngineeringUnits(47893);
 
   /// Nanograms Per Liter.
-  static const int nanogramsPerLiter = 47894;
+  static const nanogramsPerLiter = BacnetEngineeringUnits(47894);
 
   /// Milligrams Per Cubic Centimeter.
-  static const int milligramsPerCubicCentimeter = 47895;
+  static const milligramsPerCubicCentimeter = BacnetEngineeringUnits(47895);
 
   /// Micrograms Per Cubic Centimeter.
-  static const int microgramsPerCubicCentimeter = 47896;
+  static const microgramsPerCubicCentimeter = BacnetEngineeringUnits(47896);
 
   /// Nanograms Per Cubic Centimeter.
-  static const int nanogramsPerCubicCentimeter = 47897;
+  static const nanogramsPerCubicCentimeter = BacnetEngineeringUnits(47897);
 
   /// BTU Per Hour Per Watt.
-  static const int btuPerHourPerWatt = 47898;
+  static const btuPerHourPerWatt = BacnetEngineeringUnits(47898);
 
   /// BTU Per Watt Hour Seasonal.
-  static const int btuPerWattHourSeasonal = 47899;
+  static const btuPerWattHourSeasonal = BacnetEngineeringUnits(47899);
 
   /// Coefficient Of Performance.
-  static const int coefficientOfPerformance = 47900;
+  static const coefficientOfPerformance = BacnetEngineeringUnits(47900);
 
   /// Coefficient Of Performance Seasonal.
-  static const int coefficientOfPerformanceSeasonal = 47901;
+  static const coefficientOfPerformanceSeasonal = BacnetEngineeringUnits(47901);
 
   /// Kilowatt Per Ton Refrigeration.
-  static const int kilowattPerTonRefrigeration = 47902;
+  static const kilowattPerTonRefrigeration = BacnetEngineeringUnits(47902);
 
   /// Lumens Per Watt.
-  static const int lumensPerWatt = 47903;
+  static const lumensPerWatt = BacnetEngineeringUnits(47903);
 
   /// Pound Force Feet.
-  static const int poundForceFeet = 47904;
+  static const poundForceFeet = BacnetEngineeringUnits(47904);
 
   /// Pound Force Inches.
-  static const int poundForceInches = 47905;
+  static const poundForceInches = BacnetEngineeringUnits(47905);
 
   /// Ounce Force Inches.
-  static const int ounceForceInches = 47906;
+  static const ounceForceInches = BacnetEngineeringUnits(47906);
 
   /// Pounds Force Per Square Inch Absolute.
-  static const int poundsForcePerSquareInchAbsolute = 47907;
+  static const poundsForcePerSquareInchAbsolute = BacnetEngineeringUnits(47907);
 
   /// Pounds Force Per Square Inch Gauge.
-  static const int poundsForcePerSquareInchGauge = 47908;
+  static const poundsForcePerSquareInchGauge = BacnetEngineeringUnits(47908);
 
   /// Microsiemens Per Centimeter.
-  static const int microsiemensPerCentimeter = 47909;
+  static const microsiemensPerCentimeter = BacnetEngineeringUnits(47909);
 
   /// Millisiemens Per Centimeter.
-  static const int millisiemensPerCentimeter = 47910;
+  static const millisiemensPerCentimeter = BacnetEngineeringUnits(47910);
 
   /// Millisiemens Per Meter.
-  static const int millisiemensPerMeter = 47911;
+  static const millisiemensPerMeter = BacnetEngineeringUnits(47911);
 
   /// Millions Of Us Gallons.
-  static const int millionsOfUsGallons = 47912;
+  static const millionsOfUsGallons = BacnetEngineeringUnits(47912);
 
   /// Millions Of Imperial Gallons.
-  static const int millionsOfImperialGallons = 47913;
+  static const millionsOfImperialGallons = BacnetEngineeringUnits(47913);
 
   /// Milliliters Per Minute.
-  static const int millilitersPerMinute = 47914;
+  static const millilitersPerMinute = BacnetEngineeringUnits(47914);
 
   /// Mils Per Year.
-  static const int milsPerYear = 47915;
+  static const milsPerYear = BacnetEngineeringUnits(47915);
 
   /// Millimeters Per Year.
-  static const int millimetersPerYear = 47916;
+  static const millimetersPerYear = BacnetEngineeringUnits(47916);
 
   /// Pulses Per Minute.
-  static const int pulsesPerMinute = 47917;
+  static const pulsesPerMinute = BacnetEngineeringUnits(47917);
 
   /// Active Energy Pulse Value.
-  static const int activeEnergyPulseValue = 47918;
+  static const activeEnergyPulseValue = BacnetEngineeringUnits(47918);
 
   /// Reactive Energy Pulse Value.
-  static const int reactiveEnergyPulseValue = 47919;
+  static const reactiveEnergyPulseValue = BacnetEngineeringUnits(47919);
 
   /// Apparent Energy Pulse Value.
-  static const int apparentEnergyPulseValue = 47920;
+  static const apparentEnergyPulseValue = BacnetEngineeringUnits(47920);
 
   /// Volt Squared Hour Pulse Value.
-  static const int voltSquaredHourPulseValue = 47921;
+  static const voltSquaredHourPulseValue = BacnetEngineeringUnits(47921);
 
   /// Ampere Squared Hour Pulse Value.
-  static const int ampereSquaredHourPulseValue = 47922;
+  static const ampereSquaredHourPulseValue = BacnetEngineeringUnits(47922);
 
   /// Cubic Meter Pulse Value.
-  static const int cubicMeterPulseValue = 47923;
+  static const cubicMeterPulseValue = BacnetEngineeringUnits(47923);
 
   /// Gigawatts.
-  static const int gigawatts = 47924;
+  static const gigawatts = BacnetEngineeringUnits(47924);
 
   /// Gigajoules.
-  static const int gigajoules = 47925;
+  static const gigajoules = BacnetEngineeringUnits(47925);
 
   /// Terajoules.
-  static const int terajoules = 47926;
+  static const terajoules = BacnetEngineeringUnits(47926);
 
   /// Gigawatt Hours.
-  static const int gigawattHours = 47927;
+  static const gigawattHours = BacnetEngineeringUnits(47927);
 
   /// Gigawatt Reactive Hours.
-  static const int gigawattReactiveHours = 47928;
+  static const gigawattReactiveHours = BacnetEngineeringUnits(47928);
 
   /// Bits Per Second.
-  static const int bitsPerSecond = 47929;
+  static const bitsPerSecond = BacnetEngineeringUnits(47929);
 
   /// Kilobits Per Second.
-  static const int kilobitsPerSecond = 47930;
+  static const kilobitsPerSecond = BacnetEngineeringUnits(47930);
 
   /// Megabits Per Second.
-  static const int megabitsPerSecond = 47931;
+  static const megabitsPerSecond = BacnetEngineeringUnits(47931);
 
   /// Gigabits Per Second.
-  static const int gigabitsPerSecond = 47932;
+  static const gigabitsPerSecond = BacnetEngineeringUnits(47932);
 
   /// Bytes Per Second.
-  static const int bytesPerSecond = 47933;
+  static const bytesPerSecond = BacnetEngineeringUnits(47933);
 
   /// Kilobytes Per Second.
-  static const int kilobytesPerSecond = 47934;
+  static const kilobytesPerSecond = BacnetEngineeringUnits(47934);
 
   /// Megabytes Per Second.
-  static const int megabytesPerSecond = 47935;
+  static const megabytesPerSecond = BacnetEngineeringUnits(47935);
 
   /// Gigabytes Per Second.
-  static const int gigabytesPerSecond = 47936;
+  static const gigabytesPerSecond = BacnetEngineeringUnits(47936);
 
   /// Volume1.
-  static const int volume1 = 47937;
+  static const volume1 = BacnetEngineeringUnits(47937);
 
   /// Volume2.
-  static const int volume2 = 47938;
+  static const volume2 = BacnetEngineeringUnits(47938);
 
   /// Volume3.
-  static const int volume3 = 47939;
+  static const volume3 = BacnetEngineeringUnits(47939);
 
   /// Volume4.
-  static const int volume4 = 47940;
+  static const volume4 = BacnetEngineeringUnits(47940);
 
   /// Volume5.
-  static const int volume5 = 47941;
+  static const volume5 = BacnetEngineeringUnits(47941);
 
   /// Volume6.
-  static const int volume6 = 47942;
+  static const volume6 = BacnetEngineeringUnits(47942);
 
   /// Volume7.
-  static const int volume7 = 47943;
+  static const volume7 = BacnetEngineeringUnits(47943);
 
   /// Volume8.
-  static const int volume8 = 47944;
+  static const volume8 = BacnetEngineeringUnits(47944);
 
   /// Volume9.
-  static const int volume9 = 47945;
+  static const volume9 = BacnetEngineeringUnits(47945);
 
   /// Volume10.
-  static const int volume10 = 47946;
+  static const volume10 = BacnetEngineeringUnits(47946);
 
   /// Volumetric Flow1.
-  static const int volumetricFlow1 = 47947;
+  static const volumetricFlow1 = BacnetEngineeringUnits(47947);
 
   /// Volumetric Flow2.
-  static const int volumetricFlow2 = 47948;
+  static const volumetricFlow2 = BacnetEngineeringUnits(47948);
 
   /// Volumetric Flow3.
-  static const int volumetricFlow3 = 47949;
+  static const volumetricFlow3 = BacnetEngineeringUnits(47949);
 
   /// Volumetric Flow4.
-  static const int volumetricFlow4 = 47950;
+  static const volumetricFlow4 = BacnetEngineeringUnits(47950);
 
   /// Volumetric Flow5.
-  static const int volumetricFlow5 = 47951;
+  static const volumetricFlow5 = BacnetEngineeringUnits(47951);
 
   /// Volumetric Flow6.
-  static const int volumetricFlow6 = 47952;
+  static const volumetricFlow6 = BacnetEngineeringUnits(47952);
 
   /// Volumetric Flow7.
-  static const int volumetricFlow7 = 47953;
+  static const volumetricFlow7 = BacnetEngineeringUnits(47953);
 
   /// Volumetric Flow8.
-  static const int volumetricFlow8 = 47954;
+  static const volumetricFlow8 = BacnetEngineeringUnits(47954);
 
   /// Volumetric Flow9.
-  static const int volumetricFlow9 = 47955;
+  static const volumetricFlow9 = BacnetEngineeringUnits(47955);
 
   /// Volumetric Flow10.
-  static const int volumetricFlow10 = 47956;
+  static const volumetricFlow10 = BacnetEngineeringUnits(47956);
 
   /// Site Unit1.
-  static const int siteUnit1 = 47958;
+  static const siteUnit1 = BacnetEngineeringUnits(47958);
 
   /// Site Unit2.
-  static const int siteUnit2 = 47959;
+  static const siteUnit2 = BacnetEngineeringUnits(47959);
 
   /// Site Unit3.
-  static const int siteUnit3 = 47960;
+  static const siteUnit3 = BacnetEngineeringUnits(47960);
 
   /// Site Unit4.
-  static const int siteUnit4 = 47961;
+  static const siteUnit4 = BacnetEngineeringUnits(47961);
 
   /// Site Unit5.
-  static const int siteUnit5 = 47962;
+  static const siteUnit5 = BacnetEngineeringUnits(47962);
 
   /// Site Unit6.
-  static const int siteUnit6 = 47963;
+  static const siteUnit6 = BacnetEngineeringUnits(47963);
 
   /// Site Unit7.
-  static const int siteUnit7 = 47964;
+  static const siteUnit7 = BacnetEngineeringUnits(47964);
 
   /// Site Unit8.
-  static const int siteUnit8 = 47965;
+  static const siteUnit8 = BacnetEngineeringUnits(47965);
 
   /// Site Unit9.
-  static const int siteUnit9 = 47966;
+  static const siteUnit9 = BacnetEngineeringUnits(47966);
 
   /// Site Unit10.
-  static const int siteUnit10 = 47967;
+  static const siteUnit10 = BacnetEngineeringUnits(47967);
 
   /// Particles Per Cubic Foot.
-  static const int particlesPerCubicFoot = 47968;
+  static const particlesPerCubicFoot = BacnetEngineeringUnits(47968);
 
   /// Particles Per Cubic Meter.
-  static const int particlesPerCubicMeter = 47969;
+  static const particlesPerCubicMeter = BacnetEngineeringUnits(47969);
 
   /// Picocuries Per Liter.
-  static const int picocuriesPerLiter = 47970;
+  static const picocuriesPerLiter = BacnetEngineeringUnits(47970);
 
   /// Becquerels Per Cubic Meter.
-  static const int becquerelsPerCubicMeter = 47971;
+  static const becquerelsPerCubicMeter = BacnetEngineeringUnits(47971);
 
   /// Grains Of Water Per Pound Dry Air.
-  static const int grainsOfWaterPerPoundDryAir = 47972;
+  static const grainsOfWaterPerPoundDryAir = BacnetEngineeringUnits(47972);
 
   /// Degree Hours Celsius.
-  static const int degreeHoursCelsius = 47973;
+  static const degreeHoursCelsius = BacnetEngineeringUnits(47973);
 
   /// Degree Hours Fahrenheit.
-  static const int degreeHoursFahrenheit = 47974;
+  static const degreeHoursFahrenheit = BacnetEngineeringUnits(47974);
 
   /// Degree Minutes Celsius.
-  static const int degreeMinutesCelsius = 47975;
+  static const degreeMinutesCelsius = BacnetEngineeringUnits(47975);
 
   /// Degree Minutes Fahrenheit.
-  static const int degreeMinutesFahrenheit = 47976;
+  static const degreeMinutesFahrenheit = BacnetEngineeringUnits(47976);
 
   /// Degree Seconds Celsius.
-  static const int degreeSecondsCelsius = 47977;
+  static const degreeSecondsCelsius = BacnetEngineeringUnits(47977);
 
   /// Degree Seconds Fahrenheit.
-  static const int degreeSecondsFahrenheit = 47978;
+  static const degreeSecondsFahrenheit = BacnetEngineeringUnits(47978);
 
   /// Microseconds.
-  static const int microseconds = 47979;
+  static const microseconds = BacnetEngineeringUnits(47979);
 
   /// Nanoseconds.
-  static const int nanoseconds = 47980;
+  static const nanoseconds = BacnetEngineeringUnits(47980);
 
   /// Picoseconds.
-  static const int picoseconds = 47981;
+  static const picoseconds = BacnetEngineeringUnits(47981);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetEngineeringUnits, String> _labels = {
     squareMeters: 'Square Meters',
     squareFeet: 'Square Feet',
     milliamperes: 'Milliamperes',
@@ -1715,8 +1720,11 @@ abstract final class BacnetEngineeringUnits {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetEngineeringUnits> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Units $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }
