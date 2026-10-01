@@ -202,6 +202,26 @@ void main() {
       expect(s.binding, 0);
     });
 
+    test('stops binding when no request waits for the device', () {
+      final s = scheduler(bindTimeoutMs: 5000);
+      transport.unbound.add(7);
+      final r = request(7, timeoutMs: 1500);
+      s
+        ..enqueue(r)
+        ..pump();
+      now = 1000;
+      s.sweep();
+      expect(transport.bindingRequests, [7, 7]);
+
+      now = 1500;
+      s.sweep();
+      expect(failures[r.id], isA<BacnetDeviceNotFoundException>());
+      expect(s.binding, 0);
+      now = 2500;
+      s.sweep();
+      expect(transport.bindingRequests, [7, 7], reason: 'no further Who-Is');
+    });
+
     test('expires requests waiting in the queue', () {
       final s = scheduler(maxInFlight: 1);
       final first = request(1);

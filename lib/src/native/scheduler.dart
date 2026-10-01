@@ -189,9 +189,10 @@ class RequestScheduler {
   /// Handles timers: binding retries and timeouts, expired requests.
   void sweep() {
     final now = _clock();
+    // queues first: a device without waiting requests stops binding
+    _sweepQueues(now);
     _sweepBindings(now);
     _sweepInFlight(now);
-    _sweepQueues(now);
     // forget idle devices to bound memory
     if (_devices.length > 4096) {
       _devices.removeWhere(
@@ -265,7 +266,8 @@ class RequestScheduler {
 
   void _sweepBindings(int now) {
     for (final device in _binding.toList()) {
-      if (now >= device.bindDeadline) {
+      // stop when the deadline passed or nothing waits for the address
+      if (now >= device.bindDeadline || device.queue.isEmpty) {
         device.binding = false;
         _binding.remove(device);
         final error = _notFound(device.id);
