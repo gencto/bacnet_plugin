@@ -157,6 +157,8 @@ are free:
 | `requestTimeout` | 30 s | Deadline including queueing and retries. |
 | `apduTimeout` / `maxRetries` | 3 s / 3 | Per transmission timeout and retries. |
 | `bindTimeout` | 5 s | Time to resolve an unknown device with Who-Is. |
+| `offlineAfterTimeouts` | 3 | Consecutive timeouts after which requests to a device fail fast. |
+| `offlineRetryInterval` | 30 s | Pause before an offline device is probed again (doubles up to 8×). |
 | `socketBufferSize` | 4 MiB | Avoids drops during I-Am storms and bursts. |
 | `covScanInterval` | 50 ms | Server side change-of-value detection. |
 | `strictSourceCheck` | true | Drops replies whose source differs from the target. |
@@ -168,6 +170,14 @@ Recommendations:
   travel together in ReadPropertyMultiple requests.
 - Prefer `readMultiple` for many properties of one device; oversized
   requests are split automatically.
+- Mark bulk work (`background: true`, `DeviceScanner` does it by default):
+  it waits behind interactive requests and never takes all transaction
+  slots, so the UI stays responsive during a site scan.
+- Cancel requests nobody waits for any more with a `BacnetCancelToken`
+  (e.g. when a screen closes); queued requests are dropped.
+- Dead controllers do not slow down the rest of the site: after
+  `offlineAfterTimeouts` timeouts their requests fail at once with
+  `BacnetDeviceOfflineException` until a probe or an I-Am succeeds.
 - Prefer COV (`PropertyMonitor`) over polling; subscriptions are renewed
   and cancelled automatically, notifications carry the values.
 - On servers use `updatePresentValues` for bulk updates.
@@ -226,10 +236,14 @@ try {
   print('aborted: ${e.reason.label}');
 } on BacnetDeviceNotFoundException catch (e) {
   print('device ${e.deviceId} did not answer Who-Is');
+} on BacnetDeviceOfflineException catch (e) {
+  print('device ${e.deviceId} is offline, retry in ${e.retryAfter}');
 } on BacnetTimeoutException {
   print('no answer');
 } on BacnetQueueFullException {
   print('slow down');
+} on BacnetCancelledException {
+  // cancelled with a BacnetCancelToken
 }
 ```
 

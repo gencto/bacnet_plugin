@@ -40,6 +40,8 @@ class BacnetConfig {
     this.maxCoalescedReads = 24,
     this.coalescingWindow = Duration.zero,
     this.bindTimeout = const Duration(seconds: 5),
+    this.offlineAfterTimeouts = 3,
+    this.offlineRetryInterval = const Duration(seconds: 30),
     this.socketBufferSize = 4 * 1024 * 1024,
     this.strictSourceCheck = true,
     this.covScanInterval = const Duration(milliseconds: 50),
@@ -49,7 +51,8 @@ class BacnetConfig {
   }) : assert(maxConcurrentRequests > 0 && maxConcurrentRequests <= 250),
        assert(maxConcurrentRequestsPerDevice > 0),
        assert(maxQueuedRequests > 0),
-       assert(maxCoalescedReads > 0);
+       assert(maxCoalescedReads > 0),
+       assert(offlineAfterTimeouts >= 0);
 
   /// Default BACnet/IP port number (0xBAC0).
   static const int defaultPort = 47808;
@@ -125,6 +128,20 @@ class BacnetConfig {
   /// is unknown. The client sends targeted Who-Is requests in the meantime.
   final Duration bindTimeout;
 
+  /// Consecutive timeouts after which a device is considered offline;
+  /// 0 disables it.
+  ///
+  /// Requests to an offline device fail immediately with
+  /// [BacnetDeviceOfflineException] instead of occupying transaction slots
+  /// until they time out, which keeps a dead controller from slowing down
+  /// the rest of the site.
+  final int offlineAfterTimeouts;
+
+  /// Time an offline device is left alone before one request probes it
+  /// again. Doubles (up to 8 times) while the device stays silent; an
+  /// I-Am from the device ends the offline state immediately.
+  final Duration offlineRetryInterval;
+
   /// Socket send/receive buffer size in bytes (0 keeps the OS default).
   /// Large buffers avoid packet loss during I-Am storms and bursts.
   final int socketBufferSize;
@@ -166,6 +183,8 @@ class BacnetConfig {
     int? maxCoalescedReads,
     Duration? coalescingWindow,
     Duration? bindTimeout,
+    int? offlineAfterTimeouts,
+    Duration? offlineRetryInterval,
     int? socketBufferSize,
     bool? strictSourceCheck,
     Duration? covScanInterval,
@@ -189,6 +208,8 @@ class BacnetConfig {
       maxCoalescedReads: maxCoalescedReads ?? this.maxCoalescedReads,
       coalescingWindow: coalescingWindow ?? this.coalescingWindow,
       bindTimeout: bindTimeout ?? this.bindTimeout,
+      offlineAfterTimeouts: offlineAfterTimeouts ?? this.offlineAfterTimeouts,
+      offlineRetryInterval: offlineRetryInterval ?? this.offlineRetryInterval,
       socketBufferSize: socketBufferSize ?? this.socketBufferSize,
       strictSourceCheck: strictSourceCheck ?? this.strictSourceCheck,
       covScanInterval: covScanInterval ?? this.covScanInterval,

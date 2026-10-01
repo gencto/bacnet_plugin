@@ -16,6 +16,7 @@ class BacnetStats {
     required this.eventsDropped,
     required this.boundDevices,
     required this.bindingDevices,
+    this.offlineDevices = 0,
     required this.freeTransactions,
     required this.pollCalls,
   });
@@ -53,6 +54,9 @@ class BacnetStats {
   /// Devices whose address is being resolved.
   final int bindingDevices;
 
+  /// Devices considered offline after consecutive timeouts.
+  final int offlineDevices;
+
   /// Idle transaction state machine slots.
   final int freeTransactions;
 
@@ -67,5 +71,6 @@ class BacnetStats {
       'rx: $packetsReceived, tx: $requestsSent, '
       'droppedReplies: $repliesDropped, droppedEvents: $eventsDropped, '
       'bound: $boundDevices, binding: $bindingDevices, '
+      'offline: $offlineDevices, '
       'freeTsm: $freeTransactions)';
 }

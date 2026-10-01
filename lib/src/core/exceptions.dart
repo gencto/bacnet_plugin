@@ -121,6 +121,40 @@ class BacnetDeviceNotFoundException extends BacnetException {
   String toString() => 'BacnetDeviceNotFoundException: $message';
 }
 
+/// Exception thrown for requests to a device that stopped answering.
+///
+/// After [BacnetConfig.offlineAfterTimeouts] consecutive timeouts a device
+/// is considered offline: requests fail immediately instead of occupying
+/// transaction slots until they time out. After [retryAfter] one request
+/// probes the device again; an I-Am from the device ends the offline state
+/// at once. It is a [BacnetTimeoutException], so timeout handlers catch it.
+class BacnetDeviceOfflineException extends BacnetTimeoutException {
+  /// Creates a device offline exception.
+  const BacnetDeviceOfflineException(
+    super.message, {
+    required this.deviceId,
+    required this.retryAfter,
+  });
+
+  /// The device that stopped answering.
+  final int deviceId;
+
+  /// Time until the device is probed again.
+  final Duration retryAfter;
+
+  @override
+  String toString() => 'BacnetDeviceOfflineException: $message';
+}
+
+/// Exception thrown when a request is cancelled with a `BacnetCancelToken`.
+class BacnetCancelledException extends BacnetException {
+  /// Creates a cancelled exception.
+  const BacnetCancelledException([super.message = 'request cancelled']);
+
+  @override
+  String toString() => 'BacnetCancelledException: $message';
+}
+
 /// Exception thrown when the request queue is full (back pressure).
 ///
 /// Raise [BacnetConfig.maxQueuedRequests] or slow down the producer.

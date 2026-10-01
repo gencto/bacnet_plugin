@@ -34,7 +34,13 @@ void main() {
         ).thenAnswer((_) async {});
 
         // Mock getDeviceDetails behavior via readMultiple for device 1234
-        when(() => mockClient.readMultiple(1234, any())).thenAnswer(
+        when(
+          () => mockClient.readMultiple(
+            1234,
+            any(),
+            background: any(named: 'background'),
+          ),
+        ).thenAnswer(
           (_) async => {
             '${BacnetObjectType.device}:1234': {
               BacnetPropertyId.objectName: 'Test Device',
@@ -74,14 +80,26 @@ void main() {
         ).thenAnswer((_) async {});
 
         // Mock responses for devices 10 and 20
-        when(() => mockClient.readMultiple(10, any())).thenAnswer(
+        when(
+          () => mockClient.readMultiple(
+            10,
+            any(),
+            background: any(named: 'background'),
+          ),
+        ).thenAnswer(
           (_) async => {
             '${BacnetObjectType.device}:10': {
               BacnetPropertyId.objectName: 'Device 10',
             },
           },
         );
-        when(() => mockClient.readMultiple(20, any())).thenAnswer(
+        when(
+          () => mockClient.readMultiple(
+            20,
+            any(),
+            background: any(named: 'background'),
+          ),
+        ).thenAnswer(
           (_) async => {
             '${BacnetObjectType.device}:20': {
               BacnetPropertyId.objectName: 'Device 20',
@@ -119,7 +137,13 @@ void main() {
           ),
         ).thenAnswer((_) async {});
 
-        when(() => mockClient.readMultiple(10, any())).thenAnswer(
+        when(
+          () => mockClient.readMultiple(
+            10,
+            any(),
+            background: any(named: 'background'),
+          ),
+        ).thenAnswer(
           (_) async => {
             '${BacnetObjectType.device}:10': {
               BacnetPropertyId.objectName: 'Device 10',
@@ -143,7 +167,13 @@ void main() {
 
         // Assert
         expect(devices, hasLength(1));
-        verify(() => mockClient.readMultiple(10, any())).called(1);
+        verify(
+          () => mockClient.readMultiple(
+            10,
+            any(),
+            background: any(named: 'background'),
+          ),
+        ).called(1);
       });
     });
 
@@ -161,12 +191,19 @@ void main() {
         );
 
         when(
-          () => mockClient.scanDevice(deviceId),
+          () => mockClient.scanDevice(
+            deviceId,
+            background: any(named: 'background'),
+          ),
         ).thenAnswer((_) async => [obj1, obj2]);
 
-        when(() => mockClient.readMultiple(deviceId, any())).thenAnswer((
-          invocation,
-        ) async {
+        when(
+          () => mockClient.readMultiple(
+            deviceId,
+            any(),
+            background: any(named: 'background'),
+          ),
+        ).thenAnswer((invocation) async {
           // Verify batching logic via invocation arguments if needed
           // Return mock results
           return {
@@ -192,7 +229,11 @@ void main() {
       test('throws Exception on connection failure', () async {
         // Arrange
         when(
-          () => mockClient.readMultiple(any(), any()),
+          () => mockClient.readMultiple(
+            any(),
+            any(),
+            background: any(named: 'background'),
+          ),
         ).thenThrow(Exception('Connection failed'));
 
         // Act & Assert

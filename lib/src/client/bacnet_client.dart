@@ -13,6 +13,7 @@ import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../constants/services.dart';
 import '../core/bacnet_config.dart';
+import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
@@ -46,6 +47,12 @@ import 'read_coalescer.dart';
 /// ]);
 /// ```
 ///
+/// Request methods accept `background: true` for bulk work that should
+/// wait behind interactive requests, and a [BacnetCancelToken] to drop
+/// requests nobody waits for any more. Devices that stop answering are
+/// considered offline after [BacnetConfig.offlineAfterTimeouts] timeouts
+/// ([BacnetDeviceOfflineException]).
+///
 /// Unknown device addresses are resolved automatically with a targeted
 /// Who-Is; failures are reported with typed exceptions
 /// ([BacnetTimeoutException], [BacnetProtocolException],
@@ -66,8 +73,8 @@ class BacnetClient {
   final BacnetSystem _system = BacnetSystem.instance;
   late final ReadCoalescer _reads = ReadCoalescer(
     readProperty: _readSingle,
-    readMultiple: (deviceId, specs, timeout) =>
-        readMultiple(deviceId, specs, timeout: timeout),
+    readMultiple: (deviceId, specs, timeout, {background = false}) =>
+        readMultiple(deviceId, specs, timeout: timeout, background: background),
     maxBatchSize: _config.maxCoalescedReads,
     window: _config.coalescingWindow,
   );
@@ -160,15 +167,19 @@ class BacnetClient {
     BacnetPropertyId propertyId, {
     int arrayIndex = -1,
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) {
     if (_config.coalesceReads && arrayIndex == -1) {
-      return _reads.read(
+      final read = _reads.read(
         deviceId,
         objectType,
         instance,
         propertyId,
         timeout: timeout,
+        background: background,
       );
+      return cancelToken == null ? read : cancelToken.guard(read);
     }
     return _readSingle(
       deviceId,
@@ -177,6 +188,8 @@ class BacnetClient {
       propertyId,
       timeout,
       arrayIndex: arrayIndex,
+      background: background,
+      cancelToken: cancelToken,
     );
   }
 
@@ -187,6 +200,8 @@ class BacnetClient {
     BacnetPropertyId propertyId,
     Duration? timeout, {
     int arrayIndex = -1,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) {
     return _system.confirmed(
       deviceId: deviceId,
@@ -199,6 +214,8 @@ class BacnetClient {
       ),
       decoding: AckDecoding.readProperty,
       timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
     );
   }
 
@@ -212,6 +229,8 @@ class BacnetClient {
     int deviceId,
     List<BacnetReadAccessSpecification> specs, {
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) async {
     if (specs.isEmpty) return {};
     try {
@@ -221,6 +240,8 @@ class BacnetClient {
         payload: encodeReadPropertyMultiple(specs),
         decoding: AckDecoding.readPropertyMultiple,
         timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
       );
       return result! as Map<String, Map<int, dynamic>>;
     } on BacnetAbortException catch (e) {
@@ -228,8 +249,20 @@ class BacnetClient {
       final halves = _splitSpecs(specs);
       if (halves == null) rethrow;
       final parts = await Future.wait([
-        readMultiple(deviceId, halves.$1, timeout: timeout),
-        readMultiple(deviceId, halves.$2, timeout: timeout),
+        readMultiple(
+          deviceId,
+          halves.$1,
+          timeout: timeout,
+          background: background,
+          cancelToken: cancelToken,
+        ),
+        readMultiple(
+          deviceId,
+          halves.$2,
+          timeout: timeout,
+          background: background,
+          cancelToken: cancelToken,
+        ),
       ]);
       final merged = <String, Map<int, dynamic>>{};
       for (final part in parts) {
@@ -305,6 +338,8 @@ class BacnetClient {
     int? tag,
     int arrayIndex = -1,
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) async {
     await _system.confirmed(
       deviceId: deviceId,
@@ -319,6 +354,8 @@ class BacnetClient {
         priority: priority,
       ),
       timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
     );
   }
 
@@ -328,6 +365,8 @@ class BacnetClient {
     int deviceId,
     List<BacnetWriteAccessSpecification> specs, {
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) async {
     if (specs.isEmpty) return;
     await _system.confirmed(
@@ -335,6 +374,8 @@ class BacnetClient {
       service: BacnetConfirmedService.writePropertyMultiple,
       payload: encodeWritePropertyMultiple(specs),
       timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
     );
   }
 
@@ -355,17 +396,21 @@ class BacnetClient {
   ///
   /// Reads the whole Object_List at once and falls back to reading it
   /// element by element when the device cannot send it in one APDU.
-  /// [endDeviceId] is ignored (kept for compatibility).
   Future<List<BacnetObject>> scanDevice(
-    int deviceId, [
-    int? endDeviceId,
-  ]) async {
+    int deviceId, {
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) async {
     try {
-      final value = await readProperty(
+      // a large array: never merged with other reads
+      final value = await _readSingle(
         deviceId,
         BacnetObjectType.device,
         deviceId,
         BacnetPropertyId.objectList,
+        null,
+        background: background,
+        cancelToken: cancelToken,
       );
       return _objects(value);
     } on BacnetAbortException catch (e) {
@@ -379,6 +424,8 @@ class BacnetClient {
       deviceId,
       BacnetPropertyId.objectList,
       arrayIndex: 0,
+      background: background,
+      cancelToken: cancelToken,
     );
     if (count is! int || count <= 0) return const [];
     final elements = await Future.wait([
@@ -389,6 +436,8 @@ class BacnetClient {
           deviceId,
           BacnetPropertyId.objectList,
           arrayIndex: i,
+          background: background,
+          cancelToken: cancelToken,
         ),
     ]);
     return _objects(elements);
@@ -532,6 +581,8 @@ class BacnetClient {
     int count = 0,
     int arrayIndex = -1,
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) async {
     final result = await _system.confirmed(
       deviceId: deviceId,
@@ -547,6 +598,8 @@ class BacnetClient {
       ),
       decoding: AckDecoding.readRange,
       timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
     );
     return result! as ReadRangeResult;
   }
@@ -563,6 +616,8 @@ class BacnetClient {
     int count = 100,
     int? fromSequenceNumber,
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) async {
     final ReadRangeResult result;
     if (fromSequenceNumber != null) {
@@ -575,6 +630,8 @@ class BacnetClient {
         reference: fromSequenceNumber,
         count: count,
         timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
       );
     } else {
       final recordCount = await readProperty(
@@ -583,6 +640,8 @@ class BacnetClient {
         instance,
         BacnetPropertyId.recordCount,
         timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
       );
       final total = recordCount is int ? recordCount : 0;
       if (total == 0) {
@@ -597,6 +656,8 @@ class BacnetClient {
         reference: total,
         count: -count,
         timeout: timeout,
+        background: background,
+        cancelToken: cancelToken,
       );
     }
     final entries = decodeLogRecords(result.items);
@@ -635,6 +696,8 @@ class BacnetClient {
     BacnetConfirmedService service,
     Uint8List serviceData, {
     Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
   }) async {
     final result = await _system.confirmed(
       deviceId: deviceId,
@@ -642,6 +705,8 @@ class BacnetClient {
       payload: serviceData,
       decoding: AckDecoding.raw,
       timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
     );
     return result is Uint8List ? result : Uint8List(0);
   }

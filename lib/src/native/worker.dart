@@ -58,6 +58,8 @@ final class _Worker implements RequestTransport {
     maxQueued: startup.maxQueued,
     bindTimeoutMs: startup.bindTimeoutMs,
     retryWindowMs: startup.apduTimeoutMs * (startup.apduRetries + 1),
+    offlineAfterTimeouts: startup.offlineAfterTimeouts,
+    offlineRetryMs: startup.offlineRetryMs,
     clock: () => _clock.elapsedMilliseconds,
   );
 
@@ -172,6 +174,8 @@ final class _Worker implements RequestTransport {
     if (message is ConfirmedRequestCommand) {
       // answered once the device replies (or the scheduler gives up)
       _scheduler.enqueue(message);
+    } else if (message is CancelRequestCommand) {
+      _scheduler.cancel(message.requestId);
     } else {
       try {
         _emit(CommandResult(message.id, _execute(message)));
@@ -188,8 +192,8 @@ final class _Worker implements RequestTransport {
   /// Executes a command that completes immediately and returns its result.
   Object? _execute(WorkerCommand command) {
     switch (command) {
-      case ConfirmedRequestCommand():
-        throw StateError('confirmed requests are scheduled');
+      case ConfirmedRequestCommand() || CancelRequestCommand():
+        throw StateError('handled by the scheduler');
       case UnconfirmedRequestCommand():
         _engine.sendUnconfirmed(
           command.service,
@@ -325,6 +329,7 @@ final class _Worker implements RequestTransport {
       eventsDropped: native.eventsDropped,
       boundDevices: native.boundDevices,
       bindingDevices: _scheduler.binding,
+      offlineDevices: _scheduler.offline,
       freeTransactions: native.freeTransactions,
       pollCalls: native.pollCalls,
     );
@@ -355,11 +360,13 @@ final class _Worker implements RequestTransport {
         if (_scheduler.complete(event.invokeId) case final command?) {
           _requestSucceeded(command);
         }
-      case BP_EVENT_ERROR ||
-          BP_EVENT_REJECT ||
-          BP_EVENT_ABORT ||
-          BP_EVENT_TIMEOUT:
+      case BP_EVENT_ERROR || BP_EVENT_REJECT || BP_EVENT_ABORT:
         if (_scheduler.complete(event.invokeId) case final command?) {
+          _requestFailed(command, _failure(command.deviceId, event));
+        }
+      case BP_EVENT_TIMEOUT:
+        final command = _scheduler.complete(event.invokeId, answered: false);
+        if (command != null) {
           _requestFailed(command, _failure(command.deviceId, event));
         }
       case BP_EVENT_UNCONFIRMED:

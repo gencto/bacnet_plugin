@@ -85,13 +85,21 @@ const _detailProperties = [
 @immutable
 class DeviceScanner {
   /// Creates a device scanner using the provided BACnet client.
-  const DeviceScanner(this.client, {this.concurrency = 32});
+  const DeviceScanner(
+    this.client, {
+    this.concurrency = 32,
+    this.background = true,
+  });
 
   /// The BACnet client used for communication.
   final BacnetClient client;
 
   /// Maximum number of devices or batches processed in parallel.
   final int concurrency;
+
+  /// Send the scan requests as background requests, so that interactive
+  /// requests of the application overtake a running scan.
+  final bool background;
 
   /// Discovers devices on the network.
   ///
@@ -176,15 +184,16 @@ class DeviceScanner {
     int deviceId,
     List<BacnetPropertyReference> properties,
   ) async {
-    final results = await client.readMultiple(deviceId, [
-      BacnetReadAccessSpecification(
-        objectIdentifier: BacnetObject(
-          type: BacnetObjectType.device,
-          instance: deviceId,
-        ),
-        properties: properties,
-      ),
-    ]);
+    final results = await client
+        .readMultiple(deviceId, background: background, [
+          BacnetReadAccessSpecification(
+            objectIdentifier: BacnetObject(
+              type: BacnetObjectType.device,
+              instance: deviceId,
+            ),
+            properties: properties,
+          ),
+        ]);
     return results['${BacnetObjectType.device}:$deviceId'];
   }
 
@@ -253,7 +262,7 @@ class DeviceScanner {
     int maxObjects = 100,
     int batchSize = 20,
   }) async {
-    final objects = await client.scanDevice(deviceId);
+    final objects = await client.scanDevice(deviceId, background: background);
     final targets = objects.length > maxObjects
         ? objects.sublist(0, maxObjects)
         : objects;
@@ -283,7 +292,11 @@ class DeviceScanner {
           ),
       ];
       try {
-        final batchResults = await client.readMultiple(deviceId, specs);
+        final batchResults = await client.readMultiple(
+          deviceId,
+          specs,
+          background: background,
+        );
         for (final entry in batchResults.entries) {
           final parts = entry.key.split(':');
           if (parts.length != 2) continue;
@@ -315,7 +328,7 @@ class DeviceScanner {
     int deviceId, {
     int maxObjects = 100,
   }) async {
-    final objects = await client.scanDevice(deviceId);
+    final objects = await client.scanDevice(deviceId, background: background);
     return DeviceMetadata(
       deviceId: deviceId,
       objectCount: objects.length,

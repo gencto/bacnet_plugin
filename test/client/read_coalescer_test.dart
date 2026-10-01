@@ -9,14 +9,16 @@ final class FakeDevice {
   final List<(int, BacnetObjectType, int, BacnetPropertyId)> singles = [];
   final List<List<BacnetReadAccessSpecification>> multiples = [];
   BacnetException? multipleError;
+  int backgroundRequests = 0;
 
   Future<Object?> readProperty(
     int deviceId,
     BacnetObjectType type,
     int instance,
     BacnetPropertyId property,
-    Duration? timeout,
-  ) async {
+    Duration? timeout, {
+    bool background = false,
+  }) async {
     singles.add((deviceId, type, instance, property));
     final value = values['$type:$instance']?[property];
     if (value is BacnetError) {
@@ -32,9 +34,11 @@ final class FakeDevice {
   Future<Map<String, Map<int, dynamic>>> readMultiple(
     int deviceId,
     List<BacnetReadAccessSpecification> specs,
-    Duration? timeout,
-  ) async {
+    Duration? timeout, {
+    bool background = false,
+  }) async {
     multiples.add(specs);
+    if (background) backgroundRequests++;
     if (multipleError case final error?) throw error;
     return {
       for (final spec in specs)
@@ -198,7 +202,7 @@ void main() {
     final original = device.readMultiple;
     coalescer = ReadCoalescer(
       readProperty: device.readProperty,
-      readMultiple: (id, specs, timeout) async {
+      readMultiple: (id, specs, timeout, {background = false}) async {
         final result = await original(id, specs, timeout);
         result['2:9']!.remove(BacnetPropertyId.objectName);
         return result;
@@ -210,6 +214,29 @@ void main() {
     ]);
     expect(values, [9.0, 'AV-9']);
     expect(device.singles, hasLength(1));
+  });
+
+  test('keeps background reads in separate batches', () async {
+    await Future.wait([
+      read(1, BacnetPropertyId.presentValue),
+      read(2, BacnetPropertyId.presentValue),
+      coalescer.read(
+        1,
+        BacnetObjectType.analogValue,
+        3,
+        BacnetPropertyId.presentValue,
+        background: true,
+      ),
+      coalescer.read(
+        1,
+        BacnetObjectType.analogValue,
+        4,
+        BacnetPropertyId.presentValue,
+        background: true,
+      ),
+    ]);
+    expect(device.multiples, hasLength(2));
+    expect(device.backgroundRequests, 1);
   });
 
   test('batches reads issued within the window', () async {

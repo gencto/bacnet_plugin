@@ -318,6 +318,62 @@ void main() {
     expect(after.requestsSent - before.requestsSent, 3);
   });
 
+  test('cancels requests', () async {
+    Future<List<Object?>> settle(Iterable<Future<Object?>> futures) =>
+        Future.wait([
+          for (final f in futures)
+            f.then<Object?>((value) => value, onError: (Object e) => e),
+        ]);
+    final token = BacnetCancelToken();
+    final reads = [
+      for (var i = 0; i < 100; i++)
+        client.readProperty(
+          device,
+          BacnetObjectType.analogValue,
+          i,
+          BacnetPropertyId.objectName,
+          cancelToken: token,
+        ),
+      for (var i = 0; i < 100; i++)
+        client.readMultiple(
+          device,
+          [
+            BacnetReadAccessSpecification(
+              objectIdentifier: BacnetObject(
+                type: BacnetObjectType.analogValue,
+                instance: i,
+              ),
+              properties: const [
+                BacnetPropertyReference(
+                  propertyIdentifier: BacnetPropertyId.presentValue,
+                ),
+              ],
+            ),
+          ],
+          background: true,
+          cancelToken: token,
+        ),
+    ];
+    token.cancel();
+    final results = await settle(reads);
+    expect(results.whereType<BacnetCancelledException>(), hasLength(200));
+
+    // the client keeps working and nothing is left in the queue
+    expect(
+      await client.readProperty(
+        device,
+        BacnetObjectType.analogValue,
+        1,
+        BacnetPropertyId.objectName,
+      ),
+      'AV-1',
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final stats = await client.stats();
+    expect(stats.queuedRequests, 0);
+    expect(stats.inFlightRequests, 0);
+  });
+
   test('receives COV notifications with values', () async {
     final notifications = <CovNotificationEvent>[];
     final subscription = client.covEvents.listen(notifications.add);

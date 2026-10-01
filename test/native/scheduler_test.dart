@@ -55,6 +55,8 @@ void main() {
     int maxQueued = 100,
     int bindTimeoutMs = 5000,
     int retryWindowMs = 1000,
+    int offlineAfterTimeouts = 0,
+    int offlineRetryMs = 30000,
   }) => RequestScheduler(
     transport: transport,
     onFailure: (command, error) => failures[command.id] = error,
@@ -63,17 +65,23 @@ void main() {
     maxQueued: maxQueued,
     bindTimeoutMs: bindTimeoutMs,
     retryWindowMs: retryWindowMs,
+    offlineAfterTimeouts: offlineAfterTimeouts,
+    offlineRetryMs: offlineRetryMs,
     clock: () => now,
   );
 
-  ConfirmedRequestCommand request(int deviceId, {int timeoutMs = 10000}) =>
-      ConfirmedRequestCommand(
-        nextId++,
-        deviceId: deviceId,
-        service: BacnetConfirmedService.readProperty,
-        payload: Uint8List(0),
-        timeoutMs: timeoutMs,
-      );
+  ConfirmedRequestCommand request(
+    int deviceId, {
+    int timeoutMs = 10000,
+    bool background = false,
+  }) => ConfirmedRequestCommand(
+    nextId++,
+    deviceId: deviceId,
+    service: BacnetConfirmedService.readProperty,
+    payload: Uint8List(0),
+    timeoutMs: timeoutMs,
+    background: background,
+  );
 
   setUp(() {
     transport = FakeTransport();
@@ -318,6 +326,167 @@ void main() {
       expect(failures.keys, unorderedEquals([sent.id, queued.id]));
       expect(s.queued, 0);
       expect(s.inFlight, 0);
+    });
+
+    group('background requests', () {
+      test('wait behind normal requests', () {
+        final s = scheduler(maxInFlight: 1, maxInFlightPerDevice: 10);
+        final bulk = [for (var i = 0; i < 3; i++) request(1, background: true)];
+        bulk.forEach(s.enqueue);
+        final interactive = request(2);
+        s
+          ..enqueue(interactive)
+          ..pump();
+        expect(transport.sent, [interactive]);
+      });
+
+      test('leave slots for normal requests', () {
+        final s = scheduler(maxInFlight: 8, maxInFlightPerDevice: 4);
+        for (var i = 0; i < 20; i++) {
+          s.enqueue(request(i % 5 + 1, background: true));
+        }
+        s.pump();
+        expect(s.inFlight, 6, reason: '3/4 of the global slots');
+
+        final t = scheduler(maxInFlight: 100, maxInFlightPerDevice: 4);
+        for (var i = 0; i < 10; i++) {
+          t.enqueue(request(1, background: true));
+        }
+        t.pump();
+        expect(t.inFlight, 3, reason: 'one slot per device kept free');
+        t
+          ..enqueue(request(1))
+          ..pump();
+        expect(t.inFlight, 4);
+      });
+    });
+
+    group('offline devices', () {
+      test('fail fast after consecutive timeouts', () {
+        final s = scheduler(offlineAfterTimeouts: 2, maxInFlightPerDevice: 1);
+        final first = request(1);
+        final second = request(1);
+        final waiting = request(1);
+        s
+          ..enqueue(first)
+          ..enqueue(second)
+          ..enqueue(waiting)
+          ..pump();
+        s.complete(1, answered: false);
+        s.pump();
+        expect(failures, isEmpty, reason: 'one timeout is not enough');
+        s.complete(2, answered: false);
+        expect(
+          failures[waiting.id],
+          isA<BacnetDeviceOfflineException>()
+              .having((e) => e.deviceId, 'deviceId', 1)
+              .having((e) => e.retryAfter, 'retryAfter', isNot(Duration.zero)),
+        );
+        expect(s.offline, 1);
+
+        final late = request(1);
+        s.enqueue(late);
+        expect(failures[late.id], isA<BacnetDeviceOfflineException>());
+        expect(failures[late.id], isA<BacnetTimeoutException>());
+      });
+
+      test('are probed with one request after the retry interval', () {
+        final s = scheduler(
+          offlineAfterTimeouts: 1,
+          offlineRetryMs: 1000,
+          maxInFlightPerDevice: 4,
+        );
+        s
+          ..enqueue(request(1))
+          ..pump()
+          ..complete(1, answered: false);
+        expect(s.offline, 1);
+
+        now = 1000;
+        s
+          ..enqueue(request(1))
+          ..enqueue(request(1))
+          ..pump();
+        expect(s.inFlight, 1, reason: 'a single probe');
+
+        // the probe fails: offline for twice as long
+        s.complete(2, answered: false);
+        now = 2999;
+        final early = request(1);
+        s.enqueue(early);
+        expect(failures[early.id], isA<BacnetDeviceOfflineException>());
+
+        now = 3000;
+        s
+          ..enqueue(request(1))
+          ..enqueue(request(1))
+          ..pump();
+        expect(s.inFlight, 1);
+        // the probe succeeds: back to normal
+        s
+          ..complete(3)
+          ..pump();
+        expect(s.offline, 0);
+        expect(s.inFlight, 1);
+        s
+          ..enqueue(request(1))
+          ..enqueue(request(1))
+          ..pump();
+        expect(s.inFlight, 3);
+      });
+
+      test('come back with an I-Am', () {
+        final s = scheduler(offlineAfterTimeouts: 1);
+        s
+          ..enqueue(request(1))
+          ..pump()
+          ..complete(1, answered: false)
+          ..deviceBound(1);
+        expect(s.offline, 0);
+        final next = request(1);
+        s
+          ..enqueue(next)
+          ..pump();
+        expect(transport.sent.last, next);
+      });
+
+      test('answers reset the timeout count', () {
+        final s = scheduler(offlineAfterTimeouts: 2);
+        for (var i = 0; i < 4; i++) {
+          s
+            ..enqueue(request(1))
+            ..pump();
+        }
+        s
+          ..complete(1, answered: false)
+          ..pump()
+          ..complete(2)
+          ..pump();
+        expect(s.inFlight, 2);
+        s.complete(3, answered: false);
+        expect(s.offline, 0, reason: 'the answer in between reset the count');
+        s.complete(4, answered: false);
+        expect(s.offline, 1);
+      });
+    });
+
+    test('cancel drops queued requests silently', () {
+      final s = scheduler(maxInFlight: 1);
+      final sent = request(1);
+      final dropped = request(2);
+      final kept = request(3);
+      s
+        ..enqueue(sent)
+        ..enqueue(dropped)
+        ..enqueue(kept)
+        ..pump()
+        ..cancel(dropped.id);
+      expect(s.queued, 1);
+      s
+        ..complete(1)
+        ..pump();
+      expect(transport.sent, [sent, kept]);
+      expect(failures, isEmpty);
     });
   });
 }

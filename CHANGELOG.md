@@ -61,6 +61,19 @@ notes in the README.
   `maxCoalescedReads`, `coalescingWindow`); identical reads share one
   result, devices without RPM support are detected. 50 000 concurrent
   reads need 24× fewer requests and run 2× faster on loopback.
+- **Background requests**: `background: true` (default for
+  `DeviceScanner`) queues requests behind interactive ones and limits them
+  to 3/4 of the transaction slots and one slot less per device.
+- **Offline devices**: after `offlineAfterTimeouts` consecutive timeouts
+  requests to a device fail immediately with `BacnetDeviceOfflineException`
+  (a `BacnetTimeoutException`); one request probes it after
+  `offlineRetryInterval` (doubling while it stays silent), an I-Am brings
+  it back. `BacnetStats.offlineDevices` counts them.
+- **Cancellation**: `BacnetCancelToken` cancels reads, writes, ReadRange
+  and raw requests (`BacnetCancelledException`); queued requests are
+  dropped from the worker queue.
+- `scanDevice` takes `background`/`cancelToken` instead of the ignored
+  `endDeviceId`.
 - **Constants** are generated from bacnet-stack (`tool/generate_constants.dart`)
   and cover every standard object type, property, error code and service;
   existing names are unchanged.
