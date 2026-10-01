@@ -308,6 +308,7 @@ void main() {
             BacnetErrorCode.other,
           ),
           firstFailedElement: null,
+          firstFailedSubscription: null,
         ),
       );
     });

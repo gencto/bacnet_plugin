@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:bacnet_plugin/bacnet_plugin.dart';
 import 'package:test/test.dart';
 
+import '../support/cov_multiple_device.dart';
 import '../support/fake_router.dart';
 import '../support/segmenting_device.dart';
 
@@ -1731,6 +1732,165 @@ void main() {
         destination: whoAmI.source,
       );
       await serverLine('PROVISIONED', '$assigned');
+    });
+  });
+
+  group('COV of several properties', () {
+    const sensor = BacnetObject(
+      type: BacnetObjectType.analogInput,
+      instance: 1,
+    );
+    const fan = BacnetObject(type: BacnetObjectType.binaryValue, instance: 2);
+    final specifications = [
+      BacnetCovSubscriptionSpecification(sensor, const [
+        BacnetCovReference(BacnetPropertyId.presentValue, covIncrement: 0.5),
+        BacnetCovReference(BacnetPropertyId.statusFlags),
+      ]),
+      BacnetCovSubscriptionSpecification(fan, const [
+        BacnetCovReference(BacnetPropertyId.presentValue, timestamped: true),
+      ]),
+    ];
+    var nextDevice = 7300;
+
+    Future<CovMultipleDevice> covDevice({
+      Set<BacnetPropertyId> refused = const {},
+    }) async {
+      final device = await CovMultipleDevice.bind(
+        deviceId: nextDevice++,
+        refused: refused,
+      );
+      addTearDown(device.close);
+      await client.addDeviceBinding(
+        device.deviceId,
+        '127.0.0.1',
+        port: device.port,
+      );
+      return device;
+    }
+
+    test('subscribes and receives the notifications', () async {
+      final device = await covDevice();
+      await client.subscribeCOVPropertyMultiple(
+        device.deviceId,
+        specifications,
+        processId: 9,
+        confirmed: true,
+        lifetime: const Duration(minutes: 10),
+        maxNotificationDelay: const Duration(seconds: 2),
+      );
+      final request = device.subscriptions.single;
+      expect(request.subscriberProcessId, 9);
+      expect(request.confirmed, isTrue);
+      expect(request.lifetime, 600);
+      expect(request.maxNotificationDelay, 2);
+      expect(request.specifications, specifications);
+
+      final events = client.covEvents
+          .where((e) => e.deviceId == device.deviceId)
+          .take(2)
+          .toList();
+      const changed = BacnetTime(hour: 8, minute: 15, second: 0, hundredths: 0);
+      final sent = BacnetDateTime.fromDateTime(DateTime(2026, 10, 1, 8, 15, 1));
+      final invokeId = device.notify(
+        [
+          (
+            object: sensor,
+            values: const [
+              CovPropertyValue(
+                propertyId: BacnetPropertyId.presentValue,
+                value: BacnetReal(21.5),
+              ),
+              CovPropertyValue(
+                propertyId: BacnetPropertyId.statusFlags,
+                value: BacnetBitString([false, false, false, false]),
+              ),
+            ],
+            changeTimes: const {},
+          ),
+          (
+            object: fan,
+            values: const [
+              CovPropertyValue(
+                propertyId: BacnetPropertyId.presentValue,
+                value: BacnetEnumerated(1),
+              ),
+            ],
+            changeTimes: const {BacnetPropertyId.presentValue: changed},
+          ),
+        ],
+        confirmed: true,
+        timeRemaining: 590,
+        timestamp: sent,
+      );
+      final [ai, bv] = await events.timeout(const Duration(seconds: 5));
+      expect(ai.object, sensor);
+      expect(ai.presentValue, const BacnetReal(21.5));
+      expect(ai.statusFlags, const BacnetStatusFlags());
+      expect(ai.subscriberProcessId, 9);
+      expect(ai.timeRemaining, 590);
+      expect(ai.confirmed, isTrue);
+      expect(ai.notificationTime, sent);
+      expect(bv.object, fan);
+      expect(bv.presentValue, const BacnetEnumerated(1));
+      expect(bv.changeTimes, {BacnetPropertyId.presentValue: changed});
+      // the client acknowledged the confirmed notification
+      await _waitFor(() => device.acknowledged.contains(invokeId));
+
+      final unconfirmed = client.covEvents.firstWhere(
+        (e) => e.deviceId == device.deviceId,
+      );
+      device.notify([
+        (
+          object: sensor,
+          values: const [
+            CovPropertyValue(
+              propertyId: BacnetPropertyId.presentValue,
+              value: BacnetReal(22),
+            ),
+          ],
+          changeTimes: const {},
+        ),
+      ], confirmed: false);
+      final event = await unconfirmed.timeout(const Duration(seconds: 5));
+      expect(event.presentValue, const BacnetReal(22));
+      expect(event.confirmed, isFalse);
+      expect(event.notificationTime, isNull);
+
+      await client.unsubscribeCOVPropertyMultiple(
+        device.deviceId,
+        specifications,
+        processId: 9,
+      );
+      expect(device.subscriptions.last.lifetime, isNull);
+      expect(device.subscriptions.last.confirmed, isNull);
+    });
+
+    test('names the subscription the device refuses', () async {
+      final device = await covDevice(refused: {BacnetPropertyId.statusFlags});
+      await expectLater(
+        client.subscribeCOVPropertyMultiple(device.deviceId, specifications),
+        throwsA(
+          isA<BacnetProtocolException>()
+              .having((e) => e.errorClass, 'class', BacnetErrorClass.services)
+              .having(
+                (e) => e.firstFailedSubscription,
+                'first failed subscription',
+                const BacnetFailedCovSubscription(
+                  object: sensor,
+                  property: BacnetPropertyId.statusFlags,
+                  errorClass: BacnetErrorClass.property,
+                  errorCode: BacnetErrorCode.unknownProperty,
+                ),
+              ),
+        ),
+      );
+    });
+
+    test('devices without the service reject it', () async {
+      await expectLater(
+        client.subscribeCOVPropertyMultiple(device, specifications),
+        throwsA(isA<BacnetRejectException>()),
+      );
     });
   });
 }

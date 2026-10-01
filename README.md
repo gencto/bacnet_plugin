@@ -16,7 +16,7 @@ Dart programs such as headless gateways and supervisory services.
   segmented answers (large object lists, schedules, RPM results) reassembled
   transparently,
   WriteProperty(Multiple) with datatype inference, SubscribeCOV(Property)
-  with decoded notifications, ReadRange/Trend Logs, alarms and events
+  and SubscribeCOVPropertyMultiple with decoded notifications, ReadRange/Trend Logs, alarms and events
   (typed event notifications, AcknowledgeAlarm, GetEventInformation,
   GetAlarmSummary, Add/RemoveListElement), device management
   (DeviceCommunicationControl, ReinitializeDevice, Create/DeleteObject),
@@ -24,18 +24,21 @@ Dart programs such as headless gateways and supervisory services.
   messages, time synchronization, router and network discovery
   (Who-Is-Router-To-Network, What-Is-Network-Number, routing tables),
   foreign device registration, BBMD table management (Broadcast
-  Distribution and Foreign Device Tables), backup and restore of devices
-  and raw confirmed services.
+  Distribution and Foreign Device Tables), backup and restore of devices,
+  device provisioning (Who-Am-I/You-Are), WriteGroup and raw confirmed
+  services.
 - **Server**: hosts Analog/Binary/Multi-state Input/Output/Value, Integer,
   Positive Integer, CharacterString Value, Notification Class, File
-  (content in memory), Schedule, Calendar and Trend Log objects; answers
+  (content in memory), Schedule, Calendar, Trend Log and Channel objects;
+  answers
   Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property), ReadRange,
   Add/RemoveListElement, AtomicReadFile/AtomicWriteFile,
   DeviceCommunicationControl and ReinitializeDevice (password protected,
   reported to the application, backup and restore) natively; reports
   alarms of analog and binary objects (intrinsic reporting) and answers
-  AcknowledgeAlarm, GetEventInformation and GetAlarmSummary; batch updates
-  of present values; write notifications.
+  AcknowledgeAlarm, GetEventInformation and GetAlarmSummary; WriteGroup;
+  asks a supervisor for its device instance (Who-Am-I/You-Are); batch
+  updates of present values; write notifications.
 - **Built for load**: request scheduler with global and per-device
   concurrency limits, back pressure, automatic address binding, concurrent
   reads merged into ReadPropertyMultiple, batched isolate messaging and
@@ -51,7 +54,7 @@ Dart programs such as headless gateways and supervisory services.
 
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.6.0
+  bacnet_plugin: ^0.7.0
 ```
 
 Requirements:
@@ -716,6 +719,84 @@ await server.enableBackup(
 );
 ```
 
+## Provisioning, groups and COV of several properties
+
+New devices without a configured device instance ask a supervisor for one
+with Who-Am-I, identifying themselves by vendor, model name and serial
+number; the supervisor answers with You-Are:
+
+```dart
+// supervisor
+client.whoAmIRequests.listen((request) async {
+  final instance = inventory[request.serialNumber];
+  if (instance == null) return;
+  await client.sendYouAre(
+    vendorId: request.vendorId,
+    modelName: request.modelName,
+    serialNumber: request.serialNumber,
+    deviceId: instance,
+    destination: request.source, // or leave out to broadcast
+  );
+});
+
+// device
+await server.init(4194302, 'Room controller',
+    vendorId: 260, modelName: 'RC-1', serialNumber: 'SN-0042');
+final instance = await server.requestDeviceInstance(); // null: no answer
+```
+
+`server.setDeviceInstance` changes the instance directly. Channel objects
+group the properties one value controls (all lights of a floor, all
+setpoints of a zone); WriteGroup writes the channels of a control group
+of every device with one broadcast:
+
+```dart
+await server.addChannel(1,
+    name: 'Lights floor 2',
+    channelNumber: 7,
+    controlGroups: [5],
+    members: const [
+      BacnetDeviceObjectPropertyReference(
+        object: BacnetObject(type: BacnetObjectType.analogOutput, instance: 1),
+        property: BacnetPropertyId.presentValue,
+      ),
+    ]);
+
+// any client: 80 % on channel 7 of group 5, at priority 10
+await client.writeGroup(5, [BacnetGroupChannelValue(7, const BacnetReal(80))],
+    writePriority: 10);
+```
+
+The members of a channel are written at the priority of the request and
+arrive as `writeEvents` with `internal` set; the requests as
+`writeGroupEvents`.
+
+`subscribeCOVPropertyMultiple` subscribes to several properties of several
+objects with one request, each with its own COV increment and optionally
+with the time of each change. The notifications arrive on `covEvents`,
+one `CovNotificationEvent` per object:
+
+```dart
+await client.subscribeCOVPropertyMultiple(1234, [
+  BacnetCovSubscriptionSpecification(supplyTemp, const [
+    BacnetCovReference(BacnetPropertyId.presentValue, covIncrement: 0.2),
+    BacnetCovReference(BacnetPropertyId.statusFlags),
+  ]),
+  BacnetCovSubscriptionSpecification(fan, const [
+    BacnetCovReference(BacnetPropertyId.presentValue, timestamped: true),
+  ]),
+], processId: 7, lifetime: const Duration(minutes: 10));
+
+client.covEvents.listen((event) {
+  print('${event.object}: ${event.presentValue} '
+      'changed at ${event.changeTimes[BacnetPropertyId.presentValue]}');
+});
+```
+
+Devices without the service reject it (`BacnetRejectException`); use
+`subscribeCOV` for them. bacnet-stack, and so the server of this package,
+does not implement it.
+
 ## Routers, networks and BBMDs
 
 Routers connect BACnet networks (BACnet/IP subnets, MS/TP trunks). Their
@@ -835,6 +916,17 @@ sensor.reportEvent(
   ),
 );
 ```
+
+## Migrating from 0.6.x
+
+- `WhoAmIEvent`, `YouAreEvent` and `WriteGroupEvent` are new
+  `BacnetEvent` subclasses: a `switch` over `BacnetEvent` needs cases for
+  them.
+- Classes implementing `BacnetClient` need `whoAmIRequests`,
+  `sendYouAre`, `writeGroup`, `subscribeCOVPropertyMultiple` and
+  `unsubscribeCOVPropertyMultiple`.
+- The client acknowledges ConfirmedCOVNotificationMultiple; it rejected
+  them as an unrecognized service before.
 
 ## Migrating from 0.5.x
 

@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - Unreleased
+
+Provisioning with Who-Am-I/You-Are, WriteGroup and Channel objects, COV
+of several properties with one subscription. See *Migrating from 0.6.x*
+in the README.
+
+### Added
+
+- **Who-Am-I / You-Are** (ASHRAE 135 clauses 16.11 and 16.12):
+  `client.whoAmIRequests` and `client.sendYouAre` (broadcast, or to the
+  requesting device with `destination: request.source`) assign device
+  instances to new devices; `server.requestDeviceInstance` asks a
+  supervisor for the instance of the server and applies it,
+  `server.sendWhoAmI`, `server.youAreRequests` and
+  `server.setDeviceInstance` (announced with an I-Am). `init` takes the
+  `serialNumber` that identifies the server.
+- **WriteGroup and Channel objects** (clause 15.11): `client.writeGroup`
+  writes `BacnetGroupChannelValue`s to the channels of a control group;
+  `server.addChannel` hosts Channel objects (channel number, control
+  groups, members of the server) that write their members on WriteGroup or
+  a write of their present value; `server.writeGroupEvents`.
+- **SubscribeCOVPropertyMultiple** (clauses 13.16 and 13.17):
+  `client.subscribeCOVPropertyMultiple` and
+  `unsubscribeCOVPropertyMultiple` watch several properties of several
+  objects (`BacnetCovSubscriptionSpecification`, `BacnetCovReference` with
+  COV increment and timestamps) with one request; Confirmed and
+  Unconfirmed COVNotificationMultiple arrive as one `CovNotificationEvent`
+  per object with `notificationTime` and `changeTimes`.
+  `BacnetProtocolException.firstFailedSubscription` names the subscription
+  a device refused.
+- **Typed properties**: `serialNumber`, `channelNumber` and
+  `controlGroups`.
+- **Testing**: `FakeBacnetClient.receive` delivers events such as
+  `WhoAmIEvent`; fake clients record `sendYouAre` and `writeGroup`
+  (`FakeBacnetRequest.arguments`) and take COV subscriptions of several
+  properties.
+
 ## [0.6.0] - Unreleased
 
 Schedules, calendars and trend logs on the server, backup and restore.

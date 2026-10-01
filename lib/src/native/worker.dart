@@ -20,6 +20,7 @@ import '../core/exceptions.dart';
 import '../core/types.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
 import '../models/network.dart';
 import 'bindings.g.dart';
@@ -438,6 +439,8 @@ final class _Worker implements RequestTransport {
         switch (event.service) {
           case BacnetConfirmedService.covNotification:
             _emitCov(event.data, confirmed: true);
+          case BacnetConfirmedService.covNotificationMultiple:
+            _emitCovMultiple(event.data, confirmed: true);
           case BacnetConfirmedService.eventNotification:
             _emit(_eventNotification(event, confirmed: true));
           default:
@@ -465,12 +468,11 @@ final class _Worker implements RequestTransport {
           BacnetErrorCode(event.b),
         );
         int? firstFailedElement;
+        BacnetFailedCovSubscription? firstFailedSubscription;
         if (event.hasFlag(BP_FLAG_COMPLEX)) {
           try {
-            (:error, :firstFailedElement) = decodeComplexError(
-              event.data,
-              service: event.service,
-            );
+            (:error, :firstFailedElement, :firstFailedSubscription) =
+                decodeComplexError(event.data, service: event.service);
           } on BacnetDecodeException {
             error = const BacnetError(
               BacnetErrorClass(-1),
@@ -483,6 +485,7 @@ final class _Worker implements RequestTransport {
           errorClass: error.errorClass,
           errorCode: error.errorCode,
           firstFailedElement: firstFailedElement,
+          firstFailedSubscription: firstFailedSubscription,
         );
       case BP_EVENT_REJECT:
         return BacnetRejectException(
@@ -539,6 +542,8 @@ final class _Worker implements RequestTransport {
         _scheduler.deviceBound(event.deviceId);
       case BacnetUnconfirmedService.covNotification:
         _emitCov(event.data, confirmed: false);
+      case BacnetUnconfirmedService.covNotificationMultiple:
+        _emitCovMultiple(event.data, confirmed: false);
       case BacnetUnconfirmedService.eventNotification:
         _emit(_eventNotification(event, confirmed: false));
       default:
@@ -760,6 +765,34 @@ final class _Worker implements RequestTransport {
           confirmed: confirmed,
         ),
       );
+    } on BacnetDecodeException catch (e) {
+      _log(BacnetLogLevel.warning, 'malformed COV notification: $e');
+    }
+  }
+
+  /// One [CovNotificationEvent] per object of a COVNotificationMultiple.
+  void _emitCovMultiple(Uint8List data, {required bool confirmed}) {
+    try {
+      final cov = decodeCovNotificationMultiple(data);
+      final received = DateTime.now().toIso8601String();
+      for (final notification in cov.notifications) {
+        _emit(
+          CovNotificationEvent(
+            objectType: notification.object.type,
+            instance: notification.object.instance,
+            timestamp: received,
+            deviceId: cov.initiatingDeviceId,
+            subscriberProcessId: cov.subscriberProcessId,
+            timeRemaining: cov.timeRemaining,
+            values: {
+              for (final v in notification.values) v.propertyId: v.value,
+            },
+            confirmed: confirmed,
+            notificationTime: cov.timestamp,
+            changeTimes: notification.changeTimes,
+          ),
+        );
+      }
     } on BacnetDecodeException catch (e) {
       _log(BacnetLogLevel.warning, 'malformed COV notification: $e');
     }

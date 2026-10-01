@@ -271,6 +271,8 @@ BP_UNCONFIRMED_FORWARDER(bp_on_utext, SERVICE_UNCONFIRMED_TEXT_MESSAGE)
 BP_UNCONFIRMED_FORWARDER(bp_on_uprivate, SERVICE_UNCONFIRMED_PRIVATE_TRANSFER)
 BP_UNCONFIRMED_FORWARDER(bp_on_who_am_i, SERVICE_UNCONFIRMED_WHO_AM_I)
 BP_UNCONFIRMED_FORWARDER(bp_on_you_are, SERVICE_UNCONFIRMED_YOU_ARE)
+BP_UNCONFIRMED_FORWARDER(
+    bp_on_ucov_multiple, SERVICE_UNCONFIRMED_COV_NOTIFICATION_MULTIPLE)
 
 static void bp_confirmed_notification(
     uint8_t service,
@@ -316,6 +318,17 @@ static void bp_on_ccov(
     bp_confirmed_notification(
         SERVICE_CONFIRMED_COV_NOTIFICATION, service_request, service_len, src,
         service_data);
+}
+
+static void bp_on_ccov_multiple(
+    uint8_t *service_request,
+    uint16_t service_len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data)
+{
+    bp_confirmed_notification(
+        SERVICE_CONFIRMED_COV_NOTIFICATION_MULTIPLE, service_request,
+        service_len, src, service_data);
 }
 
 static void bp_on_cevent(
@@ -366,6 +379,10 @@ void bp_register_client_handlers(void)
     apdu_set_unconfirmed_handler(SERVICE_UNCONFIRMED_WHO_AM_I, bp_on_who_am_i);
     apdu_set_unconfirmed_handler(SERVICE_UNCONFIRMED_YOU_ARE, bp_on_you_are);
     apdu_set_confirmed_handler(SERVICE_CONFIRMED_COV_NOTIFICATION, bp_on_ccov);
+    apdu_set_unconfirmed_handler(
+        SERVICE_UNCONFIRMED_COV_NOTIFICATION_MULTIPLE, bp_on_ucov_multiple);
+    apdu_set_confirmed_handler(
+        SERVICE_CONFIRMED_COV_NOTIFICATION_MULTIPLE, bp_on_ccov_multiple);
     apdu_set_confirmed_handler(
         SERVICE_CONFIRMED_EVENT_NOTIFICATION, bp_on_cevent);
 }

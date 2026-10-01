@@ -12,6 +12,7 @@ import '../models/alarms.dart';
 import '../models/bacnet_value.dart';
 import '../models/channels.dart';
 import '../models/complex_values.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
 import '../models/files.dart';
 import 'reader.dart';
@@ -177,6 +178,14 @@ class CovPropertyValue {
   final int? priority;
 }
 
+/// A notification of one object in a COVNotificationMultiple: `values`
+/// and, for timestamped references, when they changed.
+typedef CovObjectNotification = ({
+  BacnetObject object,
+  List<CovPropertyValue> values,
+  Map<BacnetPropertyId, BacnetTime> changeTimes,
+});
+
 /// Decoded COV notification.
 @immutable
 class CovNotificationData {
@@ -241,19 +250,37 @@ CovNotificationData decodeCovNotification(Uint8List data) {
 
 /// A decoded complex Error PDU: the error and, for CreateObject,
 /// AddListElement and RemoveListElement, the position (1 based) of the
-/// element that failed (0 when the request failed for another reason).
-typedef ComplexError = ({BacnetError error, int? firstFailedElement});
+/// element that failed (0 when the request failed for another reason), for
+/// SubscribeCOVPropertyMultiple the subscription that failed.
+typedef ComplexError = ({
+  BacnetError error,
+  int? firstFailedElement,
+  BacnetFailedCovSubscription? firstFailedSubscription,
+});
 
 /// Extracts the error of a complex Error PDU payload of [service] (e.g.
 /// WritePropertyMultiple-Error, CreateObject-Error).
 ComplexError decodeComplexError(Uint8List data, {int? service}) {
   final r = BacnetReader(data);
   if (!r.nextIsOpening(0)) {
-    return (error: _readError(r), firstFailedElement: null);
+    return (
+      error: _readError(r),
+      firstFailedElement: null,
+      firstFailedSubscription: null,
+    );
   }
   r.expectOpening(0);
   final error = _readError(r);
   r.expectClosing(0);
+  if (service == BacnetConfirmedService.subscribeCovPropertyMultiple) {
+    return (
+      error: error,
+      firstFailedElement: null,
+      firstFailedSubscription: r.nextIsOpening(1)
+          ? _failedCovSubscription(r)
+          : null,
+    );
+  }
   final changeList = switch (service) {
     BacnetConfirmedService.createObject ||
     BacnetConfirmedService.addListElement ||
@@ -263,6 +290,163 @@ ComplexError decodeComplexError(Uint8List data, {int? service}) {
   return (
     error: error,
     firstFailedElement: changeList ? r.readOptionalContextUnsigned(1) : null,
+    firstFailedSubscription: null,
+  );
+}
+
+BacnetFailedCovSubscription _failedCovSubscription(BacnetReader r) {
+  r.expectOpening(1);
+  final object = r.readContextObjectId(0);
+  r.expectOpening(1);
+  final property = BacnetPropertyId(r.readContextUnsigned(0));
+  final arrayIndex = r.readOptionalContextUnsigned(1);
+  r
+    ..expectClosing(1)
+    ..expectOpening(2);
+  final error = _readError(r);
+  r
+    ..expectClosing(2)
+    ..expectClosing(1);
+  return BacnetFailedCovSubscription(
+    object: object,
+    property: property,
+    arrayIndex: arrayIndex,
+    errorClass: error.errorClass,
+    errorCode: error.errorCode,
+  );
+}
+
+/// Decoded SubscribeCOVPropertyMultiple request.
+typedef SubscribeCovPropertyMultipleData = ({
+  int subscriberProcessId,
+  bool? confirmed,
+  int? lifetime,
+  int? maxNotificationDelay,
+  List<BacnetCovSubscriptionSpecification> specifications,
+});
+
+/// Decodes a SubscribeCOVPropertyMultiple request (ASHRAE 135 clause
+/// 13.16).
+SubscribeCovPropertyMultipleData decodeSubscribeCovPropertyMultiple(
+  Uint8List data,
+) {
+  final r = BacnetReader(data);
+  final pid = r.readContextUnsigned(0);
+  final confirmed = r.nextIsContext(1) ? r.readContextBoolean(1) : null;
+  final lifetime = r.readOptionalContextUnsigned(2);
+  final delay = r.readOptionalContextUnsigned(3);
+  r.expectOpening(4);
+  final specifications = <BacnetCovSubscriptionSpecification>[];
+  while (!r.nextIsClosing(4)) {
+    final object = r.readContextObjectId(0);
+    r.expectOpening(1);
+    final references = <BacnetCovReference>[];
+    while (!r.nextIsClosing(1)) {
+      r.expectOpening(0);
+      final property = BacnetPropertyId(r.readContextUnsigned(0));
+      final arrayIndex = r.readOptionalContextUnsigned(1);
+      r.expectClosing(0);
+      final increment = r.nextIsContext(1) ? r.readContextReal(1) : null;
+      references.add(
+        BacnetCovReference(
+          property,
+          arrayIndex: arrayIndex,
+          covIncrement: increment,
+          timestamped: r.readContextBoolean(2),
+        ),
+      );
+    }
+    r.expectClosing(1);
+    if (references.isEmpty) {
+      throw const BacnetDecodeException('COV subscription without references');
+    }
+    specifications.add(BacnetCovSubscriptionSpecification(object, references));
+  }
+  r.expectClosing(4);
+  return (
+    subscriberProcessId: pid,
+    confirmed: confirmed,
+    lifetime: lifetime,
+    maxNotificationDelay: delay,
+    specifications: List.unmodifiable(specifications),
+  );
+}
+
+/// Decoded COVNotificationMultiple request.
+typedef CovNotificationMultipleData = ({
+  int subscriberProcessId,
+  int initiatingDeviceId,
+  int timeRemaining,
+  BacnetDateTime? timestamp,
+  List<CovObjectNotification> notifications,
+});
+
+/// Decodes a (Confirmed or Unconfirmed)COVNotificationMultiple request
+/// (ASHRAE 135 clause 13.17).
+CovNotificationMultipleData decodeCovNotificationMultiple(Uint8List data) {
+  final r = BacnetReader(data);
+  final pid = r.readContextUnsigned(0);
+  final device = r.readContextObjectId(1);
+  final timeRemaining = r.readContextUnsigned(2);
+  BacnetDateTime? timestamp;
+  if (r.nextIsOpening(3)) {
+    r.expectOpening(3);
+    timestamp = switch ((r.readApplicationValue(), r.readApplicationValue())) {
+      (final BacnetDate date, final BacnetTime time) => BacnetDateTime(
+        date,
+        time,
+      ),
+      final other => throw BacnetDecodeException('malformed timestamp $other'),
+    };
+    r.expectClosing(3);
+  }
+  r.expectOpening(4);
+  final notifications = <CovObjectNotification>[];
+  while (!r.nextIsClosing(4)) {
+    final object = r.readContextObjectId(0);
+    r.expectOpening(1);
+    final values = <CovPropertyValue>[];
+    final changeTimes = <BacnetPropertyId, BacnetTime>{};
+    while (!r.nextIsClosing(1)) {
+      final propertyId = BacnetPropertyId(r.readContextUnsigned(0));
+      final arrayIndex = r.readOptionalContextUnsigned(1) ?? -1;
+      r.expectOpening(2);
+      values.add(
+        CovPropertyValue(
+          propertyId: propertyId,
+          arrayIndex: arrayIndex,
+          value: collapseValues(r.readValuesUntilClosing(2)),
+        ),
+      );
+      if (r.nextIsContext(3)) {
+        final tag = r.readTag();
+        if (tag.length != 4) {
+          throw const BacnetDecodeException('time of change needs 4 octets');
+        }
+        int? field(int octet) => octet == 0xFF ? null : octet;
+        final octets = r.readBytes(4);
+        changeTimes[propertyId] = BacnetTime(
+          hour: field(octets[0]),
+          minute: field(octets[1]),
+          second: field(octets[2]),
+          hundredths: field(octets[3]),
+        );
+      }
+    }
+    r.expectClosing(1);
+    notifications.add((
+      object: object,
+      values: List.unmodifiable(values),
+      changeTimes: Map.unmodifiable(changeTimes),
+    ));
+  }
+  r.expectClosing(4);
+  return (
+    subscriberProcessId: pid,
+    initiatingDeviceId: device.instance,
+    timeRemaining: timeRemaining,
+    timestamp: timestamp,
+    notifications: List.unmodifiable(notifications),
   );
 }
 

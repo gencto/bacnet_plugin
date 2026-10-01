@@ -15,6 +15,15 @@ const _youAre =
 const _writeGroup =
     '091719082e09012e44429700002f090219042e21032f09032e002f09042e112f2f3901';
 
+const _subscribeCovMultiple =
+    '090719002a025839054e0c000000011e0e09550f1c3f00000029000e096f0f29011f'
+    '0c014000021e0e09550f29001f4f';
+const _covNotificationMultiple =
+    '09071c020004d229783ea47e0a0104b40c1e0f003f4e0c000000011e09552e4441ac'
+    '00002f3c0c1e0e32096f2e8204002f1f0c014000021e09552e91012f1f4f';
+const _subscribeCovMultipleError =
+    '0e910591000f1e0c000000011e09551f2e910291202f1f';
+
 void main() {
   group('robustness', () {
     final samples = <Uint8List>[
@@ -72,6 +81,9 @@ void main() {
         // You-Are and WriteGroup of bacnet-stack
         _youAre,
         _writeGroup,
+        _subscribeCovMultiple,
+        _covNotificationMultiple,
+        _subscribeCovMultipleError,
       ])
         hexBytes(hex),
     ];
@@ -94,6 +106,12 @@ void main() {
         decodeWhoAmI,
         decodeYouAre,
         decodeWriteGroup,
+        decodeSubscribeCovPropertyMultiple,
+        decodeCovNotificationMultiple,
+        (data) => decodeComplexError(
+          data,
+          service: BacnetConfirmedService.subscribeCovPropertyMultiple,
+        ),
         (data) => BacnetDestination.listFromValue(decodeApplicationData(data)),
       ]) {
         try {

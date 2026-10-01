@@ -41,6 +41,7 @@ export 'src/models/bacnet_value.dart';
 export 'src/models/bbmd.dart';
 export 'src/models/channels.dart';
 export 'src/models/complex_values.dart';
+export 'src/models/cov_multiple.dart';
 export 'src/models/device_metadata.dart';
 export 'src/models/discovered_device.dart';
 export 'src/models/events.dart';

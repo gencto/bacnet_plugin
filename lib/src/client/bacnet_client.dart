@@ -25,6 +25,7 @@ import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
 import '../models/channels.dart';
 import '../models/complex_values.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
 import '../models/files.dart';
 import '../models/network.dart';
@@ -889,6 +890,72 @@ class BacnetClient {
       ),
     );
   }
+
+  /// Subscribes to changes of several properties of several objects with
+  /// one request (SubscribeCOVPropertyMultiple), e.g. to watch a whole
+  /// plant room. The device sends COVNotificationMultiple, which arrive as
+  /// one [CovNotificationEvent] per object on [covEvents] (with
+  /// [CovNotificationEvent.changeTimes] for timestamped references).
+  /// [maxNotificationDelay] lets the device collect changes before it
+  /// notifies.
+  ///
+  /// When the device refuses a subscription the
+  /// [BacnetProtocolException.firstFailedSubscription] names it; devices
+  /// without the service reject the request
+  /// ([BacnetRejectException]), use [subscribeCOV] for those.
+  ///
+  /// ```dart
+  /// await client.subscribeCOVPropertyMultiple(1234, [
+  ///   BacnetCovSubscriptionSpecification(supplyTemp, const [
+  ///     BacnetCovReference(BacnetPropertyId.presentValue, covIncrement: 0.2),
+  ///     BacnetCovReference(BacnetPropertyId.statusFlags),
+  ///   ]),
+  ///   BacnetCovSubscriptionSpecification(fan, const [
+  ///     BacnetCovReference(BacnetPropertyId.presentValue, timestamped: true),
+  ///   ]),
+  /// ], processId: 7, lifetime: const Duration(minutes: 10));
+  /// ```
+  Future<void> subscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration lifetime = const Duration(minutes: 5),
+    bool confirmed = false,
+    Duration? maxNotificationDelay,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.subscribeCovPropertyMultiple,
+      payload: encodeSubscribeCovPropertyMultiple(
+        subscriberProcessId: processId,
+        specifications: specifications,
+        confirmed: confirmed,
+        lifetime: lifetime.inSeconds,
+        maxNotificationDelay: maxNotificationDelay?.inSeconds,
+      ),
+      timeout: timeout,
+    ),
+  );
+
+  /// Cancels the subscriptions of [specifications] made with
+  /// [subscribeCOVPropertyMultiple].
+  Future<void> unsubscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.subscribeCovPropertyMultiple,
+      payload: encodeSubscribeCovPropertyMultiple(
+        subscriberProcessId: processId,
+        specifications: specifications,
+      ),
+      timeout: timeout,
+    ),
+  );
 
   // ---- lists ----------------------------------------------------------------
 

@@ -2,7 +2,7 @@ name: bacnet_plugin
 description: >-
   High-throughput BACnet/IP client and server for Dart and Flutter, built on
   bacnet-stack via FFI with an isolate based, non-blocking engine.
-version: 0.6.0
+version: 0.7.0
 license: MIT
 homepage: https://github.com/gencto/bacnet_plugin
 repository: https://github.com/gencto/bacnet_plugin

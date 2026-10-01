@@ -127,6 +127,8 @@ class CovNotificationEvent extends BacnetEvent {
     this.timeRemaining = 0,
     this.values = const {},
     this.confirmed = false,
+    this.notificationTime,
+    this.changeTimes = const {},
   });
 
   /// Object type of the monitored object.
@@ -152,6 +154,13 @@ class CovNotificationEvent extends BacnetEvent {
 
   /// True for a confirmed notification.
   final bool confirmed;
+
+  /// When the device sent a COVNotificationMultiple, if it says so.
+  final BacnetDateTime? notificationTime;
+
+  /// When the properties of timestamped references changed (see
+  /// `BacnetCovReference.timestamped`).
+  final Map<BacnetPropertyId, BacnetTime> changeTimes;
 
   /// The monitored object.
   BacnetObject get object => BacnetObject(type: objectType, instance: instance);

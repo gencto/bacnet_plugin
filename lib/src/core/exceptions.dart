@@ -4,6 +4,7 @@
 library;
 
 import '../constants/errors.dart';
+import '../models/cov_multiple.dart';
 
 /// Base exception class for BACnet operations.
 ///
@@ -56,6 +57,7 @@ class BacnetProtocolException extends BacnetException {
     required this.errorClass,
     required this.errorCode,
     this.firstFailedElement,
+    this.firstFailedSubscription,
   });
 
   /// BACnet error class.
@@ -70,12 +72,17 @@ class BacnetProtocolException extends BacnetException {
   /// services.
   final int? firstFailedElement;
 
+  /// For SubscribeCOVPropertyMultiple: the first subscription the device
+  /// refused, if it names one.
+  final BacnetFailedCovSubscription? firstFailedSubscription;
+
   @override
   String toString() =>
       'BacnetProtocolException: $message '
       '(${BacnetErrorClass.getName(errorClass)}: '
       '${BacnetErrorCode.getName(errorCode)}'
-      '${firstFailedElement == null ? '' : ', element $firstFailedElement'})';
+      '${firstFailedElement == null ? '' : ', element $firstFailedElement'}'
+      '${firstFailedSubscription == null ? '' : ', $firstFailedSubscription'})';
 }
 
 /// Exception thrown when a device rejects a request (Reject PDU).

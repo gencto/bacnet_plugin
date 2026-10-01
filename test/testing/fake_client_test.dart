@@ -1021,4 +1021,100 @@ void main() {
       expect(() => client.writeGroup(0, changes), throwsRangeError);
     });
   });
+
+  group('COV of several properties', () {
+    const sensor = BacnetObject(
+      type: BacnetObjectType.analogInput,
+      instance: 1,
+    );
+    const output = BacnetObject(
+      type: BacnetObjectType.analogOutput,
+      instance: 1,
+    );
+
+    test('notifies the subscribed properties', () async {
+      final events = <CovNotificationEvent>[];
+      final listener = client.covEvents.listen(events.add);
+      addTearDown(listener.cancel);
+      final specifications = [
+        BacnetCovSubscriptionSpecification(sensor, const [
+          BacnetCovReference(BacnetPropertyId.presentValue, timestamped: true),
+        ]),
+        BacnetCovSubscriptionSpecification(output, const [
+          BacnetCovReference(BacnetPropertyId.presentValue),
+        ]),
+      ];
+      await client.subscribeCOVPropertyMultiple(
+        1234,
+        specifications,
+        processId: 3,
+        confirmed: true,
+      );
+      expect(client.requests.last.service, 'subscribeCOVPropertyMultiple');
+      expect(client.requests.last.arguments['specifications'], specifications);
+
+      ahu.object(
+        BacnetObjectType.analogInput,
+        1,
+      )![BacnetPropertyId.presentValue] = const BacnetReal(
+        23,
+      );
+      ahu.object(
+        BacnetObjectType.analogOutput,
+        1,
+      )![BacnetPropertyId.presentValue] = const BacnetReal(
+        40,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(events.map((e) => (e.object, e.presentValue)), [
+        (sensor, const BacnetReal(23)),
+        (output, const BacnetReal(40)),
+      ]);
+      expect(events.first.subscriberProcessId, 3);
+      expect(events.first.confirmed, isTrue);
+      expect(events.first.changeTimes.keys, [BacnetPropertyId.presentValue]);
+      expect(events.last.changeTimes, isEmpty);
+
+      await client.unsubscribeCOVPropertyMultiple(
+        1234,
+        specifications,
+        processId: 3,
+      );
+      ahu.object(
+        BacnetObjectType.analogInput,
+        1,
+      )![BacnetPropertyId.presentValue] = const BacnetReal(
+        24,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(events, hasLength(2));
+    });
+
+    test('names the subscription the device refuses', () async {
+      await expectLater(
+        client.subscribeCOVPropertyMultiple(1234, [
+          BacnetCovSubscriptionSpecification(sensor, const [
+            BacnetCovReference(BacnetPropertyId.presentValue),
+          ]),
+          BacnetCovSubscriptionSpecification(
+            const BacnetObject(
+              type: BacnetObjectType.analogValue,
+              instance: 99,
+            ),
+            const [BacnetCovReference(BacnetPropertyId.presentValue)],
+          ),
+        ]),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.firstFailedSubscription?.object,
+            'failed object',
+            const BacnetObject(
+              type: BacnetObjectType.analogValue,
+              instance: 99,
+            ),
+          ),
+        ),
+      );
+    });
+  });
 }

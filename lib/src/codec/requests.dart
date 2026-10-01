@@ -7,9 +7,11 @@ import '../constants/object_types.dart';
 import '../models/bacnet_value.dart';
 import '../models/channels.dart';
 import '../models/complex_values.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/wpm_models.dart';
+import 'responses.dart' show CovObjectNotification;
 import 'value_encoding.dart';
 import 'writer.dart';
 
@@ -143,6 +145,92 @@ Uint8List encodeSubscribeCovProperty({
   if (arrayIndex >= 0) w.ctxUnsigned(1, arrayIndex);
   w.closing(4);
   if (covIncrement != null && !cancel) w.ctxReal(5, covIncrement);
+  return w.toBytes();
+}
+
+/// Encodes a SubscribeCOVPropertyMultiple request (ASHRAE 135 clause
+/// 13.16); without [confirmed] and [lifetime] it cancels the
+/// subscriptions of [specifications].
+Uint8List encodeSubscribeCovPropertyMultiple({
+  required int subscriberProcessId,
+  required List<BacnetCovSubscriptionSpecification> specifications,
+  bool? confirmed,
+  int? lifetime,
+  int? maxNotificationDelay,
+}) {
+  if (specifications.isEmpty) {
+    throw ArgumentError.value(specifications, 'specifications', 'is empty');
+  }
+  final w = BacnetWriter(32 + specifications.length * 24)
+    ..ctxUnsigned(0, subscriberProcessId);
+  if (confirmed != null) w.ctxBoolean(1, confirmed);
+  if (lifetime != null) w.ctxUnsigned(2, lifetime);
+  if (maxNotificationDelay != null) w.ctxUnsigned(3, maxNotificationDelay);
+  w.opening(4);
+  for (final specification in specifications) {
+    w
+      ..ctxObjectId(0, specification.object.type, specification.object.instance)
+      ..opening(1);
+    for (final reference in specification.references) {
+      w
+        ..opening(0)
+        ..ctxUnsigned(0, reference.property);
+      if (reference.arrayIndex case final index?) w.ctxUnsigned(1, index);
+      w.closing(0);
+      if (reference.covIncrement case final increment?) {
+        w.ctxReal(1, increment);
+      }
+      w.ctxBoolean(2, reference.timestamped);
+    }
+    w.closing(1);
+  }
+  w.closing(4);
+  return w.toBytes();
+}
+
+/// Encodes a (Confirmed or Unconfirmed)COVNotificationMultiple request
+/// (ASHRAE 135 clause 13.17).
+Uint8List encodeCovNotificationMultiple({
+  required int subscriberProcessId,
+  required int initiatingDeviceId,
+  required int timeRemaining,
+  required List<CovObjectNotification> notifications,
+  BacnetDateTime? timestamp,
+}) {
+  final w = BacnetWriter()
+    ..ctxUnsigned(0, subscriberProcessId)
+    ..ctxObjectId(1, BacnetObjectType.device, initiatingDeviceId)
+    ..ctxUnsigned(2, timeRemaining);
+  if (timestamp != null) {
+    w
+      ..opening(3)
+      ..appDate(timestamp.date)
+      ..appTime(timestamp.time)
+      ..closing(3);
+  }
+  w.opening(4);
+  for (final notification in notifications) {
+    w
+      ..ctxObjectId(0, notification.object.type, notification.object.instance)
+      ..opening(1);
+    for (final value in notification.values) {
+      w.ctxUnsigned(0, value.propertyId);
+      if (value.arrayIndex >= 0) w.ctxUnsigned(1, value.arrayIndex);
+      w.opening(2);
+      encodeApplicationValue(w, value.value);
+      w.closing(2);
+      if (notification.changeTimes[value.propertyId] case final time?) {
+        w.ctxRaw(3, [
+          time.hour ?? 0xFF,
+          time.minute ?? 0xFF,
+          time.second ?? 0xFF,
+          time.hundredths ?? 0xFF,
+        ]);
+      }
+    }
+    w.closing(1);
+  }
+  w.closing(4);
   return w.toBytes();
 }
 

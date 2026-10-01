@@ -21,6 +21,7 @@ import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
 import '../models/channels.dart';
 import '../models/complex_values.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
 import '../models/files.dart';
 import '../models/network.dart';
@@ -824,6 +825,7 @@ typedef _Subscription = ({
   BacnetPropertyId property,
   int processId,
   bool confirmed,
+  bool timestamped,
 });
 
 /// A router simulated by a [FakeBacnetClient]: answers
@@ -1425,8 +1427,143 @@ class FakeBacnetClient implements BacnetClient {
           property: propId,
           processId: processId,
           confirmed: confirmed,
+          timestamped: false,
         ));
     });
+  }
+
+  @override
+  Future<void> subscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration lifetime = const Duration(minutes: 5),
+    bool confirmed = false,
+    Duration? maxNotificationDelay,
+    Duration? timeout,
+  }) {
+    // validates like the real client
+    encodeSubscribeCovPropertyMultiple(
+      subscriberProcessId: processId,
+      specifications: specifications,
+      confirmed: confirmed,
+      lifetime: lifetime.inSeconds,
+    );
+    requests.add(
+      FakeBacnetRequest(
+        'subscribeCOVPropertyMultiple',
+        deviceId: deviceId,
+        arguments: {
+          'specifications': List<BacnetCovSubscriptionSpecification>.of(
+            specifications,
+            growable: false,
+          ),
+          'processId': processId,
+          'confirmed': confirmed,
+        },
+      ),
+    );
+    return _request(
+      BacnetConfirmedService.subscribeCovPropertyMultiple,
+      deviceId,
+      null,
+      (device) {
+        for (final specification in specifications) {
+          final object = specification.object;
+          for (final reference in specification.references) {
+            try {
+              device._read(object.type, object.instance, reference.property);
+            } on BacnetProtocolException catch (e) {
+              throw BacnetProtocolException(
+                'device $deviceId returned an error',
+                errorClass: e.errorClass,
+                errorCode: e.errorCode,
+                firstFailedSubscription: BacnetFailedCovSubscription(
+                  object: object,
+                  property: reference.property,
+                  arrayIndex: reference.arrayIndex,
+                  errorClass: e.errorClass,
+                  errorCode: e.errorCode,
+                ),
+              );
+            }
+          }
+        }
+        for (final specification in specifications) {
+          final object = specification.object;
+          for (final reference in specification.references) {
+            _subscriptions
+              ..removeWhere(
+                (s) => _same(
+                  s,
+                  deviceId,
+                  object.type,
+                  object.instance,
+                  reference.property,
+                  processId,
+                ),
+              )
+              ..add((
+                deviceId: deviceId,
+                type: object.type,
+                instance: object.instance,
+                property: reference.property,
+                processId: processId,
+                confirmed: confirmed,
+                timestamped: reference.timestamped,
+              ));
+          }
+        }
+      },
+    );
+  }
+
+  @override
+  Future<void> unsubscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration? timeout,
+  }) {
+    encodeSubscribeCovPropertyMultiple(
+      subscriberProcessId: processId,
+      specifications: specifications,
+    );
+    requests.add(
+      FakeBacnetRequest(
+        'unsubscribeCOVPropertyMultiple',
+        deviceId: deviceId,
+        arguments: {
+          'specifications': List<BacnetCovSubscriptionSpecification>.of(
+            specifications,
+            growable: false,
+          ),
+          'processId': processId,
+        },
+      ),
+    );
+    return _request(
+      BacnetConfirmedService.subscribeCovPropertyMultiple,
+      deviceId,
+      null,
+      (_) {
+        for (final specification in specifications) {
+          final object = specification.object;
+          for (final reference in specification.references) {
+            _subscriptions.removeWhere(
+              (s) => _same(
+                s,
+                deviceId,
+                object.type,
+                object.instance,
+                reference.property,
+                processId,
+              ),
+            );
+          }
+        }
+      },
+    );
   }
 
   @override
@@ -1495,6 +1632,9 @@ class FakeBacnetClient implements BacnetClient {
         subscriberProcessId: s.processId,
         values: values,
         confirmed: s.confirmed,
+        changeTimes: s.timestamped
+            ? {property: BacnetTime.fromDateTime(DateTime.now())}
+            : const {},
       );
       unawaited(
         Future<void>.delayed(latency + device.latency, () {
