@@ -2,6 +2,9 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../constants/enumerations.dart';
+import '../constants/object_types.dart';
+import '../constants/property_ids.dart';
 import '../core/types.dart';
 import 'bacnet_object.dart';
 
@@ -67,7 +70,7 @@ class IAmEvent extends BacnetEvent {
     required this.len,
     this.maxApdu = 1476,
     this.vendorId = 0,
-    this.segmentation = 3,
+    this.segmentation = BacnetSegmentation.none,
     this.adr = const [],
   });
 
@@ -90,7 +93,7 @@ class IAmEvent extends BacnetEvent {
   final int vendorId;
 
   /// Segmentation supported (0 both, 1 transmit, 2 receive, 3 none).
-  final int segmentation;
+  final BacnetSegmentation segmentation;
 
   /// MAC address of the device behind a router (empty for local devices).
   final List<int> adr;
@@ -123,7 +126,7 @@ class CovNotificationEvent extends BacnetEvent {
   });
 
   /// Object type of the monitored object.
-  final int objectType;
+  final BacnetObjectType objectType;
 
   /// Instance of the monitored object.
   final int instance;
@@ -170,13 +173,13 @@ class PropertyWriteEvent extends BacnetEvent {
   });
 
   /// Object type written to.
-  final int objectType;
+  final BacnetObjectType objectType;
 
   /// Object instance written to.
   final int instance;
 
   /// Property identifier written.
-  final int propertyId;
+  final BacnetPropertyId propertyId;
 
   /// Decoded written value.
   final Object? value;

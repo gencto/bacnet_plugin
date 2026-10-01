@@ -26,13 +26,13 @@ class PropertyMonitorWidget extends StatefulWidget {
   final int deviceId;
 
   /// The object type.
-  final int objectType;
+  final BacnetObjectType objectType;
 
   /// The object instance.
   final int instance;
 
-  /// The property ID to monitor.
-  final int propertyId;
+  /// The property to monitor.
+  final BacnetPropertyId propertyId;
 
   /// Optional human-readable property name.
   final String? propertyName;

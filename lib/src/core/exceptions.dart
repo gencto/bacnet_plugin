@@ -58,10 +58,10 @@ class BacnetProtocolException extends BacnetException {
   });
 
   /// BACnet error class.
-  final int errorClass;
+  final BacnetErrorClass errorClass;
 
   /// BACnet error code.
-  final int errorCode;
+  final BacnetErrorCode errorCode;
 
   @override
   String toString() =>
@@ -75,8 +75,8 @@ class BacnetRejectException extends BacnetException {
   /// Creates a reject exception.
   const BacnetRejectException(super.message, {required this.reason});
 
-  /// BACnet reject reason (see [BacnetRejectReason]).
-  final int reason;
+  /// BACnet reject reason.
+  final BacnetRejectReason reason;
 
   @override
   String toString() =>
@@ -92,8 +92,8 @@ class BacnetAbortException extends BacnetException {
     this.fromServer = true,
   });
 
-  /// BACnet abort reason (see [BacnetAbortReason]).
-  final int reason;
+  /// BACnet abort reason.
+  final BacnetAbortReason reason;
 
   /// True when the device aborted, false when aborted locally.
   final bool fromServer;

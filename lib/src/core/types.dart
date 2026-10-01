@@ -1,6 +1,7 @@
-/// @docImport '../constants/errors.dart';
 /// @docImport 'logger.dart';
 library;
+
+import '../constants/errors.dart';
 
 /// Log level enumeration for BACnet operations.
 ///
@@ -28,10 +29,10 @@ class BacnetError {
   const BacnetError(this.errorClass, this.errorCode);
 
   /// The error class (e.g., device, object, property).
-  final int errorClass;
+  final BacnetErrorClass errorClass;
 
   /// The specific error code within the error class.
-  final int errorCode;
+  final BacnetErrorCode errorCode;
 
   @override
   String toString() => 'BacnetError(class: $errorClass, code: $errorCode)';

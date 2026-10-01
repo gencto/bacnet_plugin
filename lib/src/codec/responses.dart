@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../constants/errors.dart';
 import '../core/types.dart';
 import '../models/bacnet_object.dart';
 import 'reader.dart';
@@ -72,8 +73,8 @@ Map<String, Map<int, dynamic>> decodeReadPropertyMultipleAck(Uint8List data) {
         final errorCode = r.readApplicationValue();
         r.expectClosing(5);
         properties[propertyId] = BacnetError(
-          errorClass is int ? errorClass : -1,
-          errorCode is int ? errorCode : -1,
+          BacnetErrorClass(errorClass is int ? errorClass : -1),
+          BacnetErrorCode(errorCode is int ? errorCode : -1),
         );
       }
     }
@@ -237,7 +238,7 @@ CovNotificationData decodeCovNotification(Uint8List data) {
   final errorClass = r.readApplicationValue();
   final errorCode = r.readApplicationValue();
   return (
-    errorClass is int ? errorClass : -1,
-    errorCode is int ? errorCode : -1,
+    BacnetErrorClass(errorClass is int ? errorClass : -1),
+    BacnetErrorCode(errorCode is int ? errorCode : -1),
   );
 }

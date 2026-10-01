@@ -4,6 +4,7 @@ library;
 import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
 
+import '../constants/property_ids.dart';
 import 'bacnet_object.dart';
 
 part 'rpm_models.g.dart';
@@ -27,7 +28,7 @@ class BacnetPropertyReference {
   /// The property identifier to read.
   ///
   /// Use [BacnetPropertyId] constants for standard properties.
-  final int propertyIdentifier;
+  final BacnetPropertyId propertyIdentifier;
 
   /// Optional array index for array properties.
   ///
@@ -45,7 +46,7 @@ class BacnetPropertyReference {
 
   /// Creates a copy of this reference with updated values.
   BacnetPropertyReference copyWith({
-    int? propertyIdentifier,
+    BacnetPropertyId? propertyIdentifier,
     int? propertyArrayIndex,
   }) {
     return BacnetPropertyReference(

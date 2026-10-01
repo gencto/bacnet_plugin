@@ -14,8 +14,15 @@ void main() {
       bytes([0x0C, 0, 0, 0, 5, 0x19, 0x55, 0x3E, 0x44, 0x42, 0x90, 0, 0, 0x3F]),
       encodeReadPropertyMultiple(const [
         BacnetReadAccessSpecification(
-          objectIdentifier: BacnetObject(type: 0, instance: 1),
-          properties: [BacnetPropertyReference(propertyIdentifier: 85)],
+          objectIdentifier: BacnetObject(
+            type: BacnetObjectType.analogInput,
+            instance: 1,
+          ),
+          properties: [
+            BacnetPropertyReference(
+              propertyIdentifier: BacnetPropertyId.presentValue,
+            ),
+          ],
         ),
       ]),
       bytes([

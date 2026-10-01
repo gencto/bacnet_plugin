@@ -2,1601 +2,1606 @@
 // bacnet-stack bacenum.h. Do not edit.
 
 /// BACnet property identifiers (BACnetPropertyIdentifier).
-abstract final class BacnetPropertyId {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetPropertyId(value)`.
+extension type const BacnetPropertyId(int value) implements int {
   /// Acked Transitions.
-  static const int ackedTransitions = 0;
+  static const ackedTransitions = BacnetPropertyId(0);
 
   /// Ack Required.
-  static const int ackRequired = 1;
+  static const ackRequired = BacnetPropertyId(1);
 
   /// Action.
-  static const int action = 2;
+  static const action = BacnetPropertyId(2);
 
   /// Action Text.
-  static const int actionText = 3;
+  static const actionText = BacnetPropertyId(3);
 
   /// Active Text.
-  static const int activeText = 4;
+  static const activeText = BacnetPropertyId(4);
 
   /// Active VT Sessions.
-  static const int activeVtSessions = 5;
+  static const activeVtSessions = BacnetPropertyId(5);
 
   /// Alarm Value.
-  static const int alarmValue = 6;
+  static const alarmValue = BacnetPropertyId(6);
 
   /// Alarm Values.
-  static const int alarmValues = 7;
+  static const alarmValues = BacnetPropertyId(7);
 
   /// All.
-  static const int all = 8;
+  static const all = BacnetPropertyId(8);
 
   /// All Writes Successful.
-  static const int allWritesSuccessful = 9;
+  static const allWritesSuccessful = BacnetPropertyId(9);
 
   /// APDU Segment Timeout.
-  static const int apduSegmentTimeout = 10;
+  static const apduSegmentTimeout = BacnetPropertyId(10);
 
   /// APDU Timeout.
-  static const int apduTimeout = 11;
+  static const apduTimeout = BacnetPropertyId(11);
 
   /// Application Software Version.
-  static const int applicationSoftwareVersion = 12;
+  static const applicationSoftwareVersion = BacnetPropertyId(12);
 
   /// Archive.
-  static const int archive = 13;
+  static const archive = BacnetPropertyId(13);
 
   /// Bias.
-  static const int bias = 14;
+  static const bias = BacnetPropertyId(14);
 
   /// Change Of State Count.
-  static const int changeOfStateCount = 15;
+  static const changeOfStateCount = BacnetPropertyId(15);
 
   /// Change Of State Time.
-  static const int changeOfStateTime = 16;
+  static const changeOfStateTime = BacnetPropertyId(16);
 
   /// Notification Class.
-  static const int notificationClass = 17;
+  static const notificationClass = BacnetPropertyId(17);
 
   /// Controlled Variable Reference.
-  static const int controlledVariableReference = 19;
+  static const controlledVariableReference = BacnetPropertyId(19);
 
   /// Controlled Variable Units.
-  static const int controlledVariableUnits = 20;
+  static const controlledVariableUnits = BacnetPropertyId(20);
 
   /// Controlled Variable Value.
-  static const int controlledVariableValue = 21;
+  static const controlledVariableValue = BacnetPropertyId(21);
 
   /// COV Increment.
-  static const int covIncrement = 22;
+  static const covIncrement = BacnetPropertyId(22);
 
   /// Date List.
-  static const int dateList = 23;
+  static const dateList = BacnetPropertyId(23);
 
   /// Daylight Savings Status.
-  static const int daylightSavingsStatus = 24;
+  static const daylightSavingsStatus = BacnetPropertyId(24);
 
   /// Deadband.
-  static const int deadband = 25;
+  static const deadband = BacnetPropertyId(25);
 
   /// Derivative Constant.
-  static const int derivativeConstant = 26;
+  static const derivativeConstant = BacnetPropertyId(26);
 
   /// Derivative Constant Units.
-  static const int derivativeConstantUnits = 27;
+  static const derivativeConstantUnits = BacnetPropertyId(27);
 
   /// Description.
-  static const int description = 28;
+  static const description = BacnetPropertyId(28);
 
   /// Description Of Halt.
-  static const int descriptionOfHalt = 29;
+  static const descriptionOfHalt = BacnetPropertyId(29);
 
   /// Device Address Binding.
-  static const int deviceAddressBinding = 30;
+  static const deviceAddressBinding = BacnetPropertyId(30);
 
   /// Device Type.
-  static const int deviceType = 31;
+  static const deviceType = BacnetPropertyId(31);
 
   /// Effective Period.
-  static const int effectivePeriod = 32;
+  static const effectivePeriod = BacnetPropertyId(32);
 
   /// Elapsed Active Time.
-  static const int elapsedActiveTime = 33;
+  static const elapsedActiveTime = BacnetPropertyId(33);
 
   /// Error Limit.
-  static const int errorLimit = 34;
+  static const errorLimit = BacnetPropertyId(34);
 
   /// Event Enable.
-  static const int eventEnable = 35;
+  static const eventEnable = BacnetPropertyId(35);
 
   /// Event State.
-  static const int eventState = 36;
+  static const eventState = BacnetPropertyId(36);
 
   /// Event Type.
-  static const int eventType = 37;
+  static const eventType = BacnetPropertyId(37);
 
   /// Exception Schedule.
-  static const int exceptionSchedule = 38;
+  static const exceptionSchedule = BacnetPropertyId(38);
 
   /// Fault Values.
-  static const int faultValues = 39;
+  static const faultValues = BacnetPropertyId(39);
 
   /// Feedback Value.
-  static const int feedbackValue = 40;
+  static const feedbackValue = BacnetPropertyId(40);
 
   /// File Access Method.
-  static const int fileAccessMethod = 41;
+  static const fileAccessMethod = BacnetPropertyId(41);
 
   /// File Size.
-  static const int fileSize = 42;
+  static const fileSize = BacnetPropertyId(42);
 
   /// File Type.
-  static const int fileType = 43;
+  static const fileType = BacnetPropertyId(43);
 
   /// Firmware Revision.
-  static const int firmwareRevision = 44;
+  static const firmwareRevision = BacnetPropertyId(44);
 
   /// High Limit.
-  static const int highLimit = 45;
+  static const highLimit = BacnetPropertyId(45);
 
   /// Inactive Text.
-  static const int inactiveText = 46;
+  static const inactiveText = BacnetPropertyId(46);
 
   /// In Process.
-  static const int inProcess = 47;
+  static const inProcess = BacnetPropertyId(47);
 
   /// Instance Of.
-  static const int instanceOf = 48;
+  static const instanceOf = BacnetPropertyId(48);
 
   /// Integral Constant.
-  static const int integralConstant = 49;
+  static const integralConstant = BacnetPropertyId(49);
 
   /// Integral Constant Units.
-  static const int integralConstantUnits = 50;
+  static const integralConstantUnits = BacnetPropertyId(50);
 
   /// Issue Confirmed Notifications.
-  static const int issueConfirmedNotifications = 51;
+  static const issueConfirmedNotifications = BacnetPropertyId(51);
 
   /// Limit Enable.
-  static const int limitEnable = 52;
+  static const limitEnable = BacnetPropertyId(52);
 
   /// List Of Group Members.
-  static const int listOfGroupMembers = 53;
+  static const listOfGroupMembers = BacnetPropertyId(53);
 
   /// List Of Object Property References.
-  static const int listOfObjectPropertyReferences = 54;
+  static const listOfObjectPropertyReferences = BacnetPropertyId(54);
 
   /// List Of Session Keys.
-  static const int listOfSessionKeys = 55;
+  static const listOfSessionKeys = BacnetPropertyId(55);
 
   /// Local Date.
-  static const int localDate = 56;
+  static const localDate = BacnetPropertyId(56);
 
   /// Local Time.
-  static const int localTime = 57;
+  static const localTime = BacnetPropertyId(57);
 
   /// Location.
-  static const int location = 58;
+  static const location = BacnetPropertyId(58);
 
   /// Low Limit.
-  static const int lowLimit = 59;
+  static const lowLimit = BacnetPropertyId(59);
 
   /// Manipulated Variable Reference.
-  static const int manipulatedVariableReference = 60;
+  static const manipulatedVariableReference = BacnetPropertyId(60);
 
   /// Maximum Output.
-  static const int maximumOutput = 61;
+  static const maximumOutput = BacnetPropertyId(61);
 
   /// Max APDU Length Accepted.
-  static const int maxApduLengthAccepted = 62;
+  static const maxApduLengthAccepted = BacnetPropertyId(62);
 
   /// Max Info Frames.
-  static const int maxInfoFrames = 63;
+  static const maxInfoFrames = BacnetPropertyId(63);
 
   /// Max Master.
-  static const int maxMaster = 64;
+  static const maxMaster = BacnetPropertyId(64);
 
   /// Max Pres Value.
-  static const int maxPresValue = 65;
+  static const maxPresValue = BacnetPropertyId(65);
 
   /// Minimum Off Time.
-  static const int minimumOffTime = 66;
+  static const minimumOffTime = BacnetPropertyId(66);
 
   /// Minimum On Time.
-  static const int minimumOnTime = 67;
+  static const minimumOnTime = BacnetPropertyId(67);
 
   /// Minimum Output.
-  static const int minimumOutput = 68;
+  static const minimumOutput = BacnetPropertyId(68);
 
   /// Min Pres Value.
-  static const int minPresValue = 69;
+  static const minPresValue = BacnetPropertyId(69);
 
   /// Model Name.
-  static const int modelName = 70;
+  static const modelName = BacnetPropertyId(70);
 
   /// Modification Date.
-  static const int modificationDate = 71;
+  static const modificationDate = BacnetPropertyId(71);
 
   /// Notify Type.
-  static const int notifyType = 72;
+  static const notifyType = BacnetPropertyId(72);
 
   /// Number Of APDU Retries.
-  static const int numberOfApduRetries = 73;
+  static const numberOfApduRetries = BacnetPropertyId(73);
 
   /// Number Of States.
-  static const int numberOfStates = 74;
+  static const numberOfStates = BacnetPropertyId(74);
 
   /// Object Identifier.
-  static const int objectIdentifier = 75;
+  static const objectIdentifier = BacnetPropertyId(75);
 
   /// Object List.
-  static const int objectList = 76;
+  static const objectList = BacnetPropertyId(76);
 
   /// Object Name.
-  static const int objectName = 77;
+  static const objectName = BacnetPropertyId(77);
 
   /// Object Property Reference.
-  static const int objectPropertyReference = 78;
+  static const objectPropertyReference = BacnetPropertyId(78);
 
   /// Object Type.
-  static const int objectType = 79;
+  static const objectType = BacnetPropertyId(79);
 
   /// Optional.
-  static const int optional = 80;
+  static const optional = BacnetPropertyId(80);
 
   /// Out Of Service.
-  static const int outOfService = 81;
+  static const outOfService = BacnetPropertyId(81);
 
   /// Output Units.
-  static const int outputUnits = 82;
+  static const outputUnits = BacnetPropertyId(82);
 
   /// Event Parameters.
-  static const int eventParameters = 83;
+  static const eventParameters = BacnetPropertyId(83);
 
   /// Polarity.
-  static const int polarity = 84;
+  static const polarity = BacnetPropertyId(84);
 
   /// Present Value.
-  static const int presentValue = 85;
+  static const presentValue = BacnetPropertyId(85);
 
   /// Priority.
-  static const int priority = 86;
+  static const priority = BacnetPropertyId(86);
 
   /// Priority Array.
-  static const int priorityArray = 87;
+  static const priorityArray = BacnetPropertyId(87);
 
   /// Priority For Writing.
-  static const int priorityForWriting = 88;
+  static const priorityForWriting = BacnetPropertyId(88);
 
   /// Process Identifier.
-  static const int processIdentifier = 89;
+  static const processIdentifier = BacnetPropertyId(89);
 
   /// Program Change.
-  static const int programChange = 90;
+  static const programChange = BacnetPropertyId(90);
 
   /// Program Location.
-  static const int programLocation = 91;
+  static const programLocation = BacnetPropertyId(91);
 
   /// Program State.
-  static const int programState = 92;
+  static const programState = BacnetPropertyId(92);
 
   /// Proportional Constant.
-  static const int proportionalConstant = 93;
+  static const proportionalConstant = BacnetPropertyId(93);
 
   /// Proportional Constant Units.
-  static const int proportionalConstantUnits = 94;
+  static const proportionalConstantUnits = BacnetPropertyId(94);
 
   /// Protocol Conformance Class.
-  static const int protocolConformanceClass = 95;
+  static const protocolConformanceClass = BacnetPropertyId(95);
 
   /// Protocol Object Types Supported.
-  static const int protocolObjectTypesSupported = 96;
+  static const protocolObjectTypesSupported = BacnetPropertyId(96);
 
   /// Protocol Services Supported.
-  static const int protocolServicesSupported = 97;
+  static const protocolServicesSupported = BacnetPropertyId(97);
 
   /// Protocol Version.
-  static const int protocolVersion = 98;
+  static const protocolVersion = BacnetPropertyId(98);
 
   /// Read Only.
-  static const int readOnly = 99;
+  static const readOnly = BacnetPropertyId(99);
 
   /// Reason For Halt.
-  static const int reasonForHalt = 100;
+  static const reasonForHalt = BacnetPropertyId(100);
 
   /// Recipient.
-  static const int recipient = 101;
+  static const recipient = BacnetPropertyId(101);
 
   /// Recipient List.
-  static const int recipientList = 102;
+  static const recipientList = BacnetPropertyId(102);
 
   /// Reliability.
-  static const int reliability = 103;
+  static const reliability = BacnetPropertyId(103);
 
   /// Relinquish Default.
-  static const int relinquishDefault = 104;
+  static const relinquishDefault = BacnetPropertyId(104);
 
   /// Required.
-  static const int required = 105;
+  static const required = BacnetPropertyId(105);
 
   /// Resolution.
-  static const int resolution = 106;
+  static const resolution = BacnetPropertyId(106);
 
   /// Segmentation Supported.
-  static const int segmentationSupported = 107;
+  static const segmentationSupported = BacnetPropertyId(107);
 
   /// Setpoint.
-  static const int setpoint = 108;
+  static const setpoint = BacnetPropertyId(108);
 
   /// Setpoint Reference.
-  static const int setpointReference = 109;
+  static const setpointReference = BacnetPropertyId(109);
 
   /// State Text.
-  static const int stateText = 110;
+  static const stateText = BacnetPropertyId(110);
 
   /// Status Flags.
-  static const int statusFlags = 111;
+  static const statusFlags = BacnetPropertyId(111);
 
   /// System Status.
-  static const int systemStatus = 112;
+  static const systemStatus = BacnetPropertyId(112);
 
   /// Time Delay.
-  static const int timeDelay = 113;
+  static const timeDelay = BacnetPropertyId(113);
 
   /// Time Of Active Time Reset.
-  static const int timeOfActiveTimeReset = 114;
+  static const timeOfActiveTimeReset = BacnetPropertyId(114);
 
   /// Time Of State Count Reset.
-  static const int timeOfStateCountReset = 115;
+  static const timeOfStateCountReset = BacnetPropertyId(115);
 
   /// Time Synchronization Recipients.
-  static const int timeSynchronizationRecipients = 116;
+  static const timeSynchronizationRecipients = BacnetPropertyId(116);
 
   /// Units.
-  static const int units = 117;
+  static const units = BacnetPropertyId(117);
 
   /// Update Interval.
-  static const int updateInterval = 118;
+  static const updateInterval = BacnetPropertyId(118);
 
   /// UTC Offset.
-  static const int utcOffset = 119;
+  static const utcOffset = BacnetPropertyId(119);
 
   /// Vendor Identifier.
-  static const int vendorIdentifier = 120;
+  static const vendorIdentifier = BacnetPropertyId(120);
 
   /// Vendor Name.
-  static const int vendorName = 121;
+  static const vendorName = BacnetPropertyId(121);
 
   /// VT Classes Supported.
-  static const int vtClassesSupported = 122;
+  static const vtClassesSupported = BacnetPropertyId(122);
 
   /// Weekly Schedule.
-  static const int weeklySchedule = 123;
+  static const weeklySchedule = BacnetPropertyId(123);
 
   /// Attempted Samples.
-  static const int attemptedSamples = 124;
+  static const attemptedSamples = BacnetPropertyId(124);
 
   /// Average Value.
-  static const int averageValue = 125;
+  static const averageValue = BacnetPropertyId(125);
 
   /// Buffer Size.
-  static const int bufferSize = 126;
+  static const bufferSize = BacnetPropertyId(126);
 
   /// Client COV Increment.
-  static const int clientCovIncrement = 127;
+  static const clientCovIncrement = BacnetPropertyId(127);
 
   /// COV Resubscription Interval.
-  static const int covResubscriptionInterval = 128;
+  static const covResubscriptionInterval = BacnetPropertyId(128);
 
   /// Current Notify Time.
-  static const int currentNotifyTime = 129;
+  static const currentNotifyTime = BacnetPropertyId(129);
 
   /// Event Time Stamps.
-  static const int eventTimeStamps = 130;
+  static const eventTimeStamps = BacnetPropertyId(130);
 
   /// Log Buffer.
-  static const int logBuffer = 131;
+  static const logBuffer = BacnetPropertyId(131);
 
   /// Log Device Object Property.
-  static const int logDeviceObjectProperty = 132;
+  static const logDeviceObjectProperty = BacnetPropertyId(132);
 
   /// Enable.
-  static const int enable = 133;
+  static const enable = BacnetPropertyId(133);
 
   /// Log Interval.
-  static const int logInterval = 134;
+  static const logInterval = BacnetPropertyId(134);
 
   /// Maximum Value.
-  static const int maximumValue = 135;
+  static const maximumValue = BacnetPropertyId(135);
 
   /// Minimum Value.
-  static const int minimumValue = 136;
+  static const minimumValue = BacnetPropertyId(136);
 
   /// Notification Threshold.
-  static const int notificationThreshold = 137;
+  static const notificationThreshold = BacnetPropertyId(137);
 
   /// Previous Notify Time.
-  static const int previousNotifyTime = 138;
+  static const previousNotifyTime = BacnetPropertyId(138);
 
   /// Protocol Revision.
-  static const int protocolRevision = 139;
+  static const protocolRevision = BacnetPropertyId(139);
 
   /// Records Since Notification.
-  static const int recordsSinceNotification = 140;
+  static const recordsSinceNotification = BacnetPropertyId(140);
 
   /// Record Count.
-  static const int recordCount = 141;
+  static const recordCount = BacnetPropertyId(141);
 
   /// Start Time.
-  static const int startTime = 142;
+  static const startTime = BacnetPropertyId(142);
 
   /// Stop Time.
-  static const int stopTime = 143;
+  static const stopTime = BacnetPropertyId(143);
 
   /// Stop When Full.
-  static const int stopWhenFull = 144;
+  static const stopWhenFull = BacnetPropertyId(144);
 
   /// Total Record Count.
-  static const int totalRecordCount = 145;
+  static const totalRecordCount = BacnetPropertyId(145);
 
   /// Valid Samples.
-  static const int validSamples = 146;
+  static const validSamples = BacnetPropertyId(146);
 
   /// Window Interval.
-  static const int windowInterval = 147;
+  static const windowInterval = BacnetPropertyId(147);
 
   /// Window Samples.
-  static const int windowSamples = 148;
+  static const windowSamples = BacnetPropertyId(148);
 
   /// Maximum Value Timestamp.
-  static const int maximumValueTimestamp = 149;
+  static const maximumValueTimestamp = BacnetPropertyId(149);
 
   /// Minimum Value Timestamp.
-  static const int minimumValueTimestamp = 150;
+  static const minimumValueTimestamp = BacnetPropertyId(150);
 
   /// Variance Value.
-  static const int varianceValue = 151;
+  static const varianceValue = BacnetPropertyId(151);
 
   /// Active COV Subscriptions.
-  static const int activeCovSubscriptions = 152;
+  static const activeCovSubscriptions = BacnetPropertyId(152);
 
   /// Backup Failure Timeout.
-  static const int backupFailureTimeout = 153;
+  static const backupFailureTimeout = BacnetPropertyId(153);
 
   /// Configuration Files.
-  static const int configurationFiles = 154;
+  static const configurationFiles = BacnetPropertyId(154);
 
   /// Database Revision.
-  static const int databaseRevision = 155;
+  static const databaseRevision = BacnetPropertyId(155);
 
   /// Direct Reading.
-  static const int directReading = 156;
+  static const directReading = BacnetPropertyId(156);
 
   /// Last Restore Time.
-  static const int lastRestoreTime = 157;
+  static const lastRestoreTime = BacnetPropertyId(157);
 
   /// Maintenance Required.
-  static const int maintenanceRequired = 158;
+  static const maintenanceRequired = BacnetPropertyId(158);
 
   /// Member Of.
-  static const int memberOf = 159;
+  static const memberOf = BacnetPropertyId(159);
 
   /// Mode.
-  static const int mode = 160;
+  static const mode = BacnetPropertyId(160);
 
   /// Operation Expected.
-  static const int operationExpected = 161;
+  static const operationExpected = BacnetPropertyId(161);
 
   /// Setting.
-  static const int setting = 162;
+  static const setting = BacnetPropertyId(162);
 
   /// Silenced.
-  static const int silenced = 163;
+  static const silenced = BacnetPropertyId(163);
 
   /// Tracking Value.
-  static const int trackingValue = 164;
+  static const trackingValue = BacnetPropertyId(164);
 
   /// Zone Members.
-  static const int zoneMembers = 165;
+  static const zoneMembers = BacnetPropertyId(165);
 
   /// Life Safety Alarm Values.
-  static const int lifeSafetyAlarmValues = 166;
+  static const lifeSafetyAlarmValues = BacnetPropertyId(166);
 
   /// Max Segments Accepted.
-  static const int maxSegmentsAccepted = 167;
+  static const maxSegmentsAccepted = BacnetPropertyId(167);
 
   /// Profile Name.
-  static const int profileName = 168;
+  static const profileName = BacnetPropertyId(168);
 
   /// Auto Slave Discovery.
-  static const int autoSlaveDiscovery = 169;
+  static const autoSlaveDiscovery = BacnetPropertyId(169);
 
   /// Manual Slave Address Binding.
-  static const int manualSlaveAddressBinding = 170;
+  static const manualSlaveAddressBinding = BacnetPropertyId(170);
 
   /// Slave Address Binding.
-  static const int slaveAddressBinding = 171;
+  static const slaveAddressBinding = BacnetPropertyId(171);
 
   /// Slave Proxy Enable.
-  static const int slaveProxyEnable = 172;
+  static const slaveProxyEnable = BacnetPropertyId(172);
 
   /// Last Notify Record.
-  static const int lastNotifyRecord = 173;
+  static const lastNotifyRecord = BacnetPropertyId(173);
 
   /// Schedule Default.
-  static const int scheduleDefault = 174;
+  static const scheduleDefault = BacnetPropertyId(174);
 
   /// Accepted Modes.
-  static const int acceptedModes = 175;
+  static const acceptedModes = BacnetPropertyId(175);
 
   /// Adjust Value.
-  static const int adjustValue = 176;
+  static const adjustValue = BacnetPropertyId(176);
 
   /// Count.
-  static const int count = 177;
+  static const count = BacnetPropertyId(177);
 
   /// Count Before Change.
-  static const int countBeforeChange = 178;
+  static const countBeforeChange = BacnetPropertyId(178);
 
   /// Count Change Time.
-  static const int countChangeTime = 179;
+  static const countChangeTime = BacnetPropertyId(179);
 
   /// COV Period.
-  static const int covPeriod = 180;
+  static const covPeriod = BacnetPropertyId(180);
 
   /// Input Reference.
-  static const int inputReference = 181;
+  static const inputReference = BacnetPropertyId(181);
 
   /// Limit Monitoring Interval.
-  static const int limitMonitoringInterval = 182;
+  static const limitMonitoringInterval = BacnetPropertyId(182);
 
   /// Logging Object.
-  static const int loggingObject = 183;
+  static const loggingObject = BacnetPropertyId(183);
 
   /// Logging Record.
-  static const int loggingRecord = 184;
+  static const loggingRecord = BacnetPropertyId(184);
 
   /// Prescale.
-  static const int prescale = 185;
+  static const prescale = BacnetPropertyId(185);
 
   /// Pulse Rate.
-  static const int pulseRate = 186;
+  static const pulseRate = BacnetPropertyId(186);
 
   /// Scale.
-  static const int scale = 187;
+  static const scale = BacnetPropertyId(187);
 
   /// Scale Factor.
-  static const int scaleFactor = 188;
+  static const scaleFactor = BacnetPropertyId(188);
 
   /// Update Time.
-  static const int updateTime = 189;
+  static const updateTime = BacnetPropertyId(189);
 
   /// Value Before Change.
-  static const int valueBeforeChange = 190;
+  static const valueBeforeChange = BacnetPropertyId(190);
 
   /// Value Set.
-  static const int valueSet = 191;
+  static const valueSet = BacnetPropertyId(191);
 
   /// Value Change Time.
-  static const int valueChangeTime = 192;
+  static const valueChangeTime = BacnetPropertyId(192);
 
   /// Align Intervals.
-  static const int alignIntervals = 193;
+  static const alignIntervals = BacnetPropertyId(193);
 
   /// Interval Offset.
-  static const int intervalOffset = 195;
+  static const intervalOffset = BacnetPropertyId(195);
 
   /// Last Restart Reason.
-  static const int lastRestartReason = 196;
+  static const lastRestartReason = BacnetPropertyId(196);
 
   /// Logging Type.
-  static const int loggingType = 197;
+  static const loggingType = BacnetPropertyId(197);
 
   /// Restart Notification Recipients.
-  static const int restartNotificationRecipients = 202;
+  static const restartNotificationRecipients = BacnetPropertyId(202);
 
   /// Time Of Device Restart.
-  static const int timeOfDeviceRestart = 203;
+  static const timeOfDeviceRestart = BacnetPropertyId(203);
 
   /// Time Synchronization Interval.
-  static const int timeSynchronizationInterval = 204;
+  static const timeSynchronizationInterval = BacnetPropertyId(204);
 
   /// Trigger.
-  static const int trigger = 205;
+  static const trigger = BacnetPropertyId(205);
 
   /// UTC Time Synchronization Recipients.
-  static const int utcTimeSynchronizationRecipients = 206;
+  static const utcTimeSynchronizationRecipients = BacnetPropertyId(206);
 
   /// Node Subtype.
-  static const int nodeSubtype = 207;
+  static const nodeSubtype = BacnetPropertyId(207);
 
   /// Node Type.
-  static const int nodeType = 208;
+  static const nodeType = BacnetPropertyId(208);
 
   /// Structured Object List.
-  static const int structuredObjectList = 209;
+  static const structuredObjectList = BacnetPropertyId(209);
 
   /// Subordinate Annotations.
-  static const int subordinateAnnotations = 210;
+  static const subordinateAnnotations = BacnetPropertyId(210);
 
   /// Subordinate List.
-  static const int subordinateList = 211;
+  static const subordinateList = BacnetPropertyId(211);
 
   /// Actual Shed Level.
-  static const int actualShedLevel = 212;
+  static const actualShedLevel = BacnetPropertyId(212);
 
   /// Duty Window.
-  static const int dutyWindow = 213;
+  static const dutyWindow = BacnetPropertyId(213);
 
   /// Expected Shed Level.
-  static const int expectedShedLevel = 214;
+  static const expectedShedLevel = BacnetPropertyId(214);
 
   /// Full Duty Baseline.
-  static const int fullDutyBaseline = 215;
+  static const fullDutyBaseline = BacnetPropertyId(215);
 
   /// Requested Shed Level.
-  static const int requestedShedLevel = 218;
+  static const requestedShedLevel = BacnetPropertyId(218);
 
   /// Shed Duration.
-  static const int shedDuration = 219;
+  static const shedDuration = BacnetPropertyId(219);
 
   /// Shed Level Descriptions.
-  static const int shedLevelDescriptions = 220;
+  static const shedLevelDescriptions = BacnetPropertyId(220);
 
   /// Shed Levels.
-  static const int shedLevels = 221;
+  static const shedLevels = BacnetPropertyId(221);
 
   /// State Description.
-  static const int stateDescription = 222;
+  static const stateDescription = BacnetPropertyId(222);
 
   /// Door Alarm State.
-  static const int doorAlarmState = 226;
+  static const doorAlarmState = BacnetPropertyId(226);
 
   /// Door Extended Pulse Time.
-  static const int doorExtendedPulseTime = 227;
+  static const doorExtendedPulseTime = BacnetPropertyId(227);
 
   /// Door Members.
-  static const int doorMembers = 228;
+  static const doorMembers = BacnetPropertyId(228);
 
   /// Door Open Too Long Time.
-  static const int doorOpenTooLongTime = 229;
+  static const doorOpenTooLongTime = BacnetPropertyId(229);
 
   /// Door Pulse Time.
-  static const int doorPulseTime = 230;
+  static const doorPulseTime = BacnetPropertyId(230);
 
   /// Door Status.
-  static const int doorStatus = 231;
+  static const doorStatus = BacnetPropertyId(231);
 
   /// Door Unlock Delay Time.
-  static const int doorUnlockDelayTime = 232;
+  static const doorUnlockDelayTime = BacnetPropertyId(232);
 
   /// Lock Status.
-  static const int lockStatus = 233;
+  static const lockStatus = BacnetPropertyId(233);
 
   /// Masked Alarm Values.
-  static const int maskedAlarmValues = 234;
+  static const maskedAlarmValues = BacnetPropertyId(234);
 
   /// Secured Status.
-  static const int securedStatus = 235;
+  static const securedStatus = BacnetPropertyId(235);
 
   /// Absentee Limit.
-  static const int absenteeLimit = 244;
+  static const absenteeLimit = BacnetPropertyId(244);
 
   /// Access Alarm Events.
-  static const int accessAlarmEvents = 245;
+  static const accessAlarmEvents = BacnetPropertyId(245);
 
   /// Access Doors.
-  static const int accessDoors = 246;
+  static const accessDoors = BacnetPropertyId(246);
 
   /// Access Event.
-  static const int accessEvent = 247;
+  static const accessEvent = BacnetPropertyId(247);
 
   /// Access Event Authentication Factor.
-  static const int accessEventAuthenticationFactor = 248;
+  static const accessEventAuthenticationFactor = BacnetPropertyId(248);
 
   /// Access Event Credential.
-  static const int accessEventCredential = 249;
+  static const accessEventCredential = BacnetPropertyId(249);
 
   /// Access Event Time.
-  static const int accessEventTime = 250;
+  static const accessEventTime = BacnetPropertyId(250);
 
   /// Access Transaction Events.
-  static const int accessTransactionEvents = 251;
+  static const accessTransactionEvents = BacnetPropertyId(251);
 
   /// Accompaniment.
-  static const int accompaniment = 252;
+  static const accompaniment = BacnetPropertyId(252);
 
   /// Accompaniment Time.
-  static const int accompanimentTime = 253;
+  static const accompanimentTime = BacnetPropertyId(253);
 
   /// Activation Time.
-  static const int activationTime = 254;
+  static const activationTime = BacnetPropertyId(254);
 
   /// Active Authentication Policy.
-  static const int activeAuthenticationPolicy = 255;
+  static const activeAuthenticationPolicy = BacnetPropertyId(255);
 
   /// Assigned Access Rights.
-  static const int assignedAccessRights = 256;
+  static const assignedAccessRights = BacnetPropertyId(256);
 
   /// Authentication Factors.
-  static const int authenticationFactors = 257;
+  static const authenticationFactors = BacnetPropertyId(257);
 
   /// Authentication Policy List.
-  static const int authenticationPolicyList = 258;
+  static const authenticationPolicyList = BacnetPropertyId(258);
 
   /// Authentication Policy Names.
-  static const int authenticationPolicyNames = 259;
+  static const authenticationPolicyNames = BacnetPropertyId(259);
 
   /// Authentication Status.
-  static const int authenticationStatus = 260;
+  static const authenticationStatus = BacnetPropertyId(260);
 
   /// Authorization Mode.
-  static const int authorizationMode = 261;
+  static const authorizationMode = BacnetPropertyId(261);
 
   /// Belongs To.
-  static const int belongsTo = 262;
+  static const belongsTo = BacnetPropertyId(262);
 
   /// Credential Disable.
-  static const int credentialDisable = 263;
+  static const credentialDisable = BacnetPropertyId(263);
 
   /// Credential Status.
-  static const int credentialStatus = 264;
+  static const credentialStatus = BacnetPropertyId(264);
 
   /// Credentials.
-  static const int credentials = 265;
+  static const credentials = BacnetPropertyId(265);
 
   /// Credentials In Zone.
-  static const int credentialsInZone = 266;
+  static const credentialsInZone = BacnetPropertyId(266);
 
   /// Days Remaining.
-  static const int daysRemaining = 267;
+  static const daysRemaining = BacnetPropertyId(267);
 
   /// Entry Points.
-  static const int entryPoints = 268;
+  static const entryPoints = BacnetPropertyId(268);
 
   /// Exit Points.
-  static const int exitPoints = 269;
+  static const exitPoints = BacnetPropertyId(269);
 
   /// Expiration Time.
-  static const int expirationTime = 270;
+  static const expirationTime = BacnetPropertyId(270);
 
   /// Extended Time Enable.
-  static const int extendedTimeEnable = 271;
+  static const extendedTimeEnable = BacnetPropertyId(271);
 
   /// Failed Attempt Events.
-  static const int failedAttemptEvents = 272;
+  static const failedAttemptEvents = BacnetPropertyId(272);
 
   /// Failed Attempts.
-  static const int failedAttempts = 273;
+  static const failedAttempts = BacnetPropertyId(273);
 
   /// Failed Attempts Time.
-  static const int failedAttemptsTime = 274;
+  static const failedAttemptsTime = BacnetPropertyId(274);
 
   /// Last Access Event.
-  static const int lastAccessEvent = 275;
+  static const lastAccessEvent = BacnetPropertyId(275);
 
   /// Last Access Point.
-  static const int lastAccessPoint = 276;
+  static const lastAccessPoint = BacnetPropertyId(276);
 
   /// Last Credential Added.
-  static const int lastCredentialAdded = 277;
+  static const lastCredentialAdded = BacnetPropertyId(277);
 
   /// Last Credential Added Time.
-  static const int lastCredentialAddedTime = 278;
+  static const lastCredentialAddedTime = BacnetPropertyId(278);
 
   /// Last Credential Removed.
-  static const int lastCredentialRemoved = 279;
+  static const lastCredentialRemoved = BacnetPropertyId(279);
 
   /// Last Credential Removed Time.
-  static const int lastCredentialRemovedTime = 280;
+  static const lastCredentialRemovedTime = BacnetPropertyId(280);
 
   /// Last Use Time.
-  static const int lastUseTime = 281;
+  static const lastUseTime = BacnetPropertyId(281);
 
   /// Lockout.
-  static const int lockout = 282;
+  static const lockout = BacnetPropertyId(282);
 
   /// Lockout Relinquish Time.
-  static const int lockoutRelinquishTime = 283;
+  static const lockoutRelinquishTime = BacnetPropertyId(283);
 
   /// Master Exemption.
-  static const int masterExemption = 284;
+  static const masterExemption = BacnetPropertyId(284);
 
   /// Max Failed Attempts.
-  static const int maxFailedAttempts = 285;
+  static const maxFailedAttempts = BacnetPropertyId(285);
 
   /// Members.
-  static const int members = 286;
+  static const members = BacnetPropertyId(286);
 
   /// Muster Point.
-  static const int musterPoint = 287;
+  static const musterPoint = BacnetPropertyId(287);
 
   /// Negative Access Rules.
-  static const int negativeAccessRules = 288;
+  static const negativeAccessRules = BacnetPropertyId(288);
 
   /// Number Of Authentication Policies.
-  static const int numberOfAuthenticationPolicies = 289;
+  static const numberOfAuthenticationPolicies = BacnetPropertyId(289);
 
   /// Occupancy Count.
-  static const int occupancyCount = 290;
+  static const occupancyCount = BacnetPropertyId(290);
 
   /// Occupancy Count Adjust.
-  static const int occupancyCountAdjust = 291;
+  static const occupancyCountAdjust = BacnetPropertyId(291);
 
   /// Occupancy Count Enable.
-  static const int occupancyCountEnable = 292;
+  static const occupancyCountEnable = BacnetPropertyId(292);
 
   /// Occupancy Exemption.
-  static const int occupancyExemption = 293;
+  static const occupancyExemption = BacnetPropertyId(293);
 
   /// Occupancy Lower Limit.
-  static const int occupancyLowerLimit = 294;
+  static const occupancyLowerLimit = BacnetPropertyId(294);
 
   /// Occupancy Lower Limit Enforced.
-  static const int occupancyLowerLimitEnforced = 295;
+  static const occupancyLowerLimitEnforced = BacnetPropertyId(295);
 
   /// Occupancy State.
-  static const int occupancyState = 296;
+  static const occupancyState = BacnetPropertyId(296);
 
   /// Occupancy Upper Limit.
-  static const int occupancyUpperLimit = 297;
+  static const occupancyUpperLimit = BacnetPropertyId(297);
 
   /// Occupancy Upper Limit Enforced.
-  static const int occupancyUpperLimitEnforced = 298;
+  static const occupancyUpperLimitEnforced = BacnetPropertyId(298);
 
   /// Passback Exemption.
-  static const int passbackExemption = 299;
+  static const passbackExemption = BacnetPropertyId(299);
 
   /// Passback Mode.
-  static const int passbackMode = 300;
+  static const passbackMode = BacnetPropertyId(300);
 
   /// Passback Timeout.
-  static const int passbackTimeout = 301;
+  static const passbackTimeout = BacnetPropertyId(301);
 
   /// Positive Access Rules.
-  static const int positiveAccessRules = 302;
+  static const positiveAccessRules = BacnetPropertyId(302);
 
   /// Reason For Disable.
-  static const int reasonForDisable = 303;
+  static const reasonForDisable = BacnetPropertyId(303);
 
   /// Supported Formats.
-  static const int supportedFormats = 304;
+  static const supportedFormats = BacnetPropertyId(304);
 
   /// Supported Format Classes.
-  static const int supportedFormatClasses = 305;
+  static const supportedFormatClasses = BacnetPropertyId(305);
 
   /// Threat Authority.
-  static const int threatAuthority = 306;
+  static const threatAuthority = BacnetPropertyId(306);
 
   /// Threat Level.
-  static const int threatLevel = 307;
+  static const threatLevel = BacnetPropertyId(307);
 
   /// Trace Flag.
-  static const int traceFlag = 308;
+  static const traceFlag = BacnetPropertyId(308);
 
   /// Transaction Notification Class.
-  static const int transactionNotificationClass = 309;
+  static const transactionNotificationClass = BacnetPropertyId(309);
 
   /// User External Identifier.
-  static const int userExternalIdentifier = 310;
+  static const userExternalIdentifier = BacnetPropertyId(310);
 
   /// User Information Reference.
-  static const int userInformationReference = 311;
+  static const userInformationReference = BacnetPropertyId(311);
 
   /// User Name.
-  static const int userName = 317;
+  static const userName = BacnetPropertyId(317);
 
   /// User Type.
-  static const int userType = 318;
+  static const userType = BacnetPropertyId(318);
 
   /// Uses Remaining.
-  static const int usesRemaining = 319;
+  static const usesRemaining = BacnetPropertyId(319);
 
   /// Zone From.
-  static const int zoneFrom = 320;
+  static const zoneFrom = BacnetPropertyId(320);
 
   /// Zone To.
-  static const int zoneTo = 321;
+  static const zoneTo = BacnetPropertyId(321);
 
   /// Access Event Tag.
-  static const int accessEventTag = 322;
+  static const accessEventTag = BacnetPropertyId(322);
 
   /// Global Identifier.
-  static const int globalIdentifier = 323;
+  static const globalIdentifier = BacnetPropertyId(323);
 
   /// Verification Time.
-  static const int verificationTime = 326;
+  static const verificationTime = BacnetPropertyId(326);
 
   /// Base Device Security Policy.
-  static const int baseDeviceSecurityPolicy = 327;
+  static const baseDeviceSecurityPolicy = BacnetPropertyId(327);
 
   /// Distribution Key Revision.
-  static const int distributionKeyRevision = 328;
+  static const distributionKeyRevision = BacnetPropertyId(328);
 
   /// Do Not Hide.
-  static const int doNotHide = 329;
+  static const doNotHide = BacnetPropertyId(329);
 
   /// Key Sets.
-  static const int keySets = 330;
+  static const keySets = BacnetPropertyId(330);
 
   /// Last Key Server.
-  static const int lastKeyServer = 331;
+  static const lastKeyServer = BacnetPropertyId(331);
 
   /// Network Access Security Policies.
-  static const int networkAccessSecurityPolicies = 332;
+  static const networkAccessSecurityPolicies = BacnetPropertyId(332);
 
   /// Packet Reorder Time.
-  static const int packetReorderTime = 333;
+  static const packetReorderTime = BacnetPropertyId(333);
 
   /// Security Pdu Timeout.
-  static const int securityPduTimeout = 334;
+  static const securityPduTimeout = BacnetPropertyId(334);
 
   /// Security Time Window.
-  static const int securityTimeWindow = 335;
+  static const securityTimeWindow = BacnetPropertyId(335);
 
   /// Supported Security Algorithm.
-  static const int supportedSecurityAlgorithm = 336;
+  static const supportedSecurityAlgorithm = BacnetPropertyId(336);
 
   /// Update Key Set Timeout.
-  static const int updateKeySetTimeout = 337;
+  static const updateKeySetTimeout = BacnetPropertyId(337);
 
   /// Backup And Restore State.
-  static const int backupAndRestoreState = 338;
+  static const backupAndRestoreState = BacnetPropertyId(338);
 
   /// Backup Preparation Time.
-  static const int backupPreparationTime = 339;
+  static const backupPreparationTime = BacnetPropertyId(339);
 
   /// Restore Completion Time.
-  static const int restoreCompletionTime = 340;
+  static const restoreCompletionTime = BacnetPropertyId(340);
 
   /// Restore Preparation Time.
-  static const int restorePreparationTime = 341;
+  static const restorePreparationTime = BacnetPropertyId(341);
 
   /// Bit Mask.
-  static const int bitMask = 342;
+  static const bitMask = BacnetPropertyId(342);
 
   /// Bit Text.
-  static const int bitText = 343;
+  static const bitText = BacnetPropertyId(343);
 
   /// Is UTC.
-  static const int isUtc = 344;
+  static const isUtc = BacnetPropertyId(344);
 
   /// Group Members.
-  static const int groupMembers = 345;
+  static const groupMembers = BacnetPropertyId(345);
 
   /// Group Member Names.
-  static const int groupMemberNames = 346;
+  static const groupMemberNames = BacnetPropertyId(346);
 
   /// Member Status Flags.
-  static const int memberStatusFlags = 347;
+  static const memberStatusFlags = BacnetPropertyId(347);
 
   /// Requested Update Interval.
-  static const int requestedUpdateInterval = 348;
+  static const requestedUpdateInterval = BacnetPropertyId(348);
 
   /// Covu Period.
-  static const int covuPeriod = 349;
+  static const covuPeriod = BacnetPropertyId(349);
 
   /// Covu Recipients.
-  static const int covuRecipients = 350;
+  static const covuRecipients = BacnetPropertyId(350);
 
   /// Event Message Texts.
-  static const int eventMessageTexts = 351;
+  static const eventMessageTexts = BacnetPropertyId(351);
 
   /// Event Message Texts Config.
-  static const int eventMessageTextsConfig = 352;
+  static const eventMessageTextsConfig = BacnetPropertyId(352);
 
   /// Event Detection Enable.
-  static const int eventDetectionEnable = 353;
+  static const eventDetectionEnable = BacnetPropertyId(353);
 
   /// Event Algorithm Inhibit.
-  static const int eventAlgorithmInhibit = 354;
+  static const eventAlgorithmInhibit = BacnetPropertyId(354);
 
   /// Event Algorithm Inhibit Ref.
-  static const int eventAlgorithmInhibitRef = 355;
+  static const eventAlgorithmInhibitRef = BacnetPropertyId(355);
 
   /// Time Delay Normal.
-  static const int timeDelayNormal = 356;
+  static const timeDelayNormal = BacnetPropertyId(356);
 
   /// Reliability Evaluation Inhibit.
-  static const int reliabilityEvaluationInhibit = 357;
+  static const reliabilityEvaluationInhibit = BacnetPropertyId(357);
 
   /// Fault Parameters.
-  static const int faultParameters = 358;
+  static const faultParameters = BacnetPropertyId(358);
 
   /// Fault Type.
-  static const int faultType = 359;
+  static const faultType = BacnetPropertyId(359);
 
   /// Local Forwarding Only.
-  static const int localForwardingOnly = 360;
+  static const localForwardingOnly = BacnetPropertyId(360);
 
   /// Process Identifier Filter.
-  static const int processIdentifierFilter = 361;
+  static const processIdentifierFilter = BacnetPropertyId(361);
 
   /// Subscribed Recipients.
-  static const int subscribedRecipients = 362;
+  static const subscribedRecipients = BacnetPropertyId(362);
 
   /// Port Filter.
-  static const int portFilter = 363;
+  static const portFilter = BacnetPropertyId(363);
 
   /// Authorization Exemptions.
-  static const int authorizationExemptions = 364;
+  static const authorizationExemptions = BacnetPropertyId(364);
 
   /// Allow Group Delay Inhibit.
-  static const int allowGroupDelayInhibit = 365;
+  static const allowGroupDelayInhibit = BacnetPropertyId(365);
 
   /// Channel Number.
-  static const int channelNumber = 366;
+  static const channelNumber = BacnetPropertyId(366);
 
   /// Control Groups.
-  static const int controlGroups = 367;
+  static const controlGroups = BacnetPropertyId(367);
 
   /// Execution Delay.
-  static const int executionDelay = 368;
+  static const executionDelay = BacnetPropertyId(368);
 
   /// Last Priority.
-  static const int lastPriority = 369;
+  static const lastPriority = BacnetPropertyId(369);
 
   /// Write Status.
-  static const int writeStatus = 370;
+  static const writeStatus = BacnetPropertyId(370);
 
   /// Property List.
-  static const int propertyList = 371;
+  static const propertyList = BacnetPropertyId(371);
 
   /// Serial Number.
-  static const int serialNumber = 372;
+  static const serialNumber = BacnetPropertyId(372);
 
   /// Blink Warn Enable.
-  static const int blinkWarnEnable = 373;
+  static const blinkWarnEnable = BacnetPropertyId(373);
 
   /// Default Fade Time.
-  static const int defaultFadeTime = 374;
+  static const defaultFadeTime = BacnetPropertyId(374);
 
   /// Default Ramp Rate.
-  static const int defaultRampRate = 375;
+  static const defaultRampRate = BacnetPropertyId(375);
 
   /// Default Step Increment.
-  static const int defaultStepIncrement = 376;
+  static const defaultStepIncrement = BacnetPropertyId(376);
 
   /// Egress Time.
-  static const int egressTime = 377;
+  static const egressTime = BacnetPropertyId(377);
 
   /// In Progress.
-  static const int inProgress = 378;
+  static const inProgress = BacnetPropertyId(378);
 
   /// Instantaneous Power.
-  static const int instantaneousPower = 379;
+  static const instantaneousPower = BacnetPropertyId(379);
 
   /// Lighting Command.
-  static const int lightingCommand = 380;
+  static const lightingCommand = BacnetPropertyId(380);
 
   /// Lighting Command Default Priority.
-  static const int lightingCommandDefaultPriority = 381;
+  static const lightingCommandDefaultPriority = BacnetPropertyId(381);
 
   /// Max Actual Value.
-  static const int maxActualValue = 382;
+  static const maxActualValue = BacnetPropertyId(382);
 
   /// Min Actual Value.
-  static const int minActualValue = 383;
+  static const minActualValue = BacnetPropertyId(383);
 
   /// Power.
-  static const int power = 384;
+  static const power = BacnetPropertyId(384);
 
   /// Transition.
-  static const int transition = 385;
+  static const transition = BacnetPropertyId(385);
 
   /// Egress Active.
-  static const int egressActive = 386;
+  static const egressActive = BacnetPropertyId(386);
 
   /// Interface Value.
-  static const int interfaceValue = 387;
+  static const interfaceValue = BacnetPropertyId(387);
 
   /// Fault High Limit.
-  static const int faultHighLimit = 388;
+  static const faultHighLimit = BacnetPropertyId(388);
 
   /// Fault Low Limit.
-  static const int faultLowLimit = 389;
+  static const faultLowLimit = BacnetPropertyId(389);
 
   /// Low Diff Limit.
-  static const int lowDiffLimit = 390;
+  static const lowDiffLimit = BacnetPropertyId(390);
 
   /// Strike Count.
-  static const int strikeCount = 391;
+  static const strikeCount = BacnetPropertyId(391);
 
   /// Time Of Strike Count Reset.
-  static const int timeOfStrikeCountReset = 392;
+  static const timeOfStrikeCountReset = BacnetPropertyId(392);
 
   /// Default Timeout.
-  static const int defaultTimeout = 393;
+  static const defaultTimeout = BacnetPropertyId(393);
 
   /// Initial Timeout.
-  static const int initialTimeout = 394;
+  static const initialTimeout = BacnetPropertyId(394);
 
   /// Last State Change.
-  static const int lastStateChange = 395;
+  static const lastStateChange = BacnetPropertyId(395);
 
   /// State Change Values.
-  static const int stateChangeValues = 396;
+  static const stateChangeValues = BacnetPropertyId(396);
 
   /// Timer Running.
-  static const int timerRunning = 397;
+  static const timerRunning = BacnetPropertyId(397);
 
   /// Timer State.
-  static const int timerState = 398;
+  static const timerState = BacnetPropertyId(398);
 
   /// APDU Length.
-  static const int apduLength = 399;
+  static const apduLength = BacnetPropertyId(399);
 
   /// IP Address.
-  static const int ipAddress = 400;
+  static const ipAddress = BacnetPropertyId(400);
 
   /// IP Default Gateway.
-  static const int ipDefaultGateway = 401;
+  static const ipDefaultGateway = BacnetPropertyId(401);
 
   /// IP DHCP Enable.
-  static const int ipDhcpEnable = 402;
+  static const ipDhcpEnable = BacnetPropertyId(402);
 
   /// IP DHCP Lease Time.
-  static const int ipDhcpLeaseTime = 403;
+  static const ipDhcpLeaseTime = BacnetPropertyId(403);
 
   /// IP DHCP Lease Time Remaining.
-  static const int ipDhcpLeaseTimeRemaining = 404;
+  static const ipDhcpLeaseTimeRemaining = BacnetPropertyId(404);
 
   /// IP DHCP Server.
-  static const int ipDhcpServer = 405;
+  static const ipDhcpServer = BacnetPropertyId(405);
 
   /// IP DNS Server.
-  static const int ipDnsServer = 406;
+  static const ipDnsServer = BacnetPropertyId(406);
 
   /// BACnet IP Global Address.
-  static const int bacnetIpGlobalAddress = 407;
+  static const bacnetIpGlobalAddress = BacnetPropertyId(407);
 
   /// BACnet IP Mode.
-  static const int bacnetIpMode = 408;
+  static const bacnetIpMode = BacnetPropertyId(408);
 
   /// BACnet IP Multicast Address.
-  static const int bacnetIpMulticastAddress = 409;
+  static const bacnetIpMulticastAddress = BacnetPropertyId(409);
 
   /// BACnet IP Nat Traversal.
-  static const int bacnetIpNatTraversal = 410;
+  static const bacnetIpNatTraversal = BacnetPropertyId(410);
 
   /// IP Subnet Mask.
-  static const int ipSubnetMask = 411;
+  static const ipSubnetMask = BacnetPropertyId(411);
 
   /// BACnet IP UDP Port.
-  static const int bacnetIpUdpPort = 412;
+  static const bacnetIpUdpPort = BacnetPropertyId(412);
 
   /// BBMD Accept FD Registrations.
-  static const int bbmdAcceptFdRegistrations = 413;
+  static const bbmdAcceptFdRegistrations = BacnetPropertyId(413);
 
   /// BBMD Broadcast Distribution Table.
-  static const int bbmdBroadcastDistributionTable = 414;
+  static const bbmdBroadcastDistributionTable = BacnetPropertyId(414);
 
   /// BBMD Foreign Device Table.
-  static const int bbmdForeignDeviceTable = 415;
+  static const bbmdForeignDeviceTable = BacnetPropertyId(415);
 
   /// Changes Pending.
-  static const int changesPending = 416;
+  static const changesPending = BacnetPropertyId(416);
 
   /// Command.
-  static const int command = 417;
+  static const command = BacnetPropertyId(417);
 
   /// FD BBMD Address.
-  static const int fdBbmdAddress = 418;
+  static const fdBbmdAddress = BacnetPropertyId(418);
 
   /// FD Subscription Lifetime.
-  static const int fdSubscriptionLifetime = 419;
+  static const fdSubscriptionLifetime = BacnetPropertyId(419);
 
   /// Link Speed.
-  static const int linkSpeed = 420;
+  static const linkSpeed = BacnetPropertyId(420);
 
   /// Link Speeds.
-  static const int linkSpeeds = 421;
+  static const linkSpeeds = BacnetPropertyId(421);
 
   /// Link Speed Autonegotiate.
-  static const int linkSpeedAutonegotiate = 422;
+  static const linkSpeedAutonegotiate = BacnetPropertyId(422);
 
   /// MAC Address.
-  static const int macAddress = 423;
+  static const macAddress = BacnetPropertyId(423);
 
   /// Network Interface Name.
-  static const int networkInterfaceName = 424;
+  static const networkInterfaceName = BacnetPropertyId(424);
 
   /// Network Number.
-  static const int networkNumber = 425;
+  static const networkNumber = BacnetPropertyId(425);
 
   /// Network Number Quality.
-  static const int networkNumberQuality = 426;
+  static const networkNumberQuality = BacnetPropertyId(426);
 
   /// Network Type.
-  static const int networkType = 427;
+  static const networkType = BacnetPropertyId(427);
 
   /// Routing Table.
-  static const int routingTable = 428;
+  static const routingTable = BacnetPropertyId(428);
 
   /// Virtual MAC Address Table.
-  static const int virtualMacAddressTable = 429;
+  static const virtualMacAddressTable = BacnetPropertyId(429);
 
   /// Command Time Array.
-  static const int commandTimeArray = 430;
+  static const commandTimeArray = BacnetPropertyId(430);
 
   /// Current Command Priority.
-  static const int currentCommandPriority = 431;
+  static const currentCommandPriority = BacnetPropertyId(431);
 
   /// Last Command Time.
-  static const int lastCommandTime = 432;
+  static const lastCommandTime = BacnetPropertyId(432);
 
   /// Value Source.
-  static const int valueSource = 433;
+  static const valueSource = BacnetPropertyId(433);
 
   /// Value Source Array.
-  static const int valueSourceArray = 434;
+  static const valueSourceArray = BacnetPropertyId(434);
 
   /// BACnet IPv6 Mode.
-  static const int bacnetIpv6Mode = 435;
+  static const bacnetIpv6Mode = BacnetPropertyId(435);
 
   /// IPv6 Address.
-  static const int ipv6Address = 436;
+  static const ipv6Address = BacnetPropertyId(436);
 
   /// IPv6 Prefix Length.
-  static const int ipv6PrefixLength = 437;
+  static const ipv6PrefixLength = BacnetPropertyId(437);
 
   /// BACnet IPv6 UDP Port.
-  static const int bacnetIpv6UdpPort = 438;
+  static const bacnetIpv6UdpPort = BacnetPropertyId(438);
 
   /// IPv6 Default Gateway.
-  static const int ipv6DefaultGateway = 439;
+  static const ipv6DefaultGateway = BacnetPropertyId(439);
 
   /// BACnet IPv6 Multicast Address.
-  static const int bacnetIpv6MulticastAddress = 440;
+  static const bacnetIpv6MulticastAddress = BacnetPropertyId(440);
 
   /// IPv6 DNS Server.
-  static const int ipv6DnsServer = 441;
+  static const ipv6DnsServer = BacnetPropertyId(441);
 
   /// IPv6 Auto Addressing Enable.
-  static const int ipv6AutoAddressingEnable = 442;
+  static const ipv6AutoAddressingEnable = BacnetPropertyId(442);
 
   /// IPv6 DHCP Lease Time.
-  static const int ipv6DhcpLeaseTime = 443;
+  static const ipv6DhcpLeaseTime = BacnetPropertyId(443);
 
   /// IPv6 DHCP Lease Time Remaining.
-  static const int ipv6DhcpLeaseTimeRemaining = 444;
+  static const ipv6DhcpLeaseTimeRemaining = BacnetPropertyId(444);
 
   /// IPv6 DHCP Server.
-  static const int ipv6DhcpServer = 445;
+  static const ipv6DhcpServer = BacnetPropertyId(445);
 
   /// IPv6 Zone Index.
-  static const int ipv6ZoneIndex = 446;
+  static const ipv6ZoneIndex = BacnetPropertyId(446);
 
   /// Assigned Landing Calls.
-  static const int assignedLandingCalls = 447;
+  static const assignedLandingCalls = BacnetPropertyId(447);
 
   /// Car Assigned Direction.
-  static const int carAssignedDirection = 448;
+  static const carAssignedDirection = BacnetPropertyId(448);
 
   /// Car Door Command.
-  static const int carDoorCommand = 449;
+  static const carDoorCommand = BacnetPropertyId(449);
 
   /// Car Door Status.
-  static const int carDoorStatus = 450;
+  static const carDoorStatus = BacnetPropertyId(450);
 
   /// Car Door Text.
-  static const int carDoorText = 451;
+  static const carDoorText = BacnetPropertyId(451);
 
   /// Car Door Zone.
-  static const int carDoorZone = 452;
+  static const carDoorZone = BacnetPropertyId(452);
 
   /// Car Drive Status.
-  static const int carDriveStatus = 453;
+  static const carDriveStatus = BacnetPropertyId(453);
 
   /// Car Load.
-  static const int carLoad = 454;
+  static const carLoad = BacnetPropertyId(454);
 
   /// Car Load Units.
-  static const int carLoadUnits = 455;
+  static const carLoadUnits = BacnetPropertyId(455);
 
   /// Car Mode.
-  static const int carMode = 456;
+  static const carMode = BacnetPropertyId(456);
 
   /// Car Moving Direction.
-  static const int carMovingDirection = 457;
+  static const carMovingDirection = BacnetPropertyId(457);
 
   /// Car Position.
-  static const int carPosition = 458;
+  static const carPosition = BacnetPropertyId(458);
 
   /// Elevator Group.
-  static const int elevatorGroup = 459;
+  static const elevatorGroup = BacnetPropertyId(459);
 
   /// Energy Meter.
-  static const int energyMeter = 460;
+  static const energyMeter = BacnetPropertyId(460);
 
   /// Energy Meter Ref.
-  static const int energyMeterRef = 461;
+  static const energyMeterRef = BacnetPropertyId(461);
 
   /// Escalator Mode.
-  static const int escalatorMode = 462;
+  static const escalatorMode = BacnetPropertyId(462);
 
   /// Fault Signals.
-  static const int faultSignals = 463;
+  static const faultSignals = BacnetPropertyId(463);
 
   /// Floor Text.
-  static const int floorText = 464;
+  static const floorText = BacnetPropertyId(464);
 
   /// Group ID.
-  static const int groupId = 465;
+  static const groupId = BacnetPropertyId(465);
 
   /// Group Mode.
-  static const int groupMode = 467;
+  static const groupMode = BacnetPropertyId(467);
 
   /// Higher Deck.
-  static const int higherDeck = 468;
+  static const higherDeck = BacnetPropertyId(468);
 
   /// Installation ID.
-  static const int installationId = 469;
+  static const installationId = BacnetPropertyId(469);
 
   /// Landing Calls.
-  static const int landingCalls = 470;
+  static const landingCalls = BacnetPropertyId(470);
 
   /// Landing Call Control.
-  static const int landingCallControl = 471;
+  static const landingCallControl = BacnetPropertyId(471);
 
   /// Landing Door Status.
-  static const int landingDoorStatus = 472;
+  static const landingDoorStatus = BacnetPropertyId(472);
 
   /// Lower Deck.
-  static const int lowerDeck = 473;
+  static const lowerDeck = BacnetPropertyId(473);
 
   /// Machine Room ID.
-  static const int machineRoomId = 474;
+  static const machineRoomId = BacnetPropertyId(474);
 
   /// Making Car Call.
-  static const int makingCarCall = 475;
+  static const makingCarCall = BacnetPropertyId(475);
 
   /// Next Stopping Floor.
-  static const int nextStoppingFloor = 476;
+  static const nextStoppingFloor = BacnetPropertyId(476);
 
   /// Operation Direction.
-  static const int operationDirection = 477;
+  static const operationDirection = BacnetPropertyId(477);
 
   /// Passenger Alarm.
-  static const int passengerAlarm = 478;
+  static const passengerAlarm = BacnetPropertyId(478);
 
   /// Power Mode.
-  static const int powerMode = 479;
+  static const powerMode = BacnetPropertyId(479);
 
   /// Registered Car Call.
-  static const int registeredCarCall = 480;
+  static const registeredCarCall = BacnetPropertyId(480);
 
   /// Active COV Multiple Subscriptions.
-  static const int activeCovMultipleSubscriptions = 481;
+  static const activeCovMultipleSubscriptions = BacnetPropertyId(481);
 
   /// Protocol Level.
-  static const int protocolLevel = 482;
+  static const protocolLevel = BacnetPropertyId(482);
 
   /// Reference Port.
-  static const int referencePort = 483;
+  static const referencePort = BacnetPropertyId(483);
 
   /// Deployed Profile Location.
-  static const int deployedProfileLocation = 484;
+  static const deployedProfileLocation = BacnetPropertyId(484);
 
   /// Profile Location.
-  static const int profileLocation = 485;
+  static const profileLocation = BacnetPropertyId(485);
 
   /// Tags.
-  static const int tags = 486;
+  static const tags = BacnetPropertyId(486);
 
   /// Subordinate Node Types.
-  static const int subordinateNodeTypes = 487;
+  static const subordinateNodeTypes = BacnetPropertyId(487);
 
   /// Subordinate Tags.
-  static const int subordinateTags = 488;
+  static const subordinateTags = BacnetPropertyId(488);
 
   /// Subordinate Relationships.
-  static const int subordinateRelationships = 489;
+  static const subordinateRelationships = BacnetPropertyId(489);
 
   /// Default Subordinate Relationship.
-  static const int defaultSubordinateRelationship = 490;
+  static const defaultSubordinateRelationship = BacnetPropertyId(490);
 
   /// Represents.
-  static const int represents = 491;
+  static const represents = BacnetPropertyId(491);
 
   /// Default Present Value.
-  static const int defaultPresentValue = 492;
+  static const defaultPresentValue = BacnetPropertyId(492);
 
   /// Present Stage.
-  static const int presentStage = 493;
+  static const presentStage = BacnetPropertyId(493);
 
   /// Stages.
-  static const int stages = 494;
+  static const stages = BacnetPropertyId(494);
 
   /// Stage Names.
-  static const int stageNames = 495;
+  static const stageNames = BacnetPropertyId(495);
 
   /// Target References.
-  static const int targetReferences = 496;
+  static const targetReferences = BacnetPropertyId(496);
 
   /// Audit Source Level.
-  static const int auditSourceLevel = 497;
+  static const auditSourceLevel = BacnetPropertyId(497);
 
   /// Audit Level.
-  static const int auditLevel = 498;
+  static const auditLevel = BacnetPropertyId(498);
 
   /// Audit Notification Recipient.
-  static const int auditNotificationRecipient = 499;
+  static const auditNotificationRecipient = BacnetPropertyId(499);
 
   /// Audit Priority Filter.
-  static const int auditPriorityFilter = 500;
+  static const auditPriorityFilter = BacnetPropertyId(500);
 
   /// Auditable Operations.
-  static const int auditableOperations = 501;
+  static const auditableOperations = BacnetPropertyId(501);
 
   /// Delete On Forward.
-  static const int deleteOnForward = 502;
+  static const deleteOnForward = BacnetPropertyId(502);
 
   /// Maximum Send Delay.
-  static const int maximumSendDelay = 503;
+  static const maximumSendDelay = BacnetPropertyId(503);
 
   /// Monitored Objects.
-  static const int monitoredObjects = 504;
+  static const monitoredObjects = BacnetPropertyId(504);
 
   /// Send Now.
-  static const int sendNow = 505;
+  static const sendNow = BacnetPropertyId(505);
 
   /// Floor Number.
-  static const int floorNumber = 506;
+  static const floorNumber = BacnetPropertyId(506);
 
   /// Device UUID.
-  static const int deviceUuid = 507;
+  static const deviceUuid = BacnetPropertyId(507);
 
   /// Additional Reference Ports.
-  static const int additionalReferencePorts = 508;
+  static const additionalReferencePorts = BacnetPropertyId(508);
 
   /// Certificate Signing Request File.
-  static const int certificateSigningRequestFile = 509;
+  static const certificateSigningRequestFile = BacnetPropertyId(509);
 
   /// Command Validation Result.
-  static const int commandValidationResult = 510;
+  static const commandValidationResult = BacnetPropertyId(510);
 
   /// Issuer Certificate Files.
-  static const int issuerCertificateFiles = 511;
+  static const issuerCertificateFiles = BacnetPropertyId(511);
 
   /// Max Bvlc Length Accepted.
-  static const int maxBvlcLengthAccepted = 4194304;
+  static const maxBvlcLengthAccepted = BacnetPropertyId(4194304);
 
   /// Max NPDU Length Accepted.
-  static const int maxNpduLengthAccepted = 4194305;
+  static const maxNpduLengthAccepted = BacnetPropertyId(4194305);
 
   /// Operational Certificate File.
-  static const int operationalCertificateFile = 4194306;
+  static const operationalCertificateFile = BacnetPropertyId(4194306);
 
   /// Current Health.
-  static const int currentHealth = 4194307;
+  static const currentHealth = BacnetPropertyId(4194307);
 
   /// SC Connect Wait Timeout.
-  static const int scConnectWaitTimeout = 4194308;
+  static const scConnectWaitTimeout = BacnetPropertyId(4194308);
 
   /// SC Direct Connect Accept Enable.
-  static const int scDirectConnectAcceptEnable = 4194309;
+  static const scDirectConnectAcceptEnable = BacnetPropertyId(4194309);
 
   /// SC Direct Connect Accept Uris.
-  static const int scDirectConnectAcceptUris = 4194310;
+  static const scDirectConnectAcceptUris = BacnetPropertyId(4194310);
 
   /// SC Direct Connect Binding.
-  static const int scDirectConnectBinding = 4194311;
+  static const scDirectConnectBinding = BacnetPropertyId(4194311);
 
   /// SC Direct Connect Connection Status.
-  static const int scDirectConnectConnectionStatus = 4194312;
+  static const scDirectConnectConnectionStatus = BacnetPropertyId(4194312);
 
   /// SC Direct Connect Initiate Enable.
-  static const int scDirectConnectInitiateEnable = 4194313;
+  static const scDirectConnectInitiateEnable = BacnetPropertyId(4194313);
 
   /// SC Disconnect Wait Timeout.
-  static const int scDisconnectWaitTimeout = 4194314;
+  static const scDisconnectWaitTimeout = BacnetPropertyId(4194314);
 
   /// SC Failed Connection Requests.
-  static const int scFailedConnectionRequests = 4194315;
+  static const scFailedConnectionRequests = BacnetPropertyId(4194315);
 
   /// SC Failover Hub Connection Status.
-  static const int scFailoverHubConnectionStatus = 4194316;
+  static const scFailoverHubConnectionStatus = BacnetPropertyId(4194316);
 
   /// SC Failover Hub Uri.
-  static const int scFailoverHubUri = 4194317;
+  static const scFailoverHubUri = BacnetPropertyId(4194317);
 
   /// SC Hub Connector State.
-  static const int scHubConnectorState = 4194318;
+  static const scHubConnectorState = BacnetPropertyId(4194318);
 
   /// SC Hub Function Accept Uris.
-  static const int scHubFunctionAcceptUris = 4194319;
+  static const scHubFunctionAcceptUris = BacnetPropertyId(4194319);
 
   /// SC Hub Function Binding.
-  static const int scHubFunctionBinding = 4194320;
+  static const scHubFunctionBinding = BacnetPropertyId(4194320);
 
   /// SC Hub Function Connection Status.
-  static const int scHubFunctionConnectionStatus = 4194321;
+  static const scHubFunctionConnectionStatus = BacnetPropertyId(4194321);
 
   /// SC Hub Function Enable.
-  static const int scHubFunctionEnable = 4194322;
+  static const scHubFunctionEnable = BacnetPropertyId(4194322);
 
   /// SC Heartbeat Timeout.
-  static const int scHeartbeatTimeout = 4194323;
+  static const scHeartbeatTimeout = BacnetPropertyId(4194323);
 
   /// SC Primary Hub Connection Status.
-  static const int scPrimaryHubConnectionStatus = 4194324;
+  static const scPrimaryHubConnectionStatus = BacnetPropertyId(4194324);
 
   /// SC Primary Hub Uri.
-  static const int scPrimaryHubUri = 4194325;
+  static const scPrimaryHubUri = BacnetPropertyId(4194325);
 
   /// SC Maximum Reconnect Time.
-  static const int scMaximumReconnectTime = 4194326;
+  static const scMaximumReconnectTime = BacnetPropertyId(4194326);
 
   /// SC Minimum Reconnect Time.
-  static const int scMinimumReconnectTime = 4194327;
+  static const scMinimumReconnectTime = BacnetPropertyId(4194327);
 
   /// Color Override.
-  static const int colorOverride = 4194328;
+  static const colorOverride = BacnetPropertyId(4194328);
 
   /// Color Reference.
-  static const int colorReference = 4194329;
+  static const colorReference = BacnetPropertyId(4194329);
 
   /// Default Color.
-  static const int defaultColor = 4194330;
+  static const defaultColor = BacnetPropertyId(4194330);
 
   /// Default Color Temperature.
-  static const int defaultColorTemperature = 4194331;
+  static const defaultColorTemperature = BacnetPropertyId(4194331);
 
   /// Override Color Reference.
-  static const int overrideColorReference = 4194332;
+  static const overrideColorReference = BacnetPropertyId(4194332);
 
   /// Write Every Scheduled Action.
-  static const int writeEveryScheduledAction = 4194333;
+  static const writeEveryScheduledAction = BacnetPropertyId(4194333);
 
   /// Color Command.
-  static const int colorCommand = 4194334;
+  static const colorCommand = BacnetPropertyId(4194334);
 
   /// High End Trim.
-  static const int highEndTrim = 4194335;
+  static const highEndTrim = BacnetPropertyId(4194335);
 
   /// Low End Trim.
-  static const int lowEndTrim = 4194336;
+  static const lowEndTrim = BacnetPropertyId(4194336);
 
   /// Trim Fade Time.
-  static const int trimFadeTime = 4194337;
+  static const trimFadeTime = BacnetPropertyId(4194337);
 
   /// Device Address Proxy Enable.
-  static const int deviceAddressProxyEnable = 4194338;
+  static const deviceAddressProxyEnable = BacnetPropertyId(4194338);
 
   /// Device Address Proxy Table.
-  static const int deviceAddressProxyTable = 4194339;
+  static const deviceAddressProxyTable = BacnetPropertyId(4194339);
 
   /// Device Address Proxy Timeout.
-  static const int deviceAddressProxyTimeout = 4194340;
+  static const deviceAddressProxyTimeout = BacnetPropertyId(4194340);
 
   /// Default On Value.
-  static const int defaultOnValue = 4194341;
+  static const defaultOnValue = BacnetPropertyId(4194341);
 
   /// Last On Value.
-  static const int lastOnValue = 4194342;
+  static const lastOnValue = BacnetPropertyId(4194342);
 
   /// Authorization Cache.
-  static const int authorizationCache = 4194343;
+  static const authorizationCache = BacnetPropertyId(4194343);
 
   /// Authorization Groups.
-  static const int authorizationGroups = 4194344;
+  static const authorizationGroups = BacnetPropertyId(4194344);
 
   /// Authorization Policy.
-  static const int authorizationPolicy = 4194345;
+  static const authorizationPolicy = BacnetPropertyId(4194345);
 
   /// Authorization Scope.
-  static const int authorizationScope = 4194346;
+  static const authorizationScope = BacnetPropertyId(4194346);
 
   /// Authorization Server.
-  static const int authorizationServer = 4194347;
+  static const authorizationServer = BacnetPropertyId(4194347);
 
   /// Authorization Status.
-  static const int authorizationStatus = 4194348;
+  static const authorizationStatus = BacnetPropertyId(4194348);
 
   /// Max Proxied I Ams Per Second.
-  static const int maxProxiedIAmsPerSecond = 4194349;
+  static const maxProxiedIAmsPerSecond = BacnetPropertyId(4194349);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetPropertyId, String> _labels = {
     ackedTransitions: 'Acked Transitions',
     ackRequired: 'Ack Required',
     action: 'Action',
@@ -2131,8 +2136,11 @@ abstract final class BacnetPropertyId {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetPropertyId> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Property $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }

@@ -34,40 +34,44 @@ Future<void> main(List<String> args) async {
   print('objects ${objects.length}: $types');
   final scan = await scanner.scanDevice(
     device,
-    propertyIds: const [77, 85, 111],
+    propertyIds: const [
+      BacnetPropertyId.objectName,
+      BacnetPropertyId.presentValue,
+      BacnetPropertyId.statusFlags,
+    ],
     maxObjects: 1000,
   );
   final withValues = scan.values.where((p) => p.isNotEmpty).length;
   print('scanned ${scan.length} objects, $withValues with properties');
   final av = objects.firstWhere((o) => o.type == BacnetObjectType.analogValue);
   print(
-    'AV ${av.instance} = ${await client.readProperty(device, av.type, av.instance, 85)}',
+    'AV ${av.instance} = ${await client.readProperty(device, av.type, av.instance, BacnetPropertyId.presentValue)}',
   );
   await client.writeProperty(
     device,
     av.type,
     av.instance,
-    85,
+    BacnetPropertyId.presentValue,
     33.25,
     priority: 9,
   );
   print(
-    'AV after write = ${await client.readProperty(device, av.type, av.instance, 85)}',
+    'AV after write = ${await client.readProperty(device, av.type, av.instance, BacnetPropertyId.presentValue)}',
   );
   await client.writeProperty(
     device,
     av.type,
     av.instance,
-    85,
+    BacnetPropertyId.presentValue,
     null,
     priority: 9,
   );
   print(
-    'AV after relinquish = ${await client.readProperty(device, av.type, av.instance, 85)}',
+    'AV after relinquish = ${await client.readProperty(device, av.type, av.instance, BacnetPropertyId.presentValue)}',
   );
   print(
-    'local date/time: ${await client.readProperty(device, 8, device, 56)} '
-    '${await client.readProperty(device, 8, device, 57)}',
+    'local date/time: ${await client.readProperty(device, BacnetObjectType.device, device, BacnetPropertyId.localDate)} '
+    '${await client.readProperty(device, BacnetObjectType.device, device, BacnetPropertyId.localTime)}',
   );
   final tl = objects.where((o) => o.type == BacnetObjectType.trendLog).toList();
   if (tl.isNotEmpty) {
@@ -93,7 +97,7 @@ Future<void> main(List<String> args) async {
     device,
     av.type,
     av.instance,
-    85,
+    BacnetPropertyId.presentValue,
     50.0,
     priority: 9,
   );
@@ -105,21 +109,26 @@ Future<void> main(List<String> args) async {
     device,
     av.type,
     av.instance,
-    85,
+    BacnetPropertyId.presentValue,
     null,
     priority: 9,
   );
   try {
-    await client.readProperty(device, 2, 4000000, 85);
+    await client.readProperty(
+      device,
+      BacnetObjectType.analogValue,
+      4000000,
+      BacnetPropertyId.presentValue,
+    );
   } on BacnetProtocolException catch (e) {
     print('expected: $e');
   }
   try {
     await client.readProperty(
       4000001,
-      2,
+      BacnetObjectType.analogValue,
       1,
-      85,
+      BacnetPropertyId.presentValue,
       timeout: const Duration(seconds: 3),
     );
   } on BacnetException catch (e) {
@@ -128,7 +137,12 @@ Future<void> main(List<String> args) async {
   final sw = Stopwatch()..start();
   await Future.wait([
     for (var i = 0; i < 1000; i++)
-      client.readProperty(device, av.type, av.instance, 85),
+      client.readProperty(
+        device,
+        av.type,
+        av.instance,
+        BacnetPropertyId.presentValue,
+      ),
   ]);
   print('1000 reads against bacserv: ${sw.elapsedMilliseconds} ms');
   print(await client.stats());

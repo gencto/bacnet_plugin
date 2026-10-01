@@ -59,8 +59,12 @@ Future<void> main(List<String> args) async {
                     instance: (i + o) % objects,
                   ),
                   properties: const [
-                    BacnetPropertyReference(propertyIdentifier: 85),
-                    BacnetPropertyReference(propertyIdentifier: 111),
+                    BacnetPropertyReference(
+                      propertyIdentifier: BacnetPropertyId.presentValue,
+                    ),
+                    BacnetPropertyReference(
+                      propertyIdentifier: BacnetPropertyId.statusFlags,
+                    ),
                   ],
                 ),
             ]);

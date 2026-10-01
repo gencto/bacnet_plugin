@@ -287,7 +287,7 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
             Text('Object Info', style: Theme.of(context).textTheme.titleLarge),
             const Divider(),
             _buildRow('Object Name', _objectName ?? 'Unknown'),
-            _buildRow('Type', _getTypeName(widget.object.type)),
+            _buildRow('Type', widget.object.type.label),
             _buildRow('Instance', widget.object.instance.toString()),
             _buildRow('Device ID', widget.deviceId.toString()),
           ],
@@ -362,18 +362,5 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
         ],
       ),
     );
-  }
-
-  String _getTypeName(int type) {
-    const names = {
-      0: 'Analog Input',
-      1: 'Analog Output',
-      2: 'Analog Value',
-      3: 'Binary Input',
-      4: 'Binary Output',
-      5: 'Binary Value',
-      8: 'Device',
-    };
-    return names[type] ?? 'Type $type';
   }
 }

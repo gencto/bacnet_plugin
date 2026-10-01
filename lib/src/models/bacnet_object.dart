@@ -1,9 +1,9 @@
-/// @docImport '../constants/object_types.dart';
-/// @docImport '../constants/property_ids.dart';
-library;
-
 import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
+
+import '../constants/engineering_units.dart';
+import '../constants/object_types.dart';
+import '../constants/property_ids.dart';
 
 part 'bacnet_object.g.dart';
 
@@ -48,10 +48,8 @@ class BacnetObject {
   /// Largest object instance number (also the "unconfigured" wildcard).
   static const int maxInstance = 4194303;
 
-  /// The BACnet object type identifier.
-  ///
-  /// Use [BacnetObjectType] constants for standard object types.
-  final int type;
+  /// The BACnet object type.
+  final BacnetObjectType type;
 
   /// The unique instance number within this object type.
   final int instance;
@@ -73,7 +71,7 @@ class BacnetObject {
   ///
   /// Any parameters not specified will use the values from this object.
   BacnetObject copyWith({
-    int? type,
+    BacnetObjectType? type,
     int? instance,
     Map<int, dynamic>? properties,
   }) {
@@ -99,31 +97,29 @@ class BacnetObject {
   @override
   int get hashCode => Object.hash(type, instance);
 
-  /// Helper to get the Object Name property (Property ID 77).
-  ///
-  /// Returns null if the property is not set or is not a String.
-  String? get name => properties[77] as String?;
+  /// The Object Name property, if read and a String.
+  String? get name => _property<String>(BacnetPropertyId.objectName);
 
-  /// Helper to get the Present Value property (Property ID 85).
-  ///
-  /// Returns null if the property is not set.
-  /// The type depends on the object type (e.g., double for Analog, bool for Binary).
-  dynamic get presentValue => properties[85];
+  /// The Present Value property, if read. The type depends on the object
+  /// type (e.g. double for analog, int for binary and multi-state objects).
+  dynamic get presentValue => properties[BacnetPropertyId.presentValue];
 
-  /// Helper to get the Description property (Property ID 28).
-  ///
-  /// Returns null if the property is not set.
-  String? get description => properties[28] as String?;
+  /// The Description property, if read and a String.
+  String? get description => _property<String>(BacnetPropertyId.description);
 
-  /// Helper to get the Units property (Property ID 117).
-  ///
-  /// Returns null if the property is not set.
-  /// The value is an engineering units enumeration.
-  int? get units => properties[117] as int?;
+  /// The Units property, if read.
+  BacnetEngineeringUnits? get units =>
+      switch (properties[BacnetPropertyId.units]) {
+        final int units => BacnetEngineeringUnits(units),
+        _ => null,
+      };
 
-  /// Helper to get the Out of Service property (Property ID 81).
-  ///
-  /// Returns null if the property is not set.
-  /// When true, the object is not providing reliable data.
-  bool? get outOfService => properties[81] as bool?;
+  /// The Out Of Service property, if read. When true the object does not
+  /// provide reliable data.
+  bool? get outOfService => _property<bool>(BacnetPropertyId.outOfService);
+
+  T? _property<T>(BacnetPropertyId id) => switch (properties[id]) {
+    final T value => value,
+    _ => null,
+  };
 }

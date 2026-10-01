@@ -25,7 +25,10 @@ void main() {
           0x3F,
         ]),
       );
-      expect(result.object, const BacnetObject(type: 0, instance: 5));
+      expect(
+        result.object,
+        const BacnetObject(type: BacnetObjectType.analogInput, instance: 5),
+      );
       expect(result.propertyId, 85);
       expect(result.value, 72.0);
     });
@@ -39,9 +42,9 @@ void main() {
         ]),
       );
       expect(result.value, const [
-        BacnetObject(type: 8, instance: 1),
-        BacnetObject(type: 0, instance: 3),
-        BacnetObject(type: 2, instance: 1),
+        BacnetObject(type: BacnetObjectType.device, instance: 1),
+        BacnetObject(type: BacnetObjectType.analogInput, instance: 3),
+        BacnetObject(type: BacnetObjectType.analogValue, instance: 1),
       ]);
     });
 
@@ -103,7 +106,10 @@ void main() {
       );
       expect(cov.subscriberProcessId, 18);
       expect(cov.initiatingDeviceId, 4);
-      expect(cov.monitoredObject, const BacnetObject(type: 0, instance: 10));
+      expect(
+        cov.monitoredObject,
+        const BacnetObject(type: BacnetObjectType.analogInput, instance: 10),
+      );
       expect(cov.values.first.propertyId, 85);
       expect(cov.values.first.value, 65.0);
       expect(

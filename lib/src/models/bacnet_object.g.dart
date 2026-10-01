@@ -7,7 +7,7 @@ part of 'bacnet_object.dart';
 // **************************************************************************
 
 BacnetObject _$BacnetObjectFromJson(Map<String, dynamic> json) => BacnetObject(
-  type: (json['type'] as num).toInt(),
+  type: json['type'] as BacnetObjectType,
   instance: (json['instance'] as num).toInt(),
   properties:
       (json['properties'] as Map<String, dynamic>?)?.map(

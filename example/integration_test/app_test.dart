@@ -23,17 +23,25 @@ void main() {
         BacnetObjectType.analogValue,
         1,
         name: 'Setpoint',
-        units: 62,
+        units: BacnetEngineeringUnits.degreesCelsius,
         presentValue: 21.5,
       );
       await server.addObject(BacnetObjectType.binaryValue, 1, name: 'Fan');
 
       expect(
-        await server.readProperty(BacnetObjectType.analogValue, 1, 77),
+        await server.readProperty(
+          BacnetObjectType.analogValue,
+          1,
+          BacnetPropertyId.objectName,
+        ),
         'Setpoint',
       );
       expect(
-        await server.readProperty(BacnetObjectType.analogValue, 1, 85),
+        await server.readProperty(
+          BacnetObjectType.analogValue,
+          1,
+          BacnetPropertyId.presentValue,
+        ),
         21.5,
       );
 
@@ -50,7 +58,14 @@ void main() {
         ),
       ]);
       expect(applied, 2);
-      expect(await server.readProperty(BacnetObjectType.binaryValue, 1, 85), 1);
+      expect(
+        await server.readProperty(
+          BacnetObjectType.binaryValue,
+          1,
+          BacnetPropertyId.presentValue,
+        ),
+        1,
+      );
 
       final stats = await client.stats();
       expect(stats.freeTransactions, greaterThan(0));

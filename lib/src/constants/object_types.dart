@@ -2,203 +2,208 @@
 // bacnet-stack bacenum.h. Do not edit.
 
 /// BACnet object types (BACnetObjectType).
-abstract final class BacnetObjectType {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetObjectType(value)`.
+extension type const BacnetObjectType(int value) implements int {
   /// Analog Input.
-  static const int analogInput = 0;
+  static const analogInput = BacnetObjectType(0);
 
   /// Analog Output.
-  static const int analogOutput = 1;
+  static const analogOutput = BacnetObjectType(1);
 
   /// Analog Value.
-  static const int analogValue = 2;
+  static const analogValue = BacnetObjectType(2);
 
   /// Binary Input.
-  static const int binaryInput = 3;
+  static const binaryInput = BacnetObjectType(3);
 
   /// Binary Output.
-  static const int binaryOutput = 4;
+  static const binaryOutput = BacnetObjectType(4);
 
   /// Binary Value.
-  static const int binaryValue = 5;
+  static const binaryValue = BacnetObjectType(5);
 
   /// Calendar.
-  static const int calendar = 6;
+  static const calendar = BacnetObjectType(6);
 
   /// Command.
-  static const int command = 7;
+  static const command = BacnetObjectType(7);
 
   /// Device.
-  static const int device = 8;
+  static const device = BacnetObjectType(8);
 
   /// Event Enrollment.
-  static const int eventEnrollment = 9;
+  static const eventEnrollment = BacnetObjectType(9);
 
   /// File.
-  static const int file = 10;
+  static const file = BacnetObjectType(10);
 
   /// Group.
-  static const int group = 11;
+  static const group = BacnetObjectType(11);
 
   /// Loop.
-  static const int loop = 12;
+  static const loop = BacnetObjectType(12);
 
   /// Multi-state Input.
-  static const int multiStateInput = 13;
+  static const multiStateInput = BacnetObjectType(13);
 
   /// Multi-state Output.
-  static const int multiStateOutput = 14;
+  static const multiStateOutput = BacnetObjectType(14);
 
   /// Notification Class.
-  static const int notificationClass = 15;
+  static const notificationClass = BacnetObjectType(15);
 
   /// Program.
-  static const int program = 16;
+  static const program = BacnetObjectType(16);
 
   /// Schedule.
-  static const int schedule = 17;
+  static const schedule = BacnetObjectType(17);
 
   /// Averaging.
-  static const int averaging = 18;
+  static const averaging = BacnetObjectType(18);
 
   /// Multi-state Value.
-  static const int multiStateValue = 19;
+  static const multiStateValue = BacnetObjectType(19);
 
   /// Trend Log.
-  static const int trendLog = 20;
+  static const trendLog = BacnetObjectType(20);
 
   /// Life Safety Point.
-  static const int lifeSafetyPoint = 21;
+  static const lifeSafetyPoint = BacnetObjectType(21);
 
   /// Life Safety Zone.
-  static const int lifeSafetyZone = 22;
+  static const lifeSafetyZone = BacnetObjectType(22);
 
   /// Accumulator.
-  static const int accumulator = 23;
+  static const accumulator = BacnetObjectType(23);
 
   /// Pulse Converter.
-  static const int pulseConverter = 24;
+  static const pulseConverter = BacnetObjectType(24);
 
   /// Event Log.
-  static const int eventLog = 25;
+  static const eventLog = BacnetObjectType(25);
 
   /// Global Group.
-  static const int globalGroup = 26;
+  static const globalGroup = BacnetObjectType(26);
 
   /// Trend Log Multiple.
-  static const int trendLogMultiple = 27;
+  static const trendLogMultiple = BacnetObjectType(27);
 
   /// Load Control.
-  static const int loadControl = 28;
+  static const loadControl = BacnetObjectType(28);
 
   /// Structured View.
-  static const int structuredView = 29;
+  static const structuredView = BacnetObjectType(29);
 
   /// Access Door.
-  static const int accessDoor = 30;
+  static const accessDoor = BacnetObjectType(30);
 
   /// Timer.
-  static const int timer = 31;
+  static const timer = BacnetObjectType(31);
 
   /// Access Credential.
-  static const int accessCredential = 32;
+  static const accessCredential = BacnetObjectType(32);
 
   /// Access Point.
-  static const int accessPoint = 33;
+  static const accessPoint = BacnetObjectType(33);
 
   /// Access Rights.
-  static const int accessRights = 34;
+  static const accessRights = BacnetObjectType(34);
 
   /// Access User.
-  static const int accessUser = 35;
+  static const accessUser = BacnetObjectType(35);
 
   /// Access Zone.
-  static const int accessZone = 36;
+  static const accessZone = BacnetObjectType(36);
 
   /// Credential Data Input.
-  static const int credentialDataInput = 37;
+  static const credentialDataInput = BacnetObjectType(37);
 
   /// Network Security.
-  static const int networkSecurity = 38;
+  static const networkSecurity = BacnetObjectType(38);
 
   /// BitString Value.
-  static const int bitStringValue = 39;
+  static const bitStringValue = BacnetObjectType(39);
 
   /// CharacterString Value.
-  static const int characterStringValue = 40;
+  static const characterStringValue = BacnetObjectType(40);
 
   /// Date Pattern Value.
-  static const int datePatternValue = 41;
+  static const datePatternValue = BacnetObjectType(41);
 
   /// Date Value.
-  static const int dateValue = 42;
+  static const dateValue = BacnetObjectType(42);
 
   /// DateTime Pattern Value.
-  static const int dateTimePatternValue = 43;
+  static const dateTimePatternValue = BacnetObjectType(43);
 
   /// DateTime Value.
-  static const int dateTimeValue = 44;
+  static const dateTimeValue = BacnetObjectType(44);
 
   /// Integer Value.
-  static const int integerValue = 45;
+  static const integerValue = BacnetObjectType(45);
 
   /// Large Analog Value.
-  static const int largeAnalogValue = 46;
+  static const largeAnalogValue = BacnetObjectType(46);
 
   /// OctetString Value.
-  static const int octetStringValue = 47;
+  static const octetStringValue = BacnetObjectType(47);
 
   /// Positive Integer Value.
-  static const int positiveIntegerValue = 48;
+  static const positiveIntegerValue = BacnetObjectType(48);
 
   /// Time Pattern Value.
-  static const int timePatternValue = 49;
+  static const timePatternValue = BacnetObjectType(49);
 
   /// Time Value.
-  static const int timeValue = 50;
+  static const timeValue = BacnetObjectType(50);
 
   /// Notification Forwarder.
-  static const int notificationForwarder = 51;
+  static const notificationForwarder = BacnetObjectType(51);
 
   /// Alert Enrollment.
-  static const int alertEnrollment = 52;
+  static const alertEnrollment = BacnetObjectType(52);
 
   /// Channel.
-  static const int channel = 53;
+  static const channel = BacnetObjectType(53);
 
   /// Lighting Output.
-  static const int lightingOutput = 54;
+  static const lightingOutput = BacnetObjectType(54);
 
   /// Binary Lighting Output.
-  static const int binaryLightingOutput = 55;
+  static const binaryLightingOutput = BacnetObjectType(55);
 
   /// Network Port.
-  static const int networkPort = 56;
+  static const networkPort = BacnetObjectType(56);
 
   /// Elevator Group.
-  static const int elevatorGroup = 57;
+  static const elevatorGroup = BacnetObjectType(57);
 
   /// Escalator.
-  static const int escalator = 58;
+  static const escalator = BacnetObjectType(58);
 
   /// Lift.
-  static const int lift = 59;
+  static const lift = BacnetObjectType(59);
 
   /// Staging.
-  static const int staging = 60;
+  static const staging = BacnetObjectType(60);
 
   /// Audit Log.
-  static const int auditLog = 61;
+  static const auditLog = BacnetObjectType(61);
 
   /// Audit Reporter.
-  static const int auditReporter = 62;
+  static const auditReporter = BacnetObjectType(62);
 
   /// Color.
-  static const int color = 63;
+  static const color = BacnetObjectType(63);
 
   /// Color Temperature.
-  static const int colorTemperature = 64;
+  static const colorTemperature = BacnetObjectType(64);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetObjectType, String> _labels = {
     analogInput: 'Analog Input',
     analogOutput: 'Analog Output',
     analogValue: 'Analog Value',
@@ -267,8 +272,11 @@ abstract final class BacnetObjectType {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetObjectType> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Unknown ($value)';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }

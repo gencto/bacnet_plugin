@@ -2,113 +2,118 @@
 // bacnet-stack bacenum.h. Do not edit.
 
 /// BACnet confirmed service choices (BACnetConfirmedServiceChoice).
-abstract final class BacnetConfirmedService {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetConfirmedService(value)`.
+extension type const BacnetConfirmedService(int value) implements int {
   /// Acknowledge Alarm.
-  static const int acknowledgeAlarm = 0;
+  static const acknowledgeAlarm = BacnetConfirmedService(0);
 
   /// COV Notification.
-  static const int covNotification = 1;
+  static const covNotification = BacnetConfirmedService(1);
 
   /// Event Notification.
-  static const int eventNotification = 2;
+  static const eventNotification = BacnetConfirmedService(2);
 
   /// Get Alarm Summary.
-  static const int getAlarmSummary = 3;
+  static const getAlarmSummary = BacnetConfirmedService(3);
 
   /// Get Enrollment Summary.
-  static const int getEnrollmentSummary = 4;
+  static const getEnrollmentSummary = BacnetConfirmedService(4);
 
   /// Subscribe COV.
-  static const int subscribeCov = 5;
+  static const subscribeCov = BacnetConfirmedService(5);
 
   /// Atomic Read File.
-  static const int atomicReadFile = 6;
+  static const atomicReadFile = BacnetConfirmedService(6);
 
   /// Atomic Write File.
-  static const int atomicWriteFile = 7;
+  static const atomicWriteFile = BacnetConfirmedService(7);
 
   /// Add List Element.
-  static const int addListElement = 8;
+  static const addListElement = BacnetConfirmedService(8);
 
   /// Remove List Element.
-  static const int removeListElement = 9;
+  static const removeListElement = BacnetConfirmedService(9);
 
   /// Create Object.
-  static const int createObject = 10;
+  static const createObject = BacnetConfirmedService(10);
 
   /// Delete Object.
-  static const int deleteObject = 11;
+  static const deleteObject = BacnetConfirmedService(11);
 
   /// Read Property.
-  static const int readProperty = 12;
+  static const readProperty = BacnetConfirmedService(12);
 
   /// Read Prop Conditional.
-  static const int readPropertyConditional = 13;
+  static const readPropertyConditional = BacnetConfirmedService(13);
 
   /// Read Prop Multiple.
-  static const int readPropertyMultiple = 14;
+  static const readPropertyMultiple = BacnetConfirmedService(14);
 
   /// Write Property.
-  static const int writeProperty = 15;
+  static const writeProperty = BacnetConfirmedService(15);
 
   /// Write Prop Multiple.
-  static const int writePropertyMultiple = 16;
+  static const writePropertyMultiple = BacnetConfirmedService(16);
 
   /// Device Communication Control.
-  static const int deviceCommunicationControl = 17;
+  static const deviceCommunicationControl = BacnetConfirmedService(17);
 
   /// Private Transfer.
-  static const int privateTransfer = 18;
+  static const privateTransfer = BacnetConfirmedService(18);
 
   /// Text Message.
-  static const int textMessage = 19;
+  static const textMessage = BacnetConfirmedService(19);
 
   /// Reinitialize Device.
-  static const int reinitializeDevice = 20;
+  static const reinitializeDevice = BacnetConfirmedService(20);
 
   /// VT Open.
-  static const int vtOpen = 21;
+  static const vtOpen = BacnetConfirmedService(21);
 
   /// VT Close.
-  static const int vtClose = 22;
+  static const vtClose = BacnetConfirmedService(22);
 
   /// VT Data.
-  static const int vtData = 23;
+  static const vtData = BacnetConfirmedService(23);
 
   /// Authenticate.
-  static const int authenticate = 24;
+  static const authenticate = BacnetConfirmedService(24);
 
   /// Request Key.
-  static const int requestKey = 25;
+  static const requestKey = BacnetConfirmedService(25);
 
   /// Read Range.
-  static const int readRange = 26;
+  static const readRange = BacnetConfirmedService(26);
 
   /// Life Safety Operation.
-  static const int lifeSafetyOperation = 27;
+  static const lifeSafetyOperation = BacnetConfirmedService(27);
 
   /// Subscribe COV Property.
-  static const int subscribeCovProperty = 28;
+  static const subscribeCovProperty = BacnetConfirmedService(28);
 
   /// Get Event Information.
-  static const int getEventInformation = 29;
+  static const getEventInformation = BacnetConfirmedService(29);
 
   /// Subscribe COV Property Multiple.
-  static const int subscribeCovPropertyMultiple = 30;
+  static const subscribeCovPropertyMultiple = BacnetConfirmedService(30);
 
   /// COV Notification Multiple.
-  static const int covNotificationMultiple = 31;
+  static const covNotificationMultiple = BacnetConfirmedService(31);
 
   /// Audit Notification.
-  static const int auditNotification = 32;
+  static const auditNotification = BacnetConfirmedService(32);
 
   /// Audit Log Query.
-  static const int auditLogQuery = 33;
+  static const auditLogQuery = BacnetConfirmedService(33);
 
   /// Auth Request.
-  static const int authorizationRequest = 34;
+  static const authorizationRequest = BacnetConfirmedService(34);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetConfirmedService, String> _labels = {
     acknowledgeAlarm: 'Acknowledge Alarm',
     covNotification: 'COV Notification',
     eventNotification: 'Event Notification',
@@ -147,61 +152,69 @@ abstract final class BacnetConfirmedService {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetConfirmedService> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) =>
       _labels[value] ?? 'Confirmed Service $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }
 
 /// BACnet unconfirmed service choices (BACnetUnconfirmedServiceChoice).
-abstract final class BacnetUnconfirmedService {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetUnconfirmedService(value)`.
+extension type const BacnetUnconfirmedService(int value) implements int {
   /// I Am.
-  static const int iAm = 0;
+  static const iAm = BacnetUnconfirmedService(0);
 
   /// I Have.
-  static const int iHave = 1;
+  static const iHave = BacnetUnconfirmedService(1);
 
   /// COV Notification.
-  static const int covNotification = 2;
+  static const covNotification = BacnetUnconfirmedService(2);
 
   /// Event Notification.
-  static const int eventNotification = 3;
+  static const eventNotification = BacnetUnconfirmedService(3);
 
   /// Private Transfer.
-  static const int privateTransfer = 4;
+  static const privateTransfer = BacnetUnconfirmedService(4);
 
   /// Text Message.
-  static const int textMessage = 5;
+  static const textMessage = BacnetUnconfirmedService(5);
 
   /// Time Synchronization.
-  static const int timeSynchronization = 6;
+  static const timeSynchronization = BacnetUnconfirmedService(6);
 
   /// Who Has.
-  static const int whoHas = 7;
+  static const whoHas = BacnetUnconfirmedService(7);
 
   /// Who Is.
-  static const int whoIs = 8;
+  static const whoIs = BacnetUnconfirmedService(8);
 
   /// UTC Time Synchronization.
-  static const int utcTimeSynchronization = 9;
+  static const utcTimeSynchronization = BacnetUnconfirmedService(9);
 
   /// Write Group.
-  static const int writeGroup = 10;
+  static const writeGroup = BacnetUnconfirmedService(10);
 
   /// COV Notification Multiple.
-  static const int covNotificationMultiple = 11;
+  static const covNotificationMultiple = BacnetUnconfirmedService(11);
 
   /// Audit Notification.
-  static const int auditNotification = 12;
+  static const auditNotification = BacnetUnconfirmedService(12);
 
   /// Who Am I.
-  static const int whoAmI = 13;
+  static const whoAmI = BacnetUnconfirmedService(13);
 
   /// You Are.
-  static const int youAre = 14;
+  static const youAre = BacnetUnconfirmedService(14);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetUnconfirmedService, String> _labels = {
     iAm: 'I Am',
     iHave: 'I Have',
     covNotification: 'COV Notification',
@@ -220,9 +233,12 @@ abstract final class BacnetUnconfirmedService {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetUnconfirmedService> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) =>
       _labels[value] ?? 'Unconfirmed Service $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }

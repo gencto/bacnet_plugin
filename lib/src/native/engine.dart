@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
+import '../constants/errors.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
 import 'bindings.g.dart';
@@ -245,8 +246,8 @@ class NativeEngine {
       if (created == BP_ERR_OBJECT) {
         throw BacnetProtocolException(
           'CreateObject $objectType:$instance failed',
-          errorClass: errorClass.value,
-          errorCode: errorCode.value,
+          errorClass: BacnetErrorClass(errorClass.value),
+          errorCode: BacnetErrorCode(errorCode.value),
         );
       }
       return checkNative(created);
@@ -370,8 +371,8 @@ class NativeEngine {
       if (rc == BP_ERR_OBJECT) {
         throw BacnetProtocolException(
           'write $objectType:$instance property $propertyId failed',
-          errorClass: errorClass.value,
-          errorCode: errorCode.value,
+          errorClass: BacnetErrorClass(errorClass.value),
+          errorCode: BacnetErrorCode(errorCode.value),
         );
       }
       checkNative(rc);
@@ -407,8 +408,8 @@ class NativeEngine {
       if (length == BP_ERR_OBJECT) {
         throw BacnetProtocolException(
           'read $objectType:$instance property $propertyId failed',
-          errorClass: errorClass.value,
-          errorCode: errorCode.value,
+          errorClass: BacnetErrorClass(errorClass.value),
+          errorCode: BacnetErrorCode(errorCode.value),
         );
       }
       return Uint8List.fromList(buffer.asTypedList(checkNative(length)));

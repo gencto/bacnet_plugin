@@ -9,7 +9,7 @@ part of 'rpm_models.dart';
 BacnetPropertyReference _$BacnetPropertyReferenceFromJson(
   Map<String, dynamic> json,
 ) => BacnetPropertyReference(
-  propertyIdentifier: (json['propertyIdentifier'] as num).toInt(),
+  propertyIdentifier: json['propertyIdentifier'] as BacnetPropertyId,
   propertyArrayIndex: (json['propertyArrayIndex'] as num?)?.toInt() ?? -1,
 );
 

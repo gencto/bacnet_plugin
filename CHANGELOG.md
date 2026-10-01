@@ -51,6 +51,11 @@ notes in the README.
   `CovNotificationEvent`, `PropertyWriteEvent`, `UnconfirmedServiceEvent`,
   `LogEvent`, `ErrorEvent`); the `*Response` names of 0.0.x are deprecated
   aliases. Internal request/response classes are no longer exported.
+- **Typed identifiers**: `BacnetObjectType`, `BacnetPropertyId`,
+  `BacnetEngineeringUnits`, error classes/codes, reasons, services and the
+  other enumerations are extension types over `int`. The client, server,
+  models, events and exceptions use them, so a property id passed as an
+  object type no longer compiles; `.label` names a value.
 - **Constants** are generated from bacnet-stack (`tool/generate_constants.dart`)
   and cover every standard object type, property, error code and service;
   existing names are unchanged.

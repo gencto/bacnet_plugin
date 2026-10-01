@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:meta/meta.dart';
 
 import '../client/bacnet_client.dart';
+import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
@@ -196,10 +197,13 @@ class DeviceScanner {
     return device.copyWith(
       vendorId: _value<int>(props, BacnetPropertyId.vendorIdentifier),
       maxApduLength: _value<int>(props, BacnetPropertyId.maxApduLengthAccepted),
-      segmentationSupported: _value<int>(
+      segmentationSupported: switch (_value<int>(
         props,
         BacnetPropertyId.segmentationSupported,
-      ),
+      )) {
+        final int value => BacnetSegmentation(value),
+        null => null,
+      },
       deviceName: _value<String>(props, BacnetPropertyId.objectName),
       description: _value<String>(props, BacnetPropertyId.description),
       location: _value<String>(props, BacnetPropertyId.location),
@@ -231,7 +235,7 @@ class DeviceScanner {
         deviceId: deviceId,
         vendorId: 0,
         maxApduLength: 480,
-        segmentationSupported: 0,
+        segmentationSupported: BacnetSegmentation.none,
       ),
       props,
     );
@@ -245,7 +249,7 @@ class DeviceScanner {
   /// automatically when an answer exceeds the device's APDU size).
   Future<Map<BacnetObject, Map<int, dynamic>>> scanDevice(
     int deviceId, {
-    List<int>? propertyIds,
+    List<BacnetPropertyId>? propertyIds,
     int maxObjects = 100,
     int batchSize = 20,
   }) async {
@@ -286,7 +290,10 @@ class DeviceScanner {
           final type = int.tryParse(parts[0]);
           final instance = int.tryParse(parts[1]);
           if (type == null || instance == null) continue;
-          final object = BacnetObject(type: type, instance: instance);
+          final object = BacnetObject(
+            type: BacnetObjectType(type),
+            instance: instance,
+          );
           if (results.containsKey(object)) {
             results[object] = entry.value;
           }

@@ -1,3 +1,4 @@
+import '../constants/errors.dart';
 import '../core/types.dart';
 import '../models/trend_log_data.dart';
 import 'reader.dart';
@@ -79,8 +80,8 @@ Object? _decodeLogDatum(Object? choice) {
       final errorClass = choice.values[0];
       final errorCode = choice.values[1];
       return BacnetError(
-        errorClass is int ? errorClass : -1,
-        errorCode is int ? errorCode : -1,
+        BacnetErrorClass(errorClass is int ? errorClass : -1),
+        BacnetErrorCode(errorCode is int ? errorCode : -1),
       );
     }
     // any-value

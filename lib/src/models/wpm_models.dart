@@ -5,6 +5,7 @@ library;
 import 'package:json_annotation/json_annotation.dart';
 import 'package:meta/meta.dart';
 
+import '../constants/property_ids.dart';
 import 'bacnet_object.dart';
 
 part 'wpm_models.g.dart';
@@ -102,7 +103,7 @@ class BacnetPropertyValue {
   /// The property identifier to write to.
   ///
   /// Use [BacnetPropertyId] constants for standard properties.
-  final int propertyIdentifier;
+  final BacnetPropertyId propertyIdentifier;
 
   /// Optional array index for array properties.
   ///
@@ -148,7 +149,7 @@ class BacnetPropertyValue {
 
   /// Creates a copy of this property value with updated values.
   BacnetPropertyValue copyWith({
-    int? propertyIdentifier,
+    BacnetPropertyId? propertyIdentifier,
     int? propertyArrayIndex,
     dynamic value,
     int? priority,

@@ -228,7 +228,7 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     }
 
     // Group objects by type
-    final groupedObjects = <int, List<BacnetObject>>{};
+    final groupedObjects = <BacnetObjectType, List<BacnetObject>>{};
     for (final obj in _objects!) {
       groupedObjects.putIfAbsent(obj.type, () => []).add(obj);
     }
@@ -242,7 +242,7 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
         ),
         const SizedBox(height: 8),
         ...groupedObjects.entries.map((entry) {
-          final typeName = _getObjectTypeName(entry.key);
+          final typeName = entry.key.label;
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ExpansionTile(
@@ -272,23 +272,5 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
         }),
       ],
     );
-  }
-
-  String _getObjectTypeName(int type) {
-    // Map common BACnet object types to readable names
-    const typeNames = {
-      0: 'Analog Input',
-      1: 'Analog Output',
-      2: 'Analog Value',
-      3: 'Binary Input',
-      4: 'Binary Output',
-      5: 'Binary Value',
-      8: 'Device',
-      13: 'Multi-state Input',
-      14: 'Multi-state Output',
-      19: 'Multi-state Value',
-      20: 'Trend Log',
-    };
-    return typeNames[type] ?? 'Type $type';
   }
 }

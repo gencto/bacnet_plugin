@@ -2,26 +2,31 @@
 // bacnet-stack bacenum.h. Do not edit.
 
 /// BACnet event states (BACnetEventState).
-abstract final class BacnetEventState {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetEventState(value)`.
+extension type const BacnetEventState(int value) implements int {
   /// Normal.
-  static const int normal = 0;
+  static const normal = BacnetEventState(0);
 
   /// Fault.
-  static const int fault = 1;
+  static const fault = BacnetEventState(1);
 
   /// Off Normal.
-  static const int offNormal = 2;
+  static const offNormal = BacnetEventState(2);
 
   /// High Limit.
-  static const int highLimit = 3;
+  static const highLimit = BacnetEventState(3);
 
   /// Low Limit.
-  static const int lowLimit = 4;
+  static const lowLimit = BacnetEventState(4);
 
   /// Life Safety Alarm.
-  static const int lifeSafetyAlarm = 5;
+  static const lifeSafetyAlarm = BacnetEventState(5);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetEventState, String> _labels = {
     normal: 'Normal',
     fault: 'Fault',
     offNormal: 'Off Normal',
@@ -31,87 +36,95 @@ abstract final class BacnetEventState {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetEventState> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Event State $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }
 
 /// BACnet reliability values (BACnetReliability).
-abstract final class BacnetReliability {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetReliability(value)`.
+extension type const BacnetReliability(int value) implements int {
   /// No Fault Detected.
-  static const int noFaultDetected = 0;
+  static const noFaultDetected = BacnetReliability(0);
 
   /// No Sensor.
-  static const int noSensor = 1;
+  static const noSensor = BacnetReliability(1);
 
   /// Over Range.
-  static const int overRange = 2;
+  static const overRange = BacnetReliability(2);
 
   /// Under Range.
-  static const int underRange = 3;
+  static const underRange = BacnetReliability(3);
 
   /// Open Loop.
-  static const int openLoop = 4;
+  static const openLoop = BacnetReliability(4);
 
   /// Shorted Loop.
-  static const int shortedLoop = 5;
+  static const shortedLoop = BacnetReliability(5);
 
   /// No Output.
-  static const int noOutput = 6;
+  static const noOutput = BacnetReliability(6);
 
   /// Unreliable Other.
-  static const int unreliableOther = 7;
+  static const unreliableOther = BacnetReliability(7);
 
   /// Process Error.
-  static const int processError = 8;
+  static const processError = BacnetReliability(8);
 
   /// Multi State Fault.
-  static const int multiStateFault = 9;
+  static const multiStateFault = BacnetReliability(9);
 
   /// Configuration Error.
-  static const int configurationError = 10;
+  static const configurationError = BacnetReliability(10);
 
   /// Communication Failure.
-  static const int communicationFailure = 12;
+  static const communicationFailure = BacnetReliability(12);
 
   /// Member Fault.
-  static const int memberFault = 13;
+  static const memberFault = BacnetReliability(13);
 
   /// Monitored Object Fault.
-  static const int monitoredObjectFault = 14;
+  static const monitoredObjectFault = BacnetReliability(14);
 
   /// Tripped.
-  static const int tripped = 15;
+  static const tripped = BacnetReliability(15);
 
   /// Lamp Failure.
-  static const int lampFailure = 16;
+  static const lampFailure = BacnetReliability(16);
 
   /// Activation Failure.
-  static const int activationFailure = 17;
+  static const activationFailure = BacnetReliability(17);
 
   /// Renew DHCP Failure.
-  static const int renewDhcpFailure = 18;
+  static const renewDhcpFailure = BacnetReliability(18);
 
   /// Renew FD Registration Failure.
-  static const int renewFdRegistrationFailure = 19;
+  static const renewFdRegistrationFailure = BacnetReliability(19);
 
   /// Restart Auto Negotiation Failure.
-  static const int restartAutoNegotiationFailure = 20;
+  static const restartAutoNegotiationFailure = BacnetReliability(20);
 
   /// Restart Failure.
-  static const int restartFailure = 21;
+  static const restartFailure = BacnetReliability(21);
 
   /// Faults Listed.
-  static const int faultsListed = 23;
+  static const faultsListed = BacnetReliability(23);
 
   /// Referenced Object Fault.
-  static const int referencedObjectFault = 24;
+  static const referencedObjectFault = BacnetReliability(24);
 
   /// Multi State Out Of Range.
-  static const int multiStateOutOfRange = 25;
+  static const multiStateOutOfRange = BacnetReliability(25);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetReliability, String> _labels = {
     noFaultDetected: 'No Fault Detected',
     noSensor: 'No Sensor',
     overRange: 'Over Range',
@@ -139,33 +152,41 @@ abstract final class BacnetReliability {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetReliability> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Reliability $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }
 
 /// BACnet device status values (BACnetDeviceStatus).
-abstract final class BacnetDeviceStatus {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetDeviceStatus(value)`.
+extension type const BacnetDeviceStatus(int value) implements int {
   /// Operational.
-  static const int operational = 0;
+  static const operational = BacnetDeviceStatus(0);
 
   /// Operational Read Only.
-  static const int operationalReadOnly = 1;
+  static const operationalReadOnly = BacnetDeviceStatus(1);
 
   /// Download Required.
-  static const int downloadRequired = 2;
+  static const downloadRequired = BacnetDeviceStatus(2);
 
   /// Download In Progress.
-  static const int downloadInProgress = 3;
+  static const downloadInProgress = BacnetDeviceStatus(3);
 
   /// Non Operational.
-  static const int nonOperational = 4;
+  static const nonOperational = BacnetDeviceStatus(4);
 
   /// Backup In Progress.
-  static const int backupInProgress = 5;
+  static const backupInProgress = BacnetDeviceStatus(5);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetDeviceStatus, String> _labels = {
     operational: 'Operational',
     operationalReadOnly: 'Operational Read Only',
     downloadRequired: 'Download Required',
@@ -175,27 +196,35 @@ abstract final class BacnetDeviceStatus {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetDeviceStatus> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Device Status $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }
 
 /// BACnet segmentation support (BACnetSegmentation).
-abstract final class BacnetSegmentation {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetSegmentation(value)`.
+extension type const BacnetSegmentation(int value) implements int {
   /// Both.
-  static const int both = 0;
+  static const both = BacnetSegmentation(0);
 
   /// Transmit.
-  static const int transmit = 1;
+  static const transmit = BacnetSegmentation(1);
 
   /// Receive.
-  static const int receive = 2;
+  static const receive = BacnetSegmentation(2);
 
   /// None.
-  static const int none = 3;
+  static const none = BacnetSegmentation(3);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetSegmentation, String> _labels = {
     both: 'Both',
     transmit: 'Transmit',
     receive: 'Receive',
@@ -203,8 +232,11 @@ abstract final class BacnetSegmentation {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetSegmentation> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Segmentation $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }

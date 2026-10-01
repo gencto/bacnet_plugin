@@ -214,12 +214,11 @@ try {
   await client.readProperty(1234, BacnetObjectType.analogInput, 1,
       BacnetPropertyId.presentValue);
 } on BacnetProtocolException catch (e) {
-  print('${BacnetErrorClass.getName(e.errorClass)}: '
-      '${BacnetErrorCode.getName(e.errorCode)}');
+  print('${e.errorClass.label}: ${e.errorCode.label}');
 } on BacnetRejectException catch (e) {
-  print('rejected: ${BacnetRejectReason.getName(e.reason)}');
+  print('rejected: ${e.reason.label}');
 } on BacnetAbortException catch (e) {
-  print('aborted: ${BacnetAbortReason.getName(e.reason)}');
+  print('aborted: ${e.reason.label}');
 } on BacnetDeviceNotFoundException catch (e) {
   print('device ${e.deviceId} did not answer Who-Is');
 } on BacnetTimeoutException {
@@ -227,6 +226,25 @@ try {
 } on BacnetQueueFullException {
   print('slow down');
 }
+```
+
+## Identifiers
+
+Object types, property identifiers, units, error classes and the other
+BACnet enumerations are [extension types](https://dart.dev/language/extension-types)
+over `int`: they cost nothing at runtime, work wherever an `int` is expected,
+and the compiler rejects a property where an object type is expected.
+Values this package does not name (proprietary types and properties) are
+created explicitly:
+
+```dart
+await client.readProperty(
+  1234,
+  const BacnetObjectType(130), // proprietary object type
+  1,
+  const BacnetPropertyId(512), // proprietary property
+);
+print(BacnetObjectType.multiStateValue.label); // Multi-state Value
 ```
 
 ## Values
@@ -249,6 +267,10 @@ await client.writeProperty(1234, BacnetObjectType.binaryOutput, 1,
 
 - The package is a pure Dart package with a build hook: remove platform
   specific setup; Dart 3.11/Flutter 3.44 are required.
+- Object types, property identifiers and other enumerations are typed:
+  replace numbers such as `readProperty(id, 2, 1, 85)` with constants
+  (`BacnetObjectType.analogValue`, `BacnetPropertyId.presentValue`) or
+  `BacnetObjectType(2)`. `getName(value)` still works; prefer `.label`.
 - `readProperty` returns `BacnetObject` instead of `{'type', 'instance'}`
   maps for object identifiers and complete lists for array properties.
 - `writeProperty(tag:)` defaults to datatype inference instead of REAL.

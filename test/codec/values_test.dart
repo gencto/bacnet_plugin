@@ -48,7 +48,10 @@ void main() {
       expect(roundTrip(const BacnetDate()), const BacnetDate());
       const time = BacnetTime(hour: 13, minute: 5, second: 59, hundredths: 99);
       expect(roundTrip(time), time);
-      const object = BacnetObject(type: 8, instance: 4194302);
+      const object = BacnetObject(
+        type: BacnetObjectType.device,
+        instance: 4194302,
+      );
       expect(roundTrip(object), object);
     });
 

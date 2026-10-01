@@ -2,32 +2,37 @@
 // bacnet-stack bacenum.h. Do not edit.
 
 /// BACnet error classes (BACnetErrorClass).
-abstract final class BacnetErrorClass {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetErrorClass(value)`.
+extension type const BacnetErrorClass(int value) implements int {
   /// Device.
-  static const int device = 0;
+  static const device = BacnetErrorClass(0);
 
   /// Object.
-  static const int object = 1;
+  static const object = BacnetErrorClass(1);
 
   /// Property.
-  static const int property = 2;
+  static const property = BacnetErrorClass(2);
 
   /// Resources.
-  static const int resources = 3;
+  static const resources = BacnetErrorClass(3);
 
   /// Security.
-  static const int security = 4;
+  static const security = BacnetErrorClass(4);
 
   /// Services.
-  static const int services = 5;
+  static const services = BacnetErrorClass(5);
 
   /// VT.
-  static const int vt = 6;
+  static const vt = BacnetErrorClass(6);
 
   /// Communication.
-  static const int communication = 7;
+  static const communication = BacnetErrorClass(7);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetErrorClass, String> _labels = {
     device: 'Device',
     object: 'Object',
     property: 'Property',
@@ -39,694 +44,702 @@ abstract final class BacnetErrorClass {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetErrorClass> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) =>
       _labels[value] ?? 'Unknown Class ($value)';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }
 
 /// BACnet error codes (BACnetErrorCode).
-abstract final class BacnetErrorCode {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetErrorCode(value)`.
+extension type const BacnetErrorCode(int value) implements int {
   /// Other.
-  static const int other = 0;
+  static const other = BacnetErrorCode(0);
 
   /// Authentication Failed.
-  static const int authenticationFailed = 1;
+  static const authenticationFailed = BacnetErrorCode(1);
 
   /// Configuration In Progress.
-  static const int configurationInProgress = 2;
+  static const configurationInProgress = BacnetErrorCode(2);
 
   /// Device Busy.
-  static const int deviceBusy = 3;
+  static const deviceBusy = BacnetErrorCode(3);
 
   /// Dynamic Creation Not Supported.
-  static const int dynamicCreationNotSupported = 4;
+  static const dynamicCreationNotSupported = BacnetErrorCode(4);
 
   /// File Access Denied.
-  static const int fileAccessDenied = 5;
+  static const fileAccessDenied = BacnetErrorCode(5);
 
   /// Incompatible Security Levels.
-  static const int incompatibleSecurityLevels = 6;
+  static const incompatibleSecurityLevels = BacnetErrorCode(6);
 
   /// Inconsistent Parameters.
-  static const int inconsistentParameters = 7;
+  static const inconsistentParameters = BacnetErrorCode(7);
 
   /// Inconsistent Selection Criterion.
-  static const int inconsistentSelectionCriterion = 8;
+  static const inconsistentSelectionCriterion = BacnetErrorCode(8);
 
   /// Invalid Data Type.
-  static const int invalidDataType = 9;
+  static const invalidDataType = BacnetErrorCode(9);
 
   /// Invalid File Access Method.
-  static const int invalidFileAccessMethod = 10;
+  static const invalidFileAccessMethod = BacnetErrorCode(10);
 
   /// Invalid File Start Position.
-  static const int invalidFileStartPosition = 11;
+  static const invalidFileStartPosition = BacnetErrorCode(11);
 
   /// Invalid Operator Name.
-  static const int invalidOperatorName = 12;
+  static const invalidOperatorName = BacnetErrorCode(12);
 
   /// Invalid Parameter Data Type.
-  static const int invalidParameterDataType = 13;
+  static const invalidParameterDataType = BacnetErrorCode(13);
 
   /// Invalid Time Stamp.
-  static const int invalidTimeStamp = 14;
+  static const invalidTimeStamp = BacnetErrorCode(14);
 
   /// Key Generation Error.
-  static const int keyGeneration = 15;
+  static const keyGeneration = BacnetErrorCode(15);
 
   /// Missing Required Parameter.
-  static const int missingRequiredParameter = 16;
+  static const missingRequiredParameter = BacnetErrorCode(16);
 
   /// No Objects Of Specified Type.
-  static const int noObjectsOfSpecifiedType = 17;
+  static const noObjectsOfSpecifiedType = BacnetErrorCode(17);
 
   /// No Space For Object.
-  static const int noSpaceForObject = 18;
+  static const noSpaceForObject = BacnetErrorCode(18);
 
   /// No Space To Add List Element.
-  static const int noSpaceToAddListElement = 19;
+  static const noSpaceToAddListElement = BacnetErrorCode(19);
 
   /// No Space To Write Property.
-  static const int noSpaceToWriteProperty = 20;
+  static const noSpaceToWriteProperty = BacnetErrorCode(20);
 
   /// No VT Sessions Available.
-  static const int noVtSessionsAvailable = 21;
+  static const noVtSessionsAvailable = BacnetErrorCode(21);
 
   /// Property Is Not A List.
-  static const int propertyIsNotAList = 22;
+  static const propertyIsNotAList = BacnetErrorCode(22);
 
   /// Object Deletion Not Permitted.
-  static const int objectDeletionNotPermitted = 23;
+  static const objectDeletionNotPermitted = BacnetErrorCode(23);
 
   /// Object Identifier Already Exists.
-  static const int objectIdentifierAlreadyExists = 24;
+  static const objectIdentifierAlreadyExists = BacnetErrorCode(24);
 
   /// Operational Problem.
-  static const int operationalProblem = 25;
+  static const operationalProblem = BacnetErrorCode(25);
 
   /// Password Failure.
-  static const int passwordFailure = 26;
+  static const passwordFailure = BacnetErrorCode(26);
 
   /// Read Access Denied.
-  static const int readAccessDenied = 27;
+  static const readAccessDenied = BacnetErrorCode(27);
 
   /// Security Not Supported.
-  static const int securityNotSupported = 28;
+  static const securityNotSupported = BacnetErrorCode(28);
 
   /// Service Request Denied.
-  static const int serviceRequestDenied = 29;
+  static const serviceRequestDenied = BacnetErrorCode(29);
 
   /// Timeout.
-  static const int timeout = 30;
+  static const timeout = BacnetErrorCode(30);
 
   /// Unknown Object.
-  static const int unknownObject = 31;
+  static const unknownObject = BacnetErrorCode(31);
 
   /// Unknown Property.
-  static const int unknownProperty = 32;
+  static const unknownProperty = BacnetErrorCode(32);
 
   /// Unknown VT Class.
-  static const int unknownVtClass = 34;
+  static const unknownVtClass = BacnetErrorCode(34);
 
   /// Unknown VT Session.
-  static const int unknownVtSession = 35;
+  static const unknownVtSession = BacnetErrorCode(35);
 
   /// Unsupported Object Type.
-  static const int unsupportedObjectType = 36;
+  static const unsupportedObjectType = BacnetErrorCode(36);
 
   /// Value Out Of Range.
-  static const int valueOutOfRange = 37;
+  static const valueOutOfRange = BacnetErrorCode(37);
 
   /// VT Session Already Closed.
-  static const int vtSessionAlreadyClosed = 38;
+  static const vtSessionAlreadyClosed = BacnetErrorCode(38);
 
   /// VT Session Termination Failure.
-  static const int vtSessionTerminationFailure = 39;
+  static const vtSessionTerminationFailure = BacnetErrorCode(39);
 
   /// Write Access Denied.
-  static const int writeAccessDenied = 40;
+  static const writeAccessDenied = BacnetErrorCode(40);
 
   /// Character Set Not Supported.
-  static const int characterSetNotSupported = 41;
+  static const characterSetNotSupported = BacnetErrorCode(41);
 
   /// Invalid Array Index.
-  static const int invalidArrayIndex = 42;
+  static const invalidArrayIndex = BacnetErrorCode(42);
 
   /// COV Subscription Failed.
-  static const int covSubscriptionFailed = 43;
+  static const covSubscriptionFailed = BacnetErrorCode(43);
 
   /// Not COV Property.
-  static const int notCovProperty = 44;
+  static const notCovProperty = BacnetErrorCode(44);
 
   /// Optional Functionality Not Supported.
-  static const int optionalFunctionalityNotSupported = 45;
+  static const optionalFunctionalityNotSupported = BacnetErrorCode(45);
 
   /// Invalid Configuration Data.
-  static const int invalidConfigurationData = 46;
+  static const invalidConfigurationData = BacnetErrorCode(46);
 
   /// Datatype Not Supported.
-  static const int datatypeNotSupported = 47;
+  static const datatypeNotSupported = BacnetErrorCode(47);
 
   /// Duplicate Name.
-  static const int duplicateName = 48;
+  static const duplicateName = BacnetErrorCode(48);
 
   /// Duplicate Object ID.
-  static const int duplicateObjectId = 49;
+  static const duplicateObjectId = BacnetErrorCode(49);
 
   /// Property Is Not An Array.
-  static const int propertyIsNotAnArray = 50;
+  static const propertyIsNotAnArray = BacnetErrorCode(50);
 
   /// Abort Buffer Overflow.
-  static const int abortBufferOverflow = 51;
+  static const abortBufferOverflow = BacnetErrorCode(51);
 
   /// Abort Invalid APDU In This State.
-  static const int abortInvalidApduInThisState = 52;
+  static const abortInvalidApduInThisState = BacnetErrorCode(52);
 
   /// Abort Preempted By Higher Priority Task.
-  static const int abortPreemptedByHigherPriorityTask = 53;
+  static const abortPreemptedByHigherPriorityTask = BacnetErrorCode(53);
 
   /// Abort Segmentation Not Supported.
-  static const int abortSegmentationNotSupported = 54;
+  static const abortSegmentationNotSupported = BacnetErrorCode(54);
 
   /// Abort Other.
-  static const int abortOther = 56;
+  static const abortOther = BacnetErrorCode(56);
 
   /// Invalid Tag.
-  static const int invalidTag = 57;
+  static const invalidTag = BacnetErrorCode(57);
 
   /// Network Down.
-  static const int networkDown = 58;
+  static const networkDown = BacnetErrorCode(58);
 
   /// Reject Buffer Overflow.
-  static const int rejectBufferOverflow = 59;
+  static const rejectBufferOverflow = BacnetErrorCode(59);
 
   /// Reject Inconsistent Parameters.
-  static const int rejectInconsistentParameters = 60;
+  static const rejectInconsistentParameters = BacnetErrorCode(60);
 
   /// Reject Invalid Parameter Data Type.
-  static const int rejectInvalidParameterDataType = 61;
+  static const rejectInvalidParameterDataType = BacnetErrorCode(61);
 
   /// Reject Invalid Tag.
-  static const int rejectInvalidTag = 62;
+  static const rejectInvalidTag = BacnetErrorCode(62);
 
   /// Reject Missing Required Parameter.
-  static const int rejectMissingRequiredParameter = 63;
+  static const rejectMissingRequiredParameter = BacnetErrorCode(63);
 
   /// Reject Parameter Out Of Range.
-  static const int rejectParameterOutOfRange = 64;
+  static const rejectParameterOutOfRange = BacnetErrorCode(64);
 
   /// Reject Too Many Arguments.
-  static const int rejectTooManyArguments = 65;
+  static const rejectTooManyArguments = BacnetErrorCode(65);
 
   /// Reject Undefined Enumeration.
-  static const int rejectUndefinedEnumeration = 66;
+  static const rejectUndefinedEnumeration = BacnetErrorCode(66);
 
   /// Reject Unrecognized Service.
-  static const int rejectUnrecognizedService = 67;
+  static const rejectUnrecognizedService = BacnetErrorCode(67);
 
   /// Reject Other.
-  static const int rejectOther = 69;
+  static const rejectOther = BacnetErrorCode(69);
 
   /// Unknown Device.
-  static const int unknownDevice = 70;
+  static const unknownDevice = BacnetErrorCode(70);
 
   /// Unknown Route.
-  static const int unknownRoute = 71;
+  static const unknownRoute = BacnetErrorCode(71);
 
   /// Value Not Initialized.
-  static const int valueNotInitialized = 72;
+  static const valueNotInitialized = BacnetErrorCode(72);
 
   /// Invalid Event State.
-  static const int invalidEventState = 73;
+  static const invalidEventState = BacnetErrorCode(73);
 
   /// No Alarm Configured.
-  static const int noAlarmConfigured = 74;
+  static const noAlarmConfigured = BacnetErrorCode(74);
 
   /// Log Buffer Full.
-  static const int logBufferFull = 75;
+  static const logBufferFull = BacnetErrorCode(75);
 
   /// Logged Value Purged.
-  static const int loggedValuePurged = 76;
+  static const loggedValuePurged = BacnetErrorCode(76);
 
   /// No Property Specified.
-  static const int noPropertySpecified = 77;
+  static const noPropertySpecified = BacnetErrorCode(77);
 
   /// Not Configured For Triggered Logging.
-  static const int notConfiguredForTriggeredLogging = 78;
+  static const notConfiguredForTriggeredLogging = BacnetErrorCode(78);
 
   /// Unknown Subscription.
-  static const int unknownSubscription = 79;
+  static const unknownSubscription = BacnetErrorCode(79);
 
   /// Parameter Out Of Range.
-  static const int parameterOutOfRange = 80;
+  static const parameterOutOfRange = BacnetErrorCode(80);
 
   /// List Element Not Found.
-  static const int listElementNotFound = 81;
+  static const listElementNotFound = BacnetErrorCode(81);
 
   /// Busy.
-  static const int busy = 82;
+  static const busy = BacnetErrorCode(82);
 
   /// Communication Disabled.
-  static const int communicationDisabled = 83;
+  static const communicationDisabled = BacnetErrorCode(83);
 
   /// Success.
-  static const int success = 84;
+  static const success = BacnetErrorCode(84);
 
   /// Access Denied.
-  static const int accessDenied = 85;
+  static const accessDenied = BacnetErrorCode(85);
 
   /// Bad Destination Address.
-  static const int badDestinationAddress = 86;
+  static const badDestinationAddress = BacnetErrorCode(86);
 
   /// Bad Destination Device ID.
-  static const int badDestinationDeviceId = 87;
+  static const badDestinationDeviceId = BacnetErrorCode(87);
 
   /// Bad Signature.
-  static const int badSignature = 88;
+  static const badSignature = BacnetErrorCode(88);
 
   /// Bad Source Address.
-  static const int badSourceAddress = 89;
+  static const badSourceAddress = BacnetErrorCode(89);
 
   /// Bad Timestamp.
-  static const int badTimestamp = 90;
+  static const badTimestamp = BacnetErrorCode(90);
 
   /// Cannot Use Key.
-  static const int cannotUseKey = 91;
+  static const cannotUseKey = BacnetErrorCode(91);
 
   /// Cannot Verify Message ID.
-  static const int cannotVerifyMessageId = 92;
+  static const cannotVerifyMessageId = BacnetErrorCode(92);
 
   /// Correct Key Revision.
-  static const int correctKeyRevision = 93;
+  static const correctKeyRevision = BacnetErrorCode(93);
 
   /// Destination Device ID Required.
-  static const int destinationDeviceIdRequired = 94;
+  static const destinationDeviceIdRequired = BacnetErrorCode(94);
 
   /// Duplicate Message.
-  static const int duplicateMessage = 95;
+  static const duplicateMessage = BacnetErrorCode(95);
 
   /// Encryption Not Configured.
-  static const int encryptionNotConfigured = 96;
+  static const encryptionNotConfigured = BacnetErrorCode(96);
 
   /// Encryption Required.
-  static const int encryptionRequired = 97;
+  static const encryptionRequired = BacnetErrorCode(97);
 
   /// Incorrect Key.
-  static const int incorrectKey = 98;
+  static const incorrectKey = BacnetErrorCode(98);
 
   /// Invalid Key Data.
-  static const int invalidKeyData = 99;
+  static const invalidKeyData = BacnetErrorCode(99);
 
   /// Key Update In Progress.
-  static const int keyUpdateInProgress = 100;
+  static const keyUpdateInProgress = BacnetErrorCode(100);
 
   /// Malformed Message.
-  static const int malformedMessage = 101;
+  static const malformedMessage = BacnetErrorCode(101);
 
   /// Not Key Server.
-  static const int notKeyServer = 102;
+  static const notKeyServer = BacnetErrorCode(102);
 
   /// Security Not Configured.
-  static const int securityNotConfigured = 103;
+  static const securityNotConfigured = BacnetErrorCode(103);
 
   /// Source Security Required.
-  static const int sourceSecurityRequired = 104;
+  static const sourceSecurityRequired = BacnetErrorCode(104);
 
   /// Too Many Keys.
-  static const int tooManyKeys = 105;
+  static const tooManyKeys = BacnetErrorCode(105);
 
   /// Unknown Authentication Type.
-  static const int unknownAuthenticationType = 106;
+  static const unknownAuthenticationType = BacnetErrorCode(106);
 
   /// Unknown Key.
-  static const int unknownKey = 107;
+  static const unknownKey = BacnetErrorCode(107);
 
   /// Unknown Key Revision.
-  static const int unknownKeyRevision = 108;
+  static const unknownKeyRevision = BacnetErrorCode(108);
 
   /// Unknown Source Message.
-  static const int unknownSourceMessage = 109;
+  static const unknownSourceMessage = BacnetErrorCode(109);
 
   /// Not Router To Dnet.
-  static const int notRouterToDnet = 110;
+  static const notRouterToDnet = BacnetErrorCode(110);
 
   /// Router Busy.
-  static const int routerBusy = 111;
+  static const routerBusy = BacnetErrorCode(111);
 
   /// Unknown Network Message.
-  static const int unknownNetworkMessage = 112;
+  static const unknownNetworkMessage = BacnetErrorCode(112);
 
   /// Message Too Long.
-  static const int messageTooLong = 113;
+  static const messageTooLong = BacnetErrorCode(113);
 
   /// Security Error.
-  static const int securityError = 114;
+  static const securityError = BacnetErrorCode(114);
 
   /// Addressing Error.
-  static const int addressingError = 115;
+  static const addressingError = BacnetErrorCode(115);
 
   /// Write Bdt Failed.
-  static const int writeBdtFailed = 116;
+  static const writeBdtFailed = BacnetErrorCode(116);
 
   /// Read Bdt Failed.
-  static const int readBdtFailed = 117;
+  static const readBdtFailed = BacnetErrorCode(117);
 
   /// Register Foreign Device Failed.
-  static const int registerForeignDeviceFailed = 118;
+  static const registerForeignDeviceFailed = BacnetErrorCode(118);
 
   /// Read Fdt Failed.
-  static const int readFdtFailed = 119;
+  static const readFdtFailed = BacnetErrorCode(119);
 
   /// Delete Fdt Entry Failed.
-  static const int deleteFdtEntryFailed = 120;
+  static const deleteFdtEntryFailed = BacnetErrorCode(120);
 
   /// Distribute Broadcast Failed.
-  static const int distributeBroadcastFailed = 121;
+  static const distributeBroadcastFailed = BacnetErrorCode(121);
 
   /// Unknown File Size.
-  static const int unknownFileSize = 122;
+  static const unknownFileSize = BacnetErrorCode(122);
 
   /// Abort APDU Too Long.
-  static const int abortApduTooLong = 123;
+  static const abortApduTooLong = BacnetErrorCode(123);
 
   /// Abort Application Exceeded Reply Time.
-  static const int abortApplicationExceededReplyTime = 124;
+  static const abortApplicationExceededReplyTime = BacnetErrorCode(124);
 
   /// Abort Out Of Resources.
-  static const int abortOutOfResources = 125;
+  static const abortOutOfResources = BacnetErrorCode(125);
 
   /// Abort TSM Timeout.
-  static const int abortTsmTimeout = 126;
+  static const abortTsmTimeout = BacnetErrorCode(126);
 
   /// Abort Window Size Out Of Range.
-  static const int abortWindowSizeOutOfRange = 127;
+  static const abortWindowSizeOutOfRange = BacnetErrorCode(127);
 
   /// File Full.
-  static const int fileFull = 128;
+  static const fileFull = BacnetErrorCode(128);
 
   /// Inconsistent Configuration.
-  static const int inconsistentConfiguration = 129;
+  static const inconsistentConfiguration = BacnetErrorCode(129);
 
   /// Inconsistent Object Type.
-  static const int inconsistentObjectType = 130;
+  static const inconsistentObjectType = BacnetErrorCode(130);
 
   /// Internal Error.
-  static const int internalError = 131;
+  static const internalError = BacnetErrorCode(131);
 
   /// Not Configured.
-  static const int notConfigured = 132;
+  static const notConfigured = BacnetErrorCode(132);
 
   /// Out Of Memory.
-  static const int outOfMemory = 133;
+  static const outOfMemory = BacnetErrorCode(133);
 
   /// Value Too Long.
-  static const int valueTooLong = 134;
+  static const valueTooLong = BacnetErrorCode(134);
 
   /// Abort Insufficient Security.
-  static const int abortInsufficientSecurity = 135;
+  static const abortInsufficientSecurity = BacnetErrorCode(135);
 
   /// Abort Security Error.
-  static const int abortSecurityError = 136;
+  static const abortSecurityError = BacnetErrorCode(136);
 
   /// Duplicate Entry.
-  static const int duplicateEntry = 137;
+  static const duplicateEntry = BacnetErrorCode(137);
 
   /// Invalid Value In This State.
-  static const int invalidValueInThisState = 138;
+  static const invalidValueInThisState = BacnetErrorCode(138);
 
   /// Invalid Operation In This State.
-  static const int invalidOperationInThisState = 139;
+  static const invalidOperationInThisState = BacnetErrorCode(139);
 
   /// List Item Not Numbered.
-  static const int listItemNotNumbered = 140;
+  static const listItemNotNumbered = BacnetErrorCode(140);
 
   /// List Item Not Timestamped.
-  static const int listItemNotTimestamped = 141;
+  static const listItemNotTimestamped = BacnetErrorCode(141);
 
   /// Invalid Data Encoding.
-  static const int invalidDataEncoding = 142;
+  static const invalidDataEncoding = BacnetErrorCode(142);
 
   /// Bvlc Function Unknown.
-  static const int bvlcFunctionUnknown = 143;
+  static const bvlcFunctionUnknown = BacnetErrorCode(143);
 
   /// Header Encoding Error.
-  static const int headerEncodingError = 145;
+  static const headerEncodingError = BacnetErrorCode(145);
 
   /// Header Not Understood.
-  static const int headerNotUnderstood = 146;
+  static const headerNotUnderstood = BacnetErrorCode(146);
 
   /// Message Incomplete.
-  static const int messageIncomplete = 147;
+  static const messageIncomplete = BacnetErrorCode(147);
 
   /// Not A BACnet SC Hub.
-  static const int notABacnetScHub = 148;
+  static const notABacnetScHub = BacnetErrorCode(148);
 
   /// Payload Expected.
-  static const int payloadExpected = 149;
+  static const payloadExpected = BacnetErrorCode(149);
 
   /// Unexpected Data.
-  static const int unexpectedData = 150;
+  static const unexpectedData = BacnetErrorCode(150);
 
   /// Node Duplicate VMAC.
-  static const int nodeDuplicateVmac = 151;
+  static const nodeDuplicateVmac = BacnetErrorCode(151);
 
   /// Http Unexpected Response Code.
-  static const int httpUnexpectedResponseCode = 152;
+  static const httpUnexpectedResponseCode = BacnetErrorCode(152);
 
   /// Http No Upgrade.
-  static const int httpNoUpgrade = 153;
+  static const httpNoUpgrade = BacnetErrorCode(153);
 
   /// Http Resource Not Local.
-  static const int httpResourceNotLocal = 154;
+  static const httpResourceNotLocal = BacnetErrorCode(154);
 
   /// Http Proxy Authentication Failed.
-  static const int httpProxyAuthenticationFailed = 155;
+  static const httpProxyAuthenticationFailed = BacnetErrorCode(155);
 
   /// Http Response Timeout.
-  static const int httpResponseTimeout = 156;
+  static const httpResponseTimeout = BacnetErrorCode(156);
 
   /// Http Response Syntax Error.
-  static const int httpResponseSyntaxError = 157;
+  static const httpResponseSyntaxError = BacnetErrorCode(157);
 
   /// Http Response Value Error.
-  static const int httpResponseValueError = 158;
+  static const httpResponseValueError = BacnetErrorCode(158);
 
   /// Http Response Missing Header.
-  static const int httpResponseMissingHeader = 159;
+  static const httpResponseMissingHeader = BacnetErrorCode(159);
 
   /// Http Websocket Header Error.
-  static const int httpWebsocketHeaderError = 160;
+  static const httpWebsocketHeaderError = BacnetErrorCode(160);
 
   /// Http Upgrade Required.
-  static const int httpUpgradeRequired = 161;
+  static const httpUpgradeRequired = BacnetErrorCode(161);
 
   /// Http Upgrade Error.
-  static const int httpUpgradeError = 162;
+  static const httpUpgradeError = BacnetErrorCode(162);
 
   /// Http Temporary Unavailable.
-  static const int httpTemporaryUnavailable = 163;
+  static const httpTemporaryUnavailable = BacnetErrorCode(163);
 
   /// Http Not A Server.
-  static const int httpNotAServer = 164;
+  static const httpNotAServer = BacnetErrorCode(164);
 
   /// Http Error.
-  static const int httpError = 165;
+  static const httpError = BacnetErrorCode(165);
 
   /// Websocket Scheme Not Supported.
-  static const int websocketSchemeNotSupported = 166;
+  static const websocketSchemeNotSupported = BacnetErrorCode(166);
 
   /// Websocket Unknown Control Message.
-  static const int websocketUnknownControlMessage = 167;
+  static const websocketUnknownControlMessage = BacnetErrorCode(167);
 
   /// Websocket Close Error.
-  static const int websocketCloseError = 168;
+  static const websocketCloseError = BacnetErrorCode(168);
 
   /// Websocket Closed By Peer.
-  static const int websocketClosedByPeer = 169;
+  static const websocketClosedByPeer = BacnetErrorCode(169);
 
   /// Websocket Endpoint Leaves.
-  static const int websocketEndpointLeaves = 170;
+  static const websocketEndpointLeaves = BacnetErrorCode(170);
 
   /// Websocket Protocol Error.
-  static const int websocketProtocolError = 171;
+  static const websocketProtocolError = BacnetErrorCode(171);
 
   /// Websocket Data Not Accepted.
-  static const int websocketDataNotAccepted = 172;
+  static const websocketDataNotAccepted = BacnetErrorCode(172);
 
   /// Websocket Closed Abnormally.
-  static const int websocketClosedAbnormally = 173;
+  static const websocketClosedAbnormally = BacnetErrorCode(173);
 
   /// Websocket Data Inconsistent.
-  static const int websocketDataInconsistent = 174;
+  static const websocketDataInconsistent = BacnetErrorCode(174);
 
   /// Websocket Data Against Policy.
-  static const int websocketDataAgainstPolicy = 175;
+  static const websocketDataAgainstPolicy = BacnetErrorCode(175);
 
   /// Websocket Frame Too Long.
-  static const int websocketFrameTooLong = 176;
+  static const websocketFrameTooLong = BacnetErrorCode(176);
 
   /// Websocket Extension Missing.
-  static const int websocketExtensionMissing = 177;
+  static const websocketExtensionMissing = BacnetErrorCode(177);
 
   /// Websocket Request Unavailable.
-  static const int websocketRequestUnavailable = 178;
+  static const websocketRequestUnavailable = BacnetErrorCode(178);
 
   /// Websocket Error.
-  static const int websocketError = 179;
+  static const websocketError = BacnetErrorCode(179);
 
   /// Tls Client Certificate Error.
-  static const int tlsClientCertificateError = 180;
+  static const tlsClientCertificateError = BacnetErrorCode(180);
 
   /// Tls Server Certificate Error.
-  static const int tlsServerCertificateError = 181;
+  static const tlsServerCertificateError = BacnetErrorCode(181);
 
   /// Tls Client Authentication Failed.
-  static const int tlsClientAuthenticationFailed = 182;
+  static const tlsClientAuthenticationFailed = BacnetErrorCode(182);
 
   /// Tls Server Authentication Failed.
-  static const int tlsServerAuthenticationFailed = 183;
+  static const tlsServerAuthenticationFailed = BacnetErrorCode(183);
 
   /// Tls Client Certificate Expired.
-  static const int tlsClientCertificateExpired = 184;
+  static const tlsClientCertificateExpired = BacnetErrorCode(184);
 
   /// Tls Server Certificate Expired.
-  static const int tlsServerCertificateExpired = 185;
+  static const tlsServerCertificateExpired = BacnetErrorCode(185);
 
   /// Tls Client Certificate Revoked.
-  static const int tlsClientCertificateRevoked = 186;
+  static const tlsClientCertificateRevoked = BacnetErrorCode(186);
 
   /// Tls Server Certificate Revoked.
-  static const int tlsServerCertificateRevoked = 187;
+  static const tlsServerCertificateRevoked = BacnetErrorCode(187);
 
   /// Tls Error.
-  static const int tlsError = 188;
+  static const tlsError = BacnetErrorCode(188);
 
   /// DNS Unavailable.
-  static const int dnsUnavailable = 189;
+  static const dnsUnavailable = BacnetErrorCode(189);
 
   /// DNS Name Resolution Failed.
-  static const int dnsNameResolutionFailed = 190;
+  static const dnsNameResolutionFailed = BacnetErrorCode(190);
 
   /// DNS Resolver Failure.
-  static const int dnsResolverFailure = 191;
+  static const dnsResolverFailure = BacnetErrorCode(191);
 
   /// DNS Error.
-  static const int dnsError = 192;
+  static const dnsError = BacnetErrorCode(192);
 
   /// Tcp Connect Timeout.
-  static const int tcpConnectTimeout = 193;
+  static const tcpConnectTimeout = BacnetErrorCode(193);
 
   /// Tcp Connection Refused.
-  static const int tcpConnectionRefused = 194;
+  static const tcpConnectionRefused = BacnetErrorCode(194);
 
   /// Tcp Closed By Local.
-  static const int tcpClosedByLocal = 195;
+  static const tcpClosedByLocal = BacnetErrorCode(195);
 
   /// Tcp Closed Other.
-  static const int tcpClosedOther = 196;
+  static const tcpClosedOther = BacnetErrorCode(196);
 
   /// Tcp Error.
-  static const int tcpError = 197;
+  static const tcpError = BacnetErrorCode(197);
 
   /// IP Address Not Reachable.
-  static const int ipAddressNotReachable = 198;
+  static const ipAddressNotReachable = BacnetErrorCode(198);
 
   /// IP Error.
-  static const int ipError = 199;
+  static const ipError = BacnetErrorCode(199);
 
   /// Certificate Expired.
-  static const int certificateExpired = 200;
+  static const certificateExpired = BacnetErrorCode(200);
 
   /// Certificate Invalid.
-  static const int certificateInvalid = 201;
+  static const certificateInvalid = BacnetErrorCode(201);
 
   /// Certificate Malformed.
-  static const int certificateMalformed = 202;
+  static const certificateMalformed = BacnetErrorCode(202);
 
   /// Certificate Revoked.
-  static const int certificateRevoked = 203;
+  static const certificateRevoked = BacnetErrorCode(203);
 
   /// Unknown Security Key.
-  static const int unknownSecurityKey = 204;
+  static const unknownSecurityKey = BacnetErrorCode(204);
 
   /// Referenced Port In Error.
-  static const int referencedPortInError = 205;
+  static const referencedPortInError = BacnetErrorCode(205);
 
   /// Not Enabled.
-  static const int notEnabled = 206;
+  static const notEnabled = BacnetErrorCode(206);
 
   /// Adjust Scope Required.
-  static const int adjustScopeRequired = 207;
+  static const adjustScopeRequired = BacnetErrorCode(207);
 
   /// Auth Scope Required.
-  static const int authScopeRequired = 208;
+  static const authScopeRequired = BacnetErrorCode(208);
 
   /// Bind Scope Required.
-  static const int bindScopeRequired = 209;
+  static const bindScopeRequired = BacnetErrorCode(209);
 
   /// Config Scope Required.
-  static const int configScopeRequired = 210;
+  static const configScopeRequired = BacnetErrorCode(210);
 
   /// Control Scope Required.
-  static const int controlScopeRequired = 211;
+  static const controlScopeRequired = BacnetErrorCode(211);
 
   /// Extended Scope Required.
-  static const int extendedScopeRequired = 212;
+  static const extendedScopeRequired = BacnetErrorCode(212);
 
   /// Incorrect Client.
-  static const int incorrectClient = 213;
+  static const incorrectClient = BacnetErrorCode(213);
 
   /// Install Scope Required.
-  static const int installScopeRequired = 214;
+  static const installScopeRequired = BacnetErrorCode(214);
 
   /// Insufficient Scope.
-  static const int insufficientScope = 215;
+  static const insufficientScope = BacnetErrorCode(215);
 
   /// No Default Scope.
-  static const int noDefaultScope = 216;
+  static const noDefaultScope = BacnetErrorCode(216);
 
   /// No Policy.
-  static const int noPolicy = 217;
+  static const noPolicy = BacnetErrorCode(217);
 
   /// Revoked Token.
-  static const int revokedToken = 218;
+  static const revokedToken = BacnetErrorCode(218);
 
   /// Override Scope Required.
-  static const int overrideScopeRequired = 219;
+  static const overrideScopeRequired = BacnetErrorCode(219);
 
   /// Inactive Token.
-  static const int inactiveToken = 220;
+  static const inactiveToken = BacnetErrorCode(220);
 
   /// Unknown Audience.
-  static const int unknownAudience = 221;
+  static const unknownAudience = BacnetErrorCode(221);
 
   /// Unknown Client.
-  static const int unknownClient = 222;
+  static const unknownClient = BacnetErrorCode(222);
 
   /// Unknown Scope.
-  static const int unknownScope = 223;
+  static const unknownScope = BacnetErrorCode(223);
 
   /// View Scope Required.
-  static const int viewScopeRequired = 224;
+  static const viewScopeRequired = BacnetErrorCode(224);
 
   /// Incorrect Audience.
-  static const int incorrectAudience = 225;
+  static const incorrectAudience = BacnetErrorCode(225);
 
   /// Incorrect Client Origin.
-  static const int incorrectClientOrigin = 226;
+  static const incorrectClientOrigin = BacnetErrorCode(226);
 
   /// Invalid Array Size.
-  static const int invalidArraySize = 227;
+  static const invalidArraySize = BacnetErrorCode(227);
 
   /// Incorrect Issuer.
-  static const int incorrectIssuer = 228;
+  static const incorrectIssuer = BacnetErrorCode(228);
 
   /// Invalid Token.
-  static const int invalidToken = 229;
+  static const invalidToken = BacnetErrorCode(229);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetErrorCode, String> _labels = {
     other: 'Other',
     authenticationFailed: 'Authentication Failed',
     configurationInProgress: 'Configuration In Progress',
@@ -957,51 +970,59 @@ abstract final class BacnetErrorCode {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetErrorCode> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Error Code $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }
 
 /// BACnet abort reasons (BACnetAbortReason).
-abstract final class BacnetAbortReason {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetAbortReason(value)`.
+extension type const BacnetAbortReason(int value) implements int {
   /// Other.
-  static const int other = 0;
+  static const other = BacnetAbortReason(0);
 
   /// Buffer Overflow.
-  static const int bufferOverflow = 1;
+  static const bufferOverflow = BacnetAbortReason(1);
 
   /// Invalid APDU In This State.
-  static const int invalidApduInThisState = 2;
+  static const invalidApduInThisState = BacnetAbortReason(2);
 
   /// Preempted By Higher Priority Task.
-  static const int preemptedByHigherPriorityTask = 3;
+  static const preemptedByHigherPriorityTask = BacnetAbortReason(3);
 
   /// Segmentation Not Supported.
-  static const int segmentationNotSupported = 4;
+  static const segmentationNotSupported = BacnetAbortReason(4);
 
   /// Security Error.
-  static const int securityError = 5;
+  static const securityError = BacnetAbortReason(5);
 
   /// Insufficient Security.
-  static const int insufficientSecurity = 6;
+  static const insufficientSecurity = BacnetAbortReason(6);
 
   /// Window Size Out Of Range.
-  static const int windowSizeOutOfRange = 7;
+  static const windowSizeOutOfRange = BacnetAbortReason(7);
 
   /// Application Exceeded Reply Time.
-  static const int applicationExceededReplyTime = 8;
+  static const applicationExceededReplyTime = BacnetAbortReason(8);
 
   /// Out Of Resources.
-  static const int outOfResources = 9;
+  static const outOfResources = BacnetAbortReason(9);
 
   /// TSM Timeout.
-  static const int tsmTimeout = 10;
+  static const tsmTimeout = BacnetAbortReason(10);
 
   /// APDU Too Long.
-  static const int apduTooLong = 11;
+  static const apduTooLong = BacnetAbortReason(11);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetAbortReason, String> _labels = {
     other: 'Other',
     bufferOverflow: 'Buffer Overflow',
     invalidApduInThisState: 'Invalid APDU In This State',
@@ -1017,48 +1038,56 @@ abstract final class BacnetAbortReason {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetAbortReason> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Abort Reason $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }
 
 /// BACnet reject reasons (BACnetRejectReason).
-abstract final class BacnetRejectReason {
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetRejectReason(value)`.
+extension type const BacnetRejectReason(int value) implements int {
   /// Other.
-  static const int other = 0;
+  static const other = BacnetRejectReason(0);
 
   /// Buffer Overflow.
-  static const int bufferOverflow = 1;
+  static const bufferOverflow = BacnetRejectReason(1);
 
   /// Inconsistent Parameters.
-  static const int inconsistentParameters = 2;
+  static const inconsistentParameters = BacnetRejectReason(2);
 
   /// Invalid Parameter Data Type.
-  static const int invalidParameterDataType = 3;
+  static const invalidParameterDataType = BacnetRejectReason(3);
 
   /// Invalid Tag.
-  static const int invalidTag = 4;
+  static const invalidTag = BacnetRejectReason(4);
 
   /// Missing Required Parameter.
-  static const int missingRequiredParameter = 5;
+  static const missingRequiredParameter = BacnetRejectReason(5);
 
   /// Parameter Out Of Range.
-  static const int parameterOutOfRange = 6;
+  static const parameterOutOfRange = BacnetRejectReason(6);
 
   /// Too Many Arguments.
-  static const int tooManyArguments = 7;
+  static const tooManyArguments = BacnetRejectReason(7);
 
   /// Undefined Enumeration.
-  static const int undefinedEnumeration = 8;
+  static const undefinedEnumeration = BacnetRejectReason(8);
 
   /// Unrecognized Service.
-  static const int unrecognizedService = 9;
+  static const unrecognizedService = BacnetRejectReason(9);
 
   /// Invalid Data Encoding.
-  static const int invalidDataEncoding = 10;
+  static const invalidDataEncoding = BacnetRejectReason(10);
 
-  static const Map<int, String> _labels = {
+  static const Map<BacnetRejectReason, String> _labels = {
     other: 'Other',
     bufferOverflow: 'Buffer Overflow',
     inconsistentParameters: 'Inconsistent Parameters',
@@ -1073,8 +1102,11 @@ abstract final class BacnetRejectReason {
   };
 
   /// All values defined by this library.
-  static Iterable<int> get values => _labels.keys;
+  static Iterable<BacnetRejectReason> get values => _labels.keys;
 
   /// Human readable name of [value].
   static String getName(int value) => _labels[value] ?? 'Reject Reason $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
 }

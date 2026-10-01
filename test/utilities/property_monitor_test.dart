@@ -8,7 +8,7 @@ class MockBacnetClient extends Mock implements BacnetClient {}
 
 void main() {
   const deviceId = 1234;
-  const object = BacnetObject(type: 0, instance: 1);
+  const object = BacnetObject(type: BacnetObjectType.analogInput, instance: 1);
   const propertyId = BacnetPropertyId.presentValue;
 
   late MockBacnetClient client;
@@ -41,7 +41,12 @@ void main() {
     when(() => client.covEvents).thenAnswer((_) => covController.stream);
     when(() => client.allocateProcessId()).thenReturn(42);
     when(
-      () => client.readProperty(deviceId, 0, 1, propertyId),
+      () => client.readProperty(
+        deviceId,
+        BacnetObjectType.analogInput,
+        1,
+        propertyId,
+      ),
     ).thenAnswer((_) async => 100.0);
     when(
       () => client.unsubscribeCOV(
@@ -88,7 +93,7 @@ void main() {
         ..add(
           const CovNotificationEvent(
             deviceId: deviceId,
-            objectType: 0,
+            objectType: BacnetObjectType.analogInput,
             instance: 1,
             timestamp: 'now',
             subscriberProcessId: 7,
@@ -98,7 +103,7 @@ void main() {
         ..add(
           const CovNotificationEvent(
             deviceId: deviceId,
-            objectType: 0,
+            objectType: BacnetObjectType.analogInput,
             instance: 1,
             timestamp: 'now',
             subscriberProcessId: 42,
@@ -110,18 +115,30 @@ void main() {
 
       expect(updates.map((u) => u.value), [100.0, 150.0]);
       expect(updates.last.source, UpdateSource.cov);
-      verify(() => client.readProperty(deviceId, 0, 1, propertyId)).called(1);
+      verify(
+        () => client.readProperty(
+          deviceId,
+          BacnetObjectType.analogInput,
+          1,
+          propertyId,
+        ),
+      ).called(1);
       verify(
         () => client.subscribeCOV(
           deviceId,
-          0,
+          BacnetObjectType.analogInput,
           1,
           processId: 42,
           lifetime: any(named: 'lifetime'),
         ),
       ).called(1);
       verify(
-        () => client.unsubscribeCOV(deviceId, 0, 1, processId: 42),
+        () => client.unsubscribeCOV(
+          deviceId,
+          BacnetObjectType.analogInput,
+          1,
+          processId: 42,
+        ),
       ).called(1);
     });
 

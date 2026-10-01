@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../constants/object_types.dart';
 import '../core/exceptions.dart';
 import '../models/bacnet_object.dart';
 import 'values.dart';
@@ -272,7 +273,7 @@ class BacnetReader {
   BacnetObject _objectId() {
     final value = _unsigned(4);
     return BacnetObject(
-      type: (value >> 22) & 0x3FF,
+      type: BacnetObjectType((value >> 22) & 0x3FF),
       instance: value & 0x3FFFFF,
     );
   }

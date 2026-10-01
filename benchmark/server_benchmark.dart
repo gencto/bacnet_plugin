@@ -52,7 +52,11 @@ Future<void> main(List<String> args) async {
       ),
   ]);
   print('2000 single updates in ${clock.elapsedMilliseconds} ms');
-  final value = await server.readProperty(BacnetObjectType.analogValue, 1, 85);
+  final value = await server.readProperty(
+    BacnetObjectType.analogValue,
+    1,
+    BacnetPropertyId.presentValue,
+  );
   print('AV-1 present value: $value');
   await server.close();
   exit(0);

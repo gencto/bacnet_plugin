@@ -10,6 +10,9 @@ import 'dart:typed_data';
 import '../codec/requests.dart';
 import '../codec/responses.dart';
 import '../codec/value_encoding.dart';
+import '../constants/enumerations.dart';
+import '../constants/errors.dart';
+import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../constants/services.dart';
 import '../core/exceptions.dart';
@@ -390,18 +393,18 @@ final class _Worker implements RequestTransport {
         }
         return BacnetProtocolException(
           'device $deviceId returned an error',
-          errorClass: errorClass,
-          errorCode: errorCode,
+          errorClass: BacnetErrorClass(errorClass),
+          errorCode: BacnetErrorCode(errorCode),
         );
       case BP_EVENT_REJECT:
         return BacnetRejectException(
           'device $deviceId rejected the request',
-          reason: event.a,
+          reason: BacnetRejectReason(event.a),
         );
       case BP_EVENT_ABORT:
         return BacnetAbortException(
           'transaction with device $deviceId aborted',
-          reason: event.a,
+          reason: BacnetAbortReason(event.a),
           fromServer: event.hasFlag(BP_FLAG_ABORT_FROM_SERVER),
         );
       default:
@@ -435,7 +438,7 @@ final class _Worker implements RequestTransport {
             len: event.data.length,
             maxApdu: event.a,
             vendorId: event.b,
-            segmentation: event.c,
+            segmentation: BacnetSegmentation(event.c),
             adr: event.sourceAdr,
           ),
         );
@@ -467,9 +470,9 @@ final class _Worker implements RequestTransport {
       value = raw;
     }
     return PropertyWriteEvent(
-      objectType: event.a,
+      objectType: BacnetObjectType(event.a),
       instance: event.b,
-      propertyId: event.c,
+      propertyId: BacnetPropertyId(event.c),
       index: event.d,
       priority: event.priority,
       value: value,

@@ -151,8 +151,14 @@ void main() {
       test('scans objects and reads properties', () async {
         // Arrange
         const deviceId = 1234;
-        const obj1 = BacnetObject(type: 0, instance: 1);
-        const obj2 = BacnetObject(type: 1, instance: 2);
+        const obj1 = BacnetObject(
+          type: BacnetObjectType.analogInput,
+          instance: 1,
+        );
+        const obj2 = BacnetObject(
+          type: BacnetObjectType.analogOutput,
+          instance: 2,
+        );
 
         when(
           () => mockClient.scanDevice(deviceId),
@@ -170,7 +176,10 @@ void main() {
         });
 
         // Act
-        final results = await scanner.scanDevice(deviceId, propertyIds: [85]);
+        final results = await scanner.scanDevice(
+          deviceId,
+          propertyIds: [BacnetPropertyId.presentValue],
+        );
 
         // Assert
         expect(results, hasLength(2));

@@ -143,9 +143,9 @@ class BacnetClient {
   /// ```
   Future<dynamic> readProperty(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance,
-    int propertyId, {
+    BacnetPropertyId propertyId, {
     int arrayIndex = -1,
     Duration? timeout,
   }) {
@@ -258,9 +258,9 @@ class BacnetClient {
   /// ```
   Future<void> writeProperty(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance,
-    int propertyId,
+    BacnetPropertyId propertyId,
     dynamic value, {
     int priority = 16,
     int? tag,
@@ -411,9 +411,9 @@ class BacnetClient {
   /// [covEvents] for the notifications.
   Future<void> subscribeCOV(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance, {
-    int propId = BacnetPropertyId.presentValue,
+    BacnetPropertyId propId = BacnetPropertyId.presentValue,
     int processId = 1,
     Duration lifetime = const Duration(minutes: 5),
     bool confirmed = false,
@@ -452,9 +452,9 @@ class BacnetClient {
   /// Cancels a COV subscription created with [subscribeCOV].
   Future<void> unsubscribeCOV(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance, {
-    int propId = BacnetPropertyId.presentValue,
+    BacnetPropertyId propId = BacnetPropertyId.presentValue,
     int processId = 1,
     Duration? timeout,
   }) async {
@@ -485,9 +485,9 @@ class BacnetClient {
   /// Reads a range of a list property with ReadRange.
   Future<ReadRangeResult> readRange(
     int deviceId,
-    int objectType,
+    BacnetObjectType objectType,
     int instance,
-    int propertyId, {
+    BacnetPropertyId propertyId, {
     ReadRangeType type = ReadRangeType.all,
     Object? reference,
     int count = 0,
@@ -520,7 +520,7 @@ class BacnetClient {
   Future<TrendLogData> getTrendLog(
     int deviceId,
     int instance, {
-    int logBufferPropId = BacnetPropertyId.logBuffer,
+    BacnetPropertyId logBufferPropId = BacnetPropertyId.logBuffer,
     int count = 100,
     int? fromSequenceNumber,
     Duration? timeout,
@@ -593,7 +593,7 @@ class BacnetClient {
   /// the raw service ACK data (empty for a Simple-ACK).
   Future<Uint8List> sendConfirmedRaw(
     int deviceId,
-    int service,
+    BacnetConfirmedService service,
     Uint8List serviceData, {
     Duration? timeout,
   }) async {

@@ -180,8 +180,14 @@ const List<_File> _files = [
   ]),
 ];
 
-/// Reserved words that cannot be used as identifiers.
+/// Reserved words and member names of the generated extension types (and
+/// of int, which they implement).
 const Set<String> _reserved = {
+  'value', 'values', 'label', 'getName', 'abs', 'sign', 'round', 'floor', //
+  'ceil', 'truncate', 'clamp', 'compareTo', 'remainder', 'hashCode',
+  'runtimeType', 'toString', 'isEven', 'isOdd', 'isNaN', 'isFinite',
+  'isInfinite', 'isNegative', 'bitLength', 'gcd', 'modPow', 'modInverse',
+  'toDouble', 'toInt', 'toSigned', 'toUnsigned', 'toRadixString',
   'assert', 'break', 'case', 'catch', 'class', 'const', 'continue', //
   'default', 'do', 'else', 'enum', 'extends', 'false', 'final', 'finally',
   'for', 'if', 'in', 'is', 'new', 'null', 'rethrow', 'return', 'super',
@@ -328,25 +334,36 @@ String _label(String key) => key
     .join(' ');
 
 void _writeClass(StringBuffer out, _Enum spec, List<_Entry> entries) {
+  final type = spec.dartName;
   out
     ..writeln('/// ${spec.doc}')
-    ..writeln('abstract final class ${spec.dartName} {');
+    ..writeln('///')
+    ..writeln('/// An extension type over the encoded value: it is an [int] at')
+    ..writeln('/// runtime and can be used wherever an int is expected. Values')
+    ..writeln(
+      '/// this library does not define (proprietary or newer ones) are',
+    )
+    ..writeln('/// created with `$type(value)`.')
+    ..writeln('extension type const $type(int value) implements int {');
   for (final entry in entries) {
     out
       ..writeln('  /// ${entry.label}.')
-      ..writeln('  static const int ${entry.name} = ${entry.value};')
+      ..writeln('  static const ${entry.name} = $type(${entry.value});')
       ..writeln();
   }
   out
-    ..writeln('  static const Map<int, String> _labels = {')
+    ..writeln('  static const Map<$type, String> _labels = {')
     ..writeAll(entries.map((e) => "    ${e.name}: '${e.label}',\n"))
     ..writeln('  };')
     ..writeln()
     ..writeln('  /// All values defined by this library.')
-    ..writeln('  static Iterable<int> get values => _labels.keys;')
+    ..writeln('  static Iterable<$type> get values => _labels.keys;')
     ..writeln()
     ..writeln('  /// Human readable name of [value].')
     ..writeln('  static String getName(int value) =>')
     ..writeln("      _labels[value] ?? '${spec.unknown}';")
+    ..writeln()
+    ..writeln('  /// Human readable name of this value.')
+    ..writeln('  String get label => getName(value);')
     ..writeln('}');
 }

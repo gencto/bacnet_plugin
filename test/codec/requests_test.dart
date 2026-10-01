@@ -20,10 +20,17 @@ void main() {
     test('ReadPropertyMultiple', () {
       final payload = encodeReadPropertyMultiple(const [
         BacnetReadAccessSpecification(
-          objectIdentifier: BacnetObject(type: 0, instance: 16),
+          objectIdentifier: BacnetObject(
+            type: BacnetObjectType.analogInput,
+            instance: 16,
+          ),
           properties: [
-            BacnetPropertyReference(propertyIdentifier: 85),
-            BacnetPropertyReference(propertyIdentifier: 103),
+            BacnetPropertyReference(
+              propertyIdentifier: BacnetPropertyId.presentValue,
+            ),
+            BacnetPropertyReference(
+              propertyIdentifier: BacnetPropertyId.reliability,
+            ),
           ],
         ),
       ]);
@@ -48,9 +55,15 @@ void main() {
     test('WritePropertyMultiple', () {
       final payload = encodeWritePropertyMultiple(const [
         BacnetWriteAccessSpecification(
-          objectIdentifier: BacnetObject(type: 2, instance: 5),
+          objectIdentifier: BacnetObject(
+            type: BacnetObjectType.analogValue,
+            instance: 5,
+          ),
           listOfProperties: [
-            BacnetPropertyValue(propertyIdentifier: 85, value: 67.0),
+            BacnetPropertyValue(
+              propertyIdentifier: BacnetPropertyId.presentValue,
+              value: 67.0,
+            ),
           ],
         ),
       ]);

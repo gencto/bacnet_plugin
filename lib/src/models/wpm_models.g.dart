@@ -26,7 +26,7 @@ Map<String, dynamic> _$BacnetWriteAccessSpecificationToJson(
 
 BacnetPropertyValue _$BacnetPropertyValueFromJson(Map<String, dynamic> json) =>
     BacnetPropertyValue(
-      propertyIdentifier: (json['propertyIdentifier'] as num).toInt(),
+      propertyIdentifier: json['propertyIdentifier'] as BacnetPropertyId,
       propertyArrayIndex: (json['propertyArrayIndex'] as num?)?.toInt() ?? -1,
       value: json['value'],
       priority: (json['priority'] as num?)?.toInt() ?? 16,

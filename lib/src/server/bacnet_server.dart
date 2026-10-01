@@ -9,6 +9,8 @@ import 'package:meta/meta.dart';
 
 import '../codec/value_encoding.dart';
 import '../codec/writer.dart';
+import '../constants/engineering_units.dart';
+import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/bacnet_config.dart';
 import '../core/exceptions.dart';
@@ -30,7 +32,7 @@ class BacnetPresentValueUpdate {
   });
 
   /// Object type.
-  final int objectType;
+  final BacnetObjectType objectType;
 
   /// Object instance.
   final int instance;
@@ -137,11 +139,11 @@ class BacnetServer {
   /// object type of bacnet-stack that supports CreateObject.
   /// [stateTexts] defines the states of multi-state objects.
   Future<int> addObject(
-    int objectType,
+    BacnetObjectType objectType,
     int instance, {
     String? name,
     String? description,
-    int? units,
+    BacnetEngineeringUnits? units,
     double? covIncrement,
     bool? outOfService,
     List<String>? stateTexts,
@@ -169,7 +171,7 @@ class BacnetServer {
   }
 
   /// Removes an object from the server.
-  Future<void> removeObject(int objectType, int instance) =>
+  Future<void> removeObject(BacnetObjectType objectType, int instance) =>
       _system.call<void>((id) => DeleteObjectCommand(id, objectType, instance));
 
   /// Sets the present value of an object (local update, triggers COV
@@ -178,7 +180,7 @@ class BacnetServer {
   /// [value] is a number, a bool (binary objects), a String (CharacterString
   /// Value) or `null` to relinquish [priority] of commandable objects.
   Future<void> setPresentValue(
-    int objectType,
+    BacnetObjectType objectType,
     int instance,
     Object? value, {
     int priority = 16,
@@ -231,35 +233,41 @@ class BacnetServer {
   }
 
   /// Sets out-of-service of an object.
-  Future<void> setOutOfService(int objectType, int instance, bool value) =>
-      _system.call<void>(
-        (id) => SetNumberCommand(
-          id,
-          objectType: objectType,
-          instance: instance,
-          propertyId: BacnetPropertyId.outOfService,
-          value: value ? 1 : 0,
-        ),
-      );
+  Future<void> setOutOfService(
+    BacnetObjectType objectType,
+    int instance,
+    bool value,
+  ) => _system.call<void>(
+    (id) => SetNumberCommand(
+      id,
+      objectType: objectType,
+      instance: instance,
+      propertyId: BacnetPropertyId.outOfService,
+      value: value ? 1 : 0,
+    ),
+  );
 
   /// Sets the object name.
-  Future<void> setObjectName(int objectType, int instance, String name) =>
-      _system.call<void>(
-        (id) => SetTextCommand(
-          id,
-          objectType: objectType,
-          instance: instance,
-          propertyId: BacnetPropertyId.objectName,
-          value: name,
-        ),
-      );
+  Future<void> setObjectName(
+    BacnetObjectType objectType,
+    int instance,
+    String name,
+  ) => _system.call<void>(
+    (id) => SetTextCommand(
+      id,
+      objectType: objectType,
+      instance: instance,
+      propertyId: BacnetPropertyId.objectName,
+      value: name,
+    ),
+  );
 
   /// Writes any property of a local object with WriteProperty semantics
   /// (the same checks as a remote write, no write notification).
   Future<void> setProperty(
-    int objectType,
+    BacnetObjectType objectType,
     int instance,
-    int propertyId,
+    BacnetPropertyId propertyId,
     Object? value, {
     int priority = 16,
     int? tag,
@@ -287,9 +295,9 @@ class BacnetServer {
 
   /// Reads a property of a local object.
   Future<dynamic> readProperty(
-    int objectType,
+    BacnetObjectType objectType,
     int instance,
-    int propertyId, {
+    BacnetPropertyId propertyId, {
     int arrayIndex = -1,
   }) {
     return _system.call<Object?>(

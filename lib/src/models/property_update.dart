@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import '../constants/property_ids.dart';
 import 'bacnet_object.dart';
 
 /// Source of the property update.
@@ -35,7 +36,7 @@ class PropertyUpdate {
   final BacnetObject objectIdentifier;
 
   /// Property identifier.
-  final int propertyIdentifier;
+  final BacnetPropertyId propertyIdentifier;
 
   /// New property value.
   final dynamic value;

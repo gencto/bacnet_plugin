@@ -13,6 +13,22 @@ class ServerScreen extends StatefulWidget {
 }
 
 class _ServerScreenState extends State<ServerScreen> {
+  /// Object types the server can host.
+  static const _supportedTypes = [
+    BacnetObjectType.analogInput,
+    BacnetObjectType.analogOutput,
+    BacnetObjectType.analogValue,
+    BacnetObjectType.binaryInput,
+    BacnetObjectType.binaryOutput,
+    BacnetObjectType.binaryValue,
+    BacnetObjectType.multiStateInput,
+    BacnetObjectType.multiStateOutput,
+    BacnetObjectType.multiStateValue,
+    BacnetObjectType.integerValue,
+    BacnetObjectType.positiveIntegerValue,
+    BacnetObjectType.characterStringValue,
+  ];
+
   BacnetServer? _server;
   bool _isRunning = false;
   final List<ServerObject> _objects = [];
@@ -102,10 +118,10 @@ class _ServerScreenState extends State<ServerScreen> {
   }
 
   Future<void> _showAddObjectDialog() async {
-    int? selectedType = 2; // Default to AV
+    BacnetObjectType? selectedType = BacnetObjectType.analogValue;
     int instance = 0;
 
-    final result = await showDialog<Map<String, int>>(
+    final result = await showDialog<(BacnetObjectType, int)>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
@@ -113,16 +129,12 @@ class _ServerScreenState extends State<ServerScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<int>(
+              DropdownButtonFormField<BacnetObjectType>(
                 initialValue: selectedType,
                 decoration: const InputDecoration(labelText: 'Object Type'),
-                items: const [
-                  DropdownMenuItem(value: 0, child: Text('AI - Analog Input')),
-                  DropdownMenuItem(value: 1, child: Text('AO - Analog Output')),
-                  DropdownMenuItem(value: 2, child: Text('AV - Analog Value')),
-                  DropdownMenuItem(value: 3, child: Text('BI - Binary Input')),
-                  DropdownMenuItem(value: 4, child: Text('BV - Binary Value')),
-                  DropdownMenuItem(value: 5, child: Text('BO - Binary Output')),
+                items: [
+                  for (final type in _supportedTypes)
+                    DropdownMenuItem(value: type, child: Text(type.label)),
                 ],
                 onChanged: (value) => setState(() => selectedType = value),
               ),
@@ -141,10 +153,8 @@ class _ServerScreenState extends State<ServerScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context, {
-                'type': selectedType!,
-                'instance': instance,
-              }),
+              onPressed: () =>
+                  Navigator.pop(context, (selectedType!, instance)),
               child: const Text('Add'),
             ),
           ],
@@ -152,21 +162,12 @@ class _ServerScreenState extends State<ServerScreen> {
       ),
     );
 
-    if (result != null && _server != null) {
+    if (result case (final type, final instance) when _server != null) {
       try {
-        await _server!.addObject(result['type']!, result['instance']!);
-        setState(() {
-          _objects.add(
-            ServerObject(
-              objectType: result['type']!,
-              instance: result['instance']!,
-              typeName: ServerObject.getTypeName(result['type']!),
-            ),
-          );
-        });
-        _log(
-          'Added ${ServerObject.getTypeName(result['type']!)}:${result['instance']}',
-        );
+        await _server!.addObject(type, instance);
+        final object = ServerObject(objectType: type, instance: instance);
+        setState(() => _objects.add(object));
+        _log('Added ${object.displayName}');
       } catch (e) {
         _log('Failed to add object: $e');
       }

@@ -52,7 +52,7 @@ class PropertyMonitor {
   Stream<PropertyUpdate> monitor({
     required int deviceId,
     required BacnetObject object,
-    required int propertyId,
+    required BacnetPropertyId propertyId,
     Duration pollingInterval = const Duration(seconds: 2),
     bool preferPolling = false,
     bool confirmed = false,
