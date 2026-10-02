@@ -771,6 +771,227 @@ extension type const BacnetBackupState(int value) implements int {
   String get label => getName(value);
 }
 
+/// Bits of Protocol_Services_Supported (BACnetServicesSupported): the services a device executes.
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetServiceSupported(value)`.
+extension type const BacnetServiceSupported(int value) implements int {
+  /// Acknowledge Alarm.
+  static const acknowledgeAlarm = BacnetServiceSupported(0);
+
+  /// Confirmed COV Notification.
+  static const confirmedCovNotification = BacnetServiceSupported(1);
+
+  /// Confirmed Event Notification.
+  static const confirmedEventNotification = BacnetServiceSupported(2);
+
+  /// Get Alarm Summary.
+  static const getAlarmSummary = BacnetServiceSupported(3);
+
+  /// Get Enrollment Summary.
+  static const getEnrollmentSummary = BacnetServiceSupported(4);
+
+  /// Subscribe COV.
+  static const subscribeCov = BacnetServiceSupported(5);
+
+  /// Atomic Read File.
+  static const atomicReadFile = BacnetServiceSupported(6);
+
+  /// Atomic Write File.
+  static const atomicWriteFile = BacnetServiceSupported(7);
+
+  /// Add List Element.
+  static const addListElement = BacnetServiceSupported(8);
+
+  /// Remove List Element.
+  static const removeListElement = BacnetServiceSupported(9);
+
+  /// Create Object.
+  static const createObject = BacnetServiceSupported(10);
+
+  /// Delete Object.
+  static const deleteObject = BacnetServiceSupported(11);
+
+  /// Read Property.
+  static const readProperty = BacnetServiceSupported(12);
+
+  /// Read Property Conditional.
+  static const readPropertyConditional = BacnetServiceSupported(13);
+
+  /// Read Property Multiple.
+  static const readPropertyMultiple = BacnetServiceSupported(14);
+
+  /// Write Property.
+  static const writeProperty = BacnetServiceSupported(15);
+
+  /// Write Property Multiple.
+  static const writePropertyMultiple = BacnetServiceSupported(16);
+
+  /// Device Communication Control.
+  static const deviceCommunicationControl = BacnetServiceSupported(17);
+
+  /// Confirmed Private Transfer.
+  static const confirmedPrivateTransfer = BacnetServiceSupported(18);
+
+  /// Confirmed Text Message.
+  static const confirmedTextMessage = BacnetServiceSupported(19);
+
+  /// Reinitialize Device.
+  static const reinitializeDevice = BacnetServiceSupported(20);
+
+  /// VT Open.
+  static const vtOpen = BacnetServiceSupported(21);
+
+  /// VT Close.
+  static const vtClose = BacnetServiceSupported(22);
+
+  /// VT Data.
+  static const vtData = BacnetServiceSupported(23);
+
+  /// Authenticate.
+  static const authenticate = BacnetServiceSupported(24);
+
+  /// Request Key.
+  static const requestKey = BacnetServiceSupported(25);
+
+  /// I Am.
+  static const iAm = BacnetServiceSupported(26);
+
+  /// I Have.
+  static const iHave = BacnetServiceSupported(27);
+
+  /// Unconfirmed COV Notification.
+  static const unconfirmedCovNotification = BacnetServiceSupported(28);
+
+  /// Unconfirmed Event Notification.
+  static const unconfirmedEventNotification = BacnetServiceSupported(29);
+
+  /// Unconfirmed Private Transfer.
+  static const unconfirmedPrivateTransfer = BacnetServiceSupported(30);
+
+  /// Unconfirmed Text Message.
+  static const unconfirmedTextMessage = BacnetServiceSupported(31);
+
+  /// Time Synchronization.
+  static const timeSynchronization = BacnetServiceSupported(32);
+
+  /// Who Has.
+  static const whoHas = BacnetServiceSupported(33);
+
+  /// Who Is.
+  static const whoIs = BacnetServiceSupported(34);
+
+  /// Read Range.
+  static const readRange = BacnetServiceSupported(35);
+
+  /// UTC Time Synchronization.
+  static const utcTimeSynchronization = BacnetServiceSupported(36);
+
+  /// Life Safety Operation.
+  static const lifeSafetyOperation = BacnetServiceSupported(37);
+
+  /// Subscribe COV Property.
+  static const subscribeCovProperty = BacnetServiceSupported(38);
+
+  /// Get Event Information.
+  static const getEventInformation = BacnetServiceSupported(39);
+
+  /// Write Group.
+  static const writeGroup = BacnetServiceSupported(40);
+
+  /// Subscribe COV Property Multiple.
+  static const subscribeCovPropertyMultiple = BacnetServiceSupported(41);
+
+  /// Confirmed COV Notification Multiple.
+  static const confirmedCovNotificationMultiple = BacnetServiceSupported(42);
+
+  /// Unconfirmed COV Notification Multiple.
+  static const unconfirmedCovNotificationMultiple = BacnetServiceSupported(43);
+
+  /// Confirmed Audit Notification.
+  static const confirmedAuditNotification = BacnetServiceSupported(44);
+
+  /// Audit Log Query.
+  static const auditLogQuery = BacnetServiceSupported(45);
+
+  /// Unconfirmed Audit Notification.
+  static const unconfirmedAuditNotification = BacnetServiceSupported(46);
+
+  /// Who Am I.
+  static const whoAmI = BacnetServiceSupported(47);
+
+  /// You Are.
+  static const youAre = BacnetServiceSupported(48);
+
+  /// Auth Request.
+  static const authRequest = BacnetServiceSupported(49);
+
+  static const Map<BacnetServiceSupported, String> _labels = {
+    acknowledgeAlarm: 'Acknowledge Alarm',
+    confirmedCovNotification: 'Confirmed COV Notification',
+    confirmedEventNotification: 'Confirmed Event Notification',
+    getAlarmSummary: 'Get Alarm Summary',
+    getEnrollmentSummary: 'Get Enrollment Summary',
+    subscribeCov: 'Subscribe COV',
+    atomicReadFile: 'Atomic Read File',
+    atomicWriteFile: 'Atomic Write File',
+    addListElement: 'Add List Element',
+    removeListElement: 'Remove List Element',
+    createObject: 'Create Object',
+    deleteObject: 'Delete Object',
+    readProperty: 'Read Property',
+    readPropertyConditional: 'Read Property Conditional',
+    readPropertyMultiple: 'Read Property Multiple',
+    writeProperty: 'Write Property',
+    writePropertyMultiple: 'Write Property Multiple',
+    deviceCommunicationControl: 'Device Communication Control',
+    confirmedPrivateTransfer: 'Confirmed Private Transfer',
+    confirmedTextMessage: 'Confirmed Text Message',
+    reinitializeDevice: 'Reinitialize Device',
+    vtOpen: 'VT Open',
+    vtClose: 'VT Close',
+    vtData: 'VT Data',
+    authenticate: 'Authenticate',
+    requestKey: 'Request Key',
+    iAm: 'I Am',
+    iHave: 'I Have',
+    unconfirmedCovNotification: 'Unconfirmed COV Notification',
+    unconfirmedEventNotification: 'Unconfirmed Event Notification',
+    unconfirmedPrivateTransfer: 'Unconfirmed Private Transfer',
+    unconfirmedTextMessage: 'Unconfirmed Text Message',
+    timeSynchronization: 'Time Synchronization',
+    whoHas: 'Who Has',
+    whoIs: 'Who Is',
+    readRange: 'Read Range',
+    utcTimeSynchronization: 'UTC Time Synchronization',
+    lifeSafetyOperation: 'Life Safety Operation',
+    subscribeCovProperty: 'Subscribe COV Property',
+    getEventInformation: 'Get Event Information',
+    writeGroup: 'Write Group',
+    subscribeCovPropertyMultiple: 'Subscribe COV Property Multiple',
+    confirmedCovNotificationMultiple: 'Confirmed COV Notification Multiple',
+    unconfirmedCovNotificationMultiple: 'Unconfirmed COV Notification Multiple',
+    confirmedAuditNotification: 'Confirmed Audit Notification',
+    auditLogQuery: 'Audit Log Query',
+    unconfirmedAuditNotification: 'Unconfirmed Audit Notification',
+    whoAmI: 'Who Am I',
+    youAre: 'You Are',
+    authRequest: 'Auth Request',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetServiceSupported> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) =>
+      _labels[value] ?? 'Service Supported $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
 /// How the content of a File object is accessed (BACnetFileAccessMethod).
 ///
 /// An extension type over the encoded value: it is an [int] at

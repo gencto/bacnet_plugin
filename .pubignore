@@ -18,6 +18,7 @@ coverage/
 dart_test.yaml
 ffigen.yaml
 native/src/.clang-format
+native/fuzz/
 tool/
 
 # bacnet-stack: ship the sources compiled by hook/build.dart and the licenses

@@ -793,12 +793,73 @@ final class FakeBacnetDevice {
     if (type == BacnetObjectType.device && id == BacnetPropertyId.objectList) {
       return BacnetList([for (final o in _objects.values) o.identifier]);
     }
+    if (type == BacnetObjectType.device &&
+        id == BacnetPropertyId.protocolServicesSupported &&
+        !object.properties.containsKey(id)) {
+      return _servicesSupported();
+    }
     return object.properties[id] ??
         (throw _error(
           BacnetErrorClass.property,
           BacnetErrorCode.unknownProperty,
         ));
   }
+
+  /// Protocol_Services_Supported: the services fake devices execute,
+  /// without [unsupportedServices].
+  BacnetBitString _servicesSupported() {
+    final refused = {
+      for (final service in unsupportedServices) _serviceBit(service),
+    };
+    final executed = _executedServices.difference(refused);
+    return BacnetBitString(
+      List.unmodifiable([
+        for (var bit = 0; bit < 50; bit++) executed.contains(bit),
+      ]),
+    );
+  }
+
+  static const _executedServices = {
+    BacnetServiceSupported.acknowledgeAlarm,
+    BacnetServiceSupported.getAlarmSummary,
+    BacnetServiceSupported.subscribeCov,
+    BacnetServiceSupported.atomicReadFile,
+    BacnetServiceSupported.atomicWriteFile,
+    BacnetServiceSupported.addListElement,
+    BacnetServiceSupported.removeListElement,
+    BacnetServiceSupported.createObject,
+    BacnetServiceSupported.deleteObject,
+    BacnetServiceSupported.readProperty,
+    BacnetServiceSupported.readPropertyMultiple,
+    BacnetServiceSupported.writeProperty,
+    BacnetServiceSupported.writePropertyMultiple,
+    BacnetServiceSupported.deviceCommunicationControl,
+    BacnetServiceSupported.confirmedPrivateTransfer,
+    BacnetServiceSupported.confirmedTextMessage,
+    BacnetServiceSupported.reinitializeDevice,
+    BacnetServiceSupported.whoIs,
+    BacnetServiceSupported.readRange,
+    BacnetServiceSupported.subscribeCovProperty,
+    BacnetServiceSupported.getEventInformation,
+    BacnetServiceSupported.subscribeCovPropertyMultiple,
+  };
+
+  /// The bit of a confirmed service in Protocol_Services_Supported.
+  static int _serviceBit(BacnetConfirmedService service) => switch (service) {
+    < 26 => service,
+    BacnetConfirmedService.readRange => BacnetServiceSupported.readRange,
+    BacnetConfirmedService.lifeSafetyOperation =>
+      BacnetServiceSupported.lifeSafetyOperation,
+    BacnetConfirmedService.subscribeCovProperty =>
+      BacnetServiceSupported.subscribeCovProperty,
+    BacnetConfirmedService.getEventInformation =>
+      BacnetServiceSupported.getEventInformation,
+    BacnetConfirmedService.subscribeCovPropertyMultiple =>
+      BacnetServiceSupported.subscribeCovPropertyMultiple,
+    BacnetConfirmedService.covNotificationMultiple =>
+      BacnetServiceSupported.confirmedCovNotificationMultiple,
+    _ => -1,
+  };
 
   BacnetProtocolException _error(
     BacnetErrorClass c,
@@ -1279,13 +1340,34 @@ class FakeBacnetClient implements BacnetClient {
         final result =
             <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
         for (final spec in specs) {
-          final properties = result[spec.objectIdentifier] ??= {};
+          final object = spec.objectIdentifier;
+          final properties = result[object] ??= {};
           for (final reference in spec.properties) {
-            properties[reference.propertyIdentifier] = _readOrError(
-              device,
-              spec.objectIdentifier,
-              reference.propertyIdentifier,
-            );
+            final id = reference.propertyIdentifier;
+            if (id == BacnetPropertyId.all ||
+                id == BacnetPropertyId.required ||
+                id == BacnetPropertyId.optional) {
+              // every property the object has
+              final fake = device.object(object.type, object.instance);
+              if (fake == null) {
+                properties[id] = const BacnetError(
+                  BacnetErrorClass.object,
+                  BacnetErrorCode.unknownObject,
+                );
+                continue;
+              }
+              for (final property in [
+                ...fake.properties.keys,
+                if (object.type == BacnetObjectType.device) ...[
+                  BacnetPropertyId.objectList,
+                  BacnetPropertyId.protocolServicesSupported,
+                ],
+              ]) {
+                properties[property] = _readOrError(device, object, property);
+              }
+              continue;
+            }
+            properties[id] = _readOrError(device, object, id);
           }
         }
         return result;

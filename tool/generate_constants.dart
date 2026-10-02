@@ -255,6 +255,29 @@ const List<_File> _files = [
       skip: {'MAX'},
     ),
     _Enum(
+      'BacnetServiceSupported',
+      cEnum: 'BACNET_SERVICES_SUPPORTED',
+      prefix: 'SERVICE_SUPPORTED_',
+      doc:
+          'Bits of Protocol_Services_Supported '
+          '(BACnetServicesSupported): the services a device executes.',
+      unknown: r'Service Supported $value',
+      names: {
+        'READ_PROP_CONDITIONAL': 'readPropertyConditional',
+        'READ_PROP_MULTIPLE': 'readPropertyMultiple',
+        'WRITE_PROP_MULTIPLE': 'writePropertyMultiple',
+        'PRIVATE_TRANSFER': 'confirmedPrivateTransfer',
+        'TEXT_MESSAGE': 'confirmedTextMessage',
+      },
+      labels: {
+        'READ_PROP_CONDITIONAL': 'Read Property Conditional',
+        'READ_PROP_MULTIPLE': 'Read Property Multiple',
+        'WRITE_PROP_MULTIPLE': 'Write Property Multiple',
+        'PRIVATE_TRANSFER': 'Confirmed Private Transfer',
+        'TEXT_MESSAGE': 'Confirmed Text Message',
+      },
+    ),
+    _Enum(
       'BacnetFileAccessMethod',
       cEnum: 'BACNET_FILE_ACCESS_METHOD',
       prefix: 'FILE_',

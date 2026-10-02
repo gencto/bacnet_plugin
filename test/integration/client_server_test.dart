@@ -176,6 +176,21 @@ void main() {
     expect(details.vendorName, 'bacnet_plugin');
   });
 
+  test('describes the device', () async {
+    final description = await client.describeDevice(device);
+    expect(description.objects, hasLength(119));
+    expect(description.deviceName, 'DemoServer');
+    const av50 = BacnetObject(type: BacnetObjectType.analogValue, instance: 50);
+    expect(
+      description.objects[av50],
+      containsPair(BacnetPropertyId.presentValue, const BacnetReal(50)),
+    );
+    expect(description.objects[av50], contains(BacnetPropertyId.covIncrement));
+    final epics = description.toEpics();
+    expect(epics, contains('    object-name: "AV-50"\n'));
+    expect(epics, contains('    units: degrees-celsius\n'));
+  });
+
   test('ReadPropertyMultiple returns values and errors', () async {
     final result = await client.readMultiple(device, const [
       BacnetReadAccessSpecification(

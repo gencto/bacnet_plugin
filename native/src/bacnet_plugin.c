@@ -183,13 +183,18 @@ BP_API int32_t bacnet_plugin_poll(uint32_t timeout_ms, uint32_t max_packets)
             break;
         }
         processed++;
-        bp_state.stats.packets_received++;
-        if (bp_accept_reply(&src, bp_state.rx_buf, len)) {
-            npdu_handler(&src, bp_state.rx_buf, len);
-        }
+        bp_receive_packet(&src, bp_state.rx_buf, len);
     }
     bp_timers();
     return processed;
+}
+
+void bp_receive_packet(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
+{
+    bp_state.stats.packets_received++;
+    if (bp_accept_reply(src, pdu, len)) {
+        npdu_handler(src, pdu, len);
+    }
 }
 
 /* ---- lifecycle --------------------------------------------------------- */

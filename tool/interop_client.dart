@@ -1,5 +1,5 @@
 // Exercises the client against bacnet-stack's reference server (bacserv).
-// Usage: dart run tool/interop_client.dart <port> <device> [backup]
+// Usage: dart run tool/interop_client.dart <port> <device> [backup|describe]
 //        dart run tool/interop_client.dart 0 <device> supervisor
 //          (answers the Who-Am-I of bacwhoami with You-Are <device>)
 // ignore_for_file: avoid_print
@@ -39,6 +39,13 @@ Future<void> main(List<String> args) async {
     exit(0);
   }
   await client.addDeviceBinding(device, '127.0.0.1', port: port);
+  if (args.contains('describe')) {
+    final description = await client.describeDevice(device);
+    print(description);
+    print(description.toEpics());
+    await client.close();
+    exit(0);
+  }
   if (args.contains('backup')) {
     // bacserv built with BACNET_BACKUP_RESTORE
     await backupAndRestore(client, device);

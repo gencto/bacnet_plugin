@@ -42,6 +42,7 @@ export 'src/models/bbmd.dart';
 export 'src/models/channels.dart';
 export 'src/models/complex_values.dart';
 export 'src/models/cov_multiple.dart';
+export 'src/models/device_description.dart';
 export 'src/models/device_metadata.dart';
 export 'src/models/discovered_device.dart';
 export 'src/models/events.dart';
@@ -55,6 +56,7 @@ export 'src/server/bacnet_server.dart';
 // Utilities
 export 'src/utilities/alarm_subscription.dart';
 export 'src/utilities/device_backup.dart';
+export 'src/utilities/device_description.dart';
 export 'src/utilities/device_scanner.dart';
 export 'src/utilities/file_transfer.dart';
 export 'src/utilities/network_discovery.dart';

@@ -205,8 +205,11 @@ void main() {
             updates.add(value);
           }
         });
-    // wait until the monitor subscribed
-    while (!client.requests.any((r) => r.service == 'subscribeCOV')) {
+    // wait until the monitor subscribed (fake devices execute
+    // SubscribeCOVPropertyMultiple)
+    while (!client.requests.any(
+      (r) => r.service == 'subscribeCOVPropertyMultiple',
+    )) {
       await Future<void>.delayed(const Duration(milliseconds: 1));
     }
     await Future<void>.delayed(const Duration(milliseconds: 1));

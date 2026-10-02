@@ -43,7 +43,10 @@ Dart programs such as headless gateways and supervisory services.
   concurrency limits, back pressure, automatic address binding, concurrent
   reads merged into ReadPropertyMultiple, batched isolate messaging and
   zero-copy event processing.
-- **Robust**: bounds-checked decoder (fuzz tested), typed exceptions,
+- **Tools**: the `bacnet` command line tool (discover, read, write, watch,
+  describe) and device descriptions in JSON and EPICS notation.
+- **Robust**: bounds-checked decoder and native engine (fuzz tested), typed
+  exceptions,
   protection against late replies with recycled invoke ids, no
   `exit()`/`longjmp` tricks in native code.
 - **Modern build**: native code is compiled by a
@@ -54,7 +57,7 @@ Dart programs such as headless gateways and supervisory services.
 
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.7.0
+  bacnet_plugin: ^0.8.0
 ```
 
 Requirements:
@@ -199,7 +202,9 @@ Recommendations:
   `offlineAfterTimeouts` timeouts their requests fail at once with
   `BacnetDeviceOfflineException` until a probe or an I-Am succeeds.
 - Prefer COV (`PropertyMonitor`) over polling; subscriptions are renewed
-  and cancelled automatically, notifications carry the values.
+  and cancelled automatically, notifications carry the values. Devices
+  with SubscribeCOVPropertyMultiple get one subscription for all their
+  monitored properties.
 - On servers use `updatePresentValues` for bulk updates.
 - Watch `client.stats()` (queue length, in-flight requests, timeouts,
   dropped replies) in production.
@@ -797,6 +802,56 @@ Devices without the service reject it (`BacnetRejectException`); use
 `subscribeCOV` for them. bacnet-stack, and so the server of this package,
 does not implement it.
 
+## Device descriptions and the command line tool
+
+`describeDevice` reads every property of every object of a device, with
+ReadPropertyMultiple ALL where the device has it, property by property
+otherwise. The `BacnetDeviceDescription` stores as JSON, e.g. to compare a
+controller with its state at commissioning, and lists the objects in the
+notation of an EPICS:
+
+```dart
+final description = await client.describeDevice(
+  1234,
+  onProgress: (done, total) => print('$done / $total objects'),
+);
+await File('ahu-1.json').writeAsString(jsonEncode(description.toJson()));
+print(description.toEpics());
+// {
+//   {
+//     object-identifier: (analog-input, 1)
+//     object-name: "Supply air temperature"
+//     present-value: 21.5
+//     units: degrees-celsius
+//     ...
+```
+
+`BacnetProperties.protocolServicesSupported` tells which services a device
+executes:
+
+```dart
+final services = await client.read(1234, device,
+    BacnetProperties.protocolServicesSupported);
+if (!services.contains(BacnetServiceSupported.readPropertyMultiple)) ...
+```
+
+The package has a command line tool for the same tasks:
+
+```bash
+dart run bacnet_plugin:bacnet discover
+dart run bacnet_plugin:bacnet read 1234 ai:1 present-value
+dart run bacnet_plugin:bacnet write 1234 av:1 present-value 21.5 --priority 8
+dart run bacnet_plugin:bacnet watch 1234 ai:1
+dart run bacnet_plugin:bacnet --json describe 1234 --output ahu-1.json
+dart run bacnet_plugin:bacnet -a 192.168.1.20 objects 1234   # without Who-Is
+dart run bacnet_plugin:bacnet --help
+```
+
+Objects are written as `type:instance` (`analog-input:1`, `ai:1`, `0:1`),
+properties by name or number. Values are typed for the property (REAL for
+analog present values, ENUMERATED `active`/`inactive` for binary ones,
+...) or explicitly: `real:21.5`, `unsigned:3`, `enum:1`, `string:text`.
+
 ## Routers, networks and BBMDs
 
 Routers connect BACnet networks (BACnet/IP subnets, MS/TP trunks). Their
@@ -916,6 +971,16 @@ sensor.reportEvent(
   ),
 );
 ```
+
+## Migrating from 0.7.x
+
+- `PropertyMonitor` reads Protocol_Services_Supported of each device once
+  and uses SubscribeCOVPropertyMultiple where the device has it. Pass
+  `useCovMultiple: false` to subscribe every property on its own as
+  before; mocks of `BacnetClient` used with a monitor need an answer for
+  that read (any `BacnetException` means "not supported").
+- Fake devices answer Protocol_Services_Supported and ReadPropertyMultiple
+  with ALL instead of an unknown property error.
 
 ## Migrating from 0.6.x
 

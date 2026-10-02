@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - Unreleased
+
+Tools: the `bacnet` command line tool, device descriptions, shared COV
+subscriptions in `PropertyMonitor`, fuzzing of the native engine. See
+*Migrating from 0.7.x* in the README.
+
+### Added
+
+- **Command line tool** `bacnet` (`dart run bacnet_plugin:bacnet`):
+  `discover`, `read`, `write` (values typed for the property, or
+  `real:`/`unsigned:`/`enum:`/... prefixes), `objects`, `describe`,
+  `watch` and `routers`, with `--json` output, `--address` instead of
+  Who-Is and `--bbmd` for foreign device registration.
+- **Device descriptions**: `client.describeDevice` reads every property of
+  every object (ReadPropertyMultiple ALL, or Property_List and single
+  reads for devices without it) into a `BacnetDeviceDescription` that
+  stores as JSON and lists its objects in EPICS notation (`toEpics`).
+- **PropertyMonitor** subscribes the monitored properties of a device that
+  executes SubscribeCOVPropertyMultiple with one shared subscription
+  (`useCovMultiple`, on by default), batched to the device's APDU size;
+  properties the device refuses fall back to SubscribeCOV(Property) and
+  polling.
+- **Typed properties**: `protocolServicesSupported`
+  (`Set<BacnetServiceSupported>`, new constants) and
+  `protocolObjectTypesSupported` (`Set<BacnetObjectType>`).
+- **Testing**: fake devices answer Protocol_Services_Supported (without
+  `unsupportedServices`) and ReadPropertyMultiple with ALL, REQUIRED and
+  OPTIONAL.
+- **Native fuzzing**: `tool/fuzz_native.dart` builds a libFuzzer target of
+  the engine (client and server handlers, segmentation, files, schedules,
+  trend logs, backup) with AddressSanitizer and UndefinedBehaviorSanitizer.
+
 ## [0.7.0] - Unreleased
 
 Provisioning with Who-Am-I/You-Are, WriteGroup and Channel objects, COV

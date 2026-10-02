@@ -514,6 +514,26 @@ abstract final class BacnetProperties {
     _unsigned,
   );
 
+  /// Protocol_Services_Supported: the services the device executes.
+  ///
+  /// ```dart
+  /// final services = await client.read(1234, device,
+  ///     BacnetProperties.protocolServicesSupported);
+  /// if (services.contains(BacnetServiceSupported.readPropertyMultiple)) ...
+  /// ```
+  static const protocolServicesSupported =
+      BacnetProperty<Set<BacnetServiceSupported>>(
+        BacnetPropertyId.protocolServicesSupported,
+        _servicesSupported,
+      );
+
+  /// Protocol_Object_Types_Supported: the object types the device knows.
+  static const protocolObjectTypesSupported =
+      BacnetProperty<Set<BacnetObjectType>>(
+        BacnetPropertyId.protocolObjectTypesSupported,
+        _objectTypesSupported,
+      );
+
   /// Max_APDU_Length_Accepted.
   static const maxApduLengthAccepted = BacnetProperty<int>(
     BacnetPropertyId.maxApduLengthAccepted,
@@ -914,6 +934,20 @@ BacnetDeviceStatus _deviceStatus(BacnetValue value) =>
 
 BacnetSegmentation _segmentation(BacnetValue value) =>
     BacnetSegmentation(_enumerated(value));
+
+Set<int> _setBits(BacnetValue value) => switch (value) {
+  BacnetBitString(:final bits) => {
+    for (var i = 0; i < bits.length; i++)
+      if (bits[i]) i,
+  },
+  _ => _wrongType('BitString', value),
+};
+
+Set<BacnetServiceSupported> _servicesSupported(BacnetValue value) =>
+    Set.unmodifiable(_setBits(value).map(BacnetServiceSupported.new));
+
+Set<BacnetObjectType> _objectTypesSupported(BacnetValue value) =>
+    Set.unmodifiable(_setBits(value).map(BacnetObjectType.new));
 
 List<BacnetObject> _objectList(BacnetValue value) =>
     List.unmodifiable(value.asList.map(_objectId));

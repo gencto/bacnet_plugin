@@ -188,6 +188,8 @@ void bp_apply_socket_buffer(int sock);
 /** Transaction of invoke_id, or NULL when it is not one of ours. */
 bp_transaction_t *bp_tx_for(uint8_t invoke_id);
 void bp_register_client_handlers(void);
+/** Handles a received NPDU (after the BVLC header) from src. */
+void bp_receive_packet(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len);
 /** Queues a BP_EVENT_UNCONFIRMED event for a received request. */
 void bp_forward_unconfirmed(
     uint8_t service,
