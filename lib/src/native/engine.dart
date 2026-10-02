@@ -272,9 +272,14 @@ class NativeEngine {
     }
   }
 
-  /// Sets File_Type and Read_Only of File object [instance] (null keeps
-  /// them).
-  void configureFile(int instance, {String? fileType, bool? readOnly}) {
+  /// Sets File_Type, Read_Only and the size limit of remote writes of
+  /// File object [instance] (null keeps them).
+  void configureFile(
+    int instance, {
+    String? fileType,
+    bool? readOnly,
+    int? maxSize,
+  }) {
     checkNative(
       _withOptionalString(
         fileType,
@@ -282,6 +287,7 @@ class NativeEngine {
           instance,
           type,
           readOnly == null ? -1 : (readOnly ? 1 : 0),
+          maxSize ?? -1,
         ),
       ),
     );

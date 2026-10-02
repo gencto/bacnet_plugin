@@ -269,7 +269,9 @@ class BacnetServer {
   /// Adds a File object whose content the server keeps in memory and
   /// returns its instance: remote clients read it with AtomicReadFile
   /// (stream access) and, unless [readOnly], write it with AtomicWriteFile
-  /// ([fileWrites]) and change its size by writing File_Size.
+  /// ([fileWrites]) and change its size by writing File_Size, up to
+  /// [maxSize] octets (and while all files take less than 256 MiB);
+  /// [content] and [setFileContent] are not limited.
   ///
   /// ```dart
   /// await server.addFile(
@@ -290,6 +292,7 @@ class BacnetServer {
     String? description,
     String fileType = 'application/octet-stream',
     bool readOnly = false,
+    int maxSize = 16 * 1024 * 1024,
   }) async {
     final created = await addObject(
       BacnetObjectType.file,
@@ -297,25 +300,38 @@ class BacnetServer {
       name: name,
       description: description,
     );
-    await configureFile(created, fileType: fileType, readOnly: readOnly);
+    await configureFile(
+      created,
+      fileType: fileType,
+      readOnly: readOnly,
+      maxSize: maxSize,
+    );
     if (content.isNotEmpty) await setFileContent(created, content);
     return created;
   }
 
-  /// Sets the File_Type (a media type) and Read_Only of a File object of
-  /// [addFile]; null keeps the value.
+  /// Sets the File_Type (a media type), Read_Only and the size up to which
+  /// remote clients may grow a File object of [addFile] ([maxSize], at most
+  /// 2^31 - 1 octets); null keeps the value.
   Future<void> configureFile(
     int instance, {
     String? fileType,
     bool? readOnly,
-  }) => _system.call<void>(
-    (id) => ConfigureFileCommand(
-      id,
-      instance,
-      fileType: fileType,
-      readOnly: readOnly,
-    ),
-  );
+    int? maxSize,
+  }) {
+    if (maxSize != null) {
+      RangeError.checkValueInInterval(maxSize, 0, 0x7FFFFFFF, 'maxSize');
+    }
+    return _system.call<void>(
+      (id) => ConfigureFileCommand(
+        id,
+        instance,
+        fileType: fileType,
+        readOnly: readOnly,
+        maxSize: maxSize,
+      ),
+    );
+  }
 
   /// The content of File object [instance] of [addFile].
   Future<Uint8List> fileContent(int instance) =>

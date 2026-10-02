@@ -338,10 +338,12 @@ class ConfigureFileCommand extends WorkerCommand {
     this.instance, {
     this.fileType,
     this.readOnly,
+    this.maxSize,
   });
   final int instance;
   final String? fileType;
   final bool? readOnly;
+  final int? maxSize;
 }
 
 /// Deletes a server object.

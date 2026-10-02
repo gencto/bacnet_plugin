@@ -33,14 +33,24 @@
 #define BP_FILE_PREFIX "bp-file:"
 /* positions of AtomicReadFile and AtomicWriteFile are signed 32 bit */
 #define BP_FILE_MAX_SIZE 0x7FFFFFFFu
+/* how far remote clients may grow a file (AtomicWriteFile, File_Size)
+   unless bacnet_plugin_file_configure() says otherwise */
+#define BP_FILE_DEFAULT_MAX_SIZE (16u * 1024u * 1024u)
+/* memory all files may take when remote clients grow them */
+#define BP_FILES_MAX_TOTAL (256u * 1024u * 1024u)
 
 typedef struct {
     char pathname[24];
     uint8_t *data;
     uint32_t len;
     uint32_t cap;
+    /* limit of remote writes */
+    uint32_t max_size;
     BACNET_DATE_TIME modified;
 } bp_file_t;
+
+/* sum of the buffers of all files */
+static uint64_t bp_files_total;
 
 static bp_file_t *bp_file(uint32_t instance)
 {
@@ -75,9 +85,11 @@ static void bp_file_modified(bp_file_t *file, uint32_t instance)
     (void)bacfile_archive_set(instance, false);
 }
 
-static bool bp_file_resize(bp_file_t *file, uint64_t size)
+/* Resizes the content; remote writes stay within the limits of the file
+   and of all files, the application's content only within the protocol. */
+static bool bp_file_resize(bp_file_t *file, uint64_t size, bool remote)
 {
-    if (size > BP_FILE_MAX_SIZE) {
+    if (size > BP_FILE_MAX_SIZE || (remote && size > file->max_size)) {
         return false;
     }
     if (size > file->cap) {
@@ -90,10 +102,17 @@ static bool bp_file_resize(bp_file_t *file, uint64_t size)
         if (cap > BP_FILE_MAX_SIZE) {
             cap = BP_FILE_MAX_SIZE;
         }
+        if (remote && bp_files_total - file->cap + cap > BP_FILES_MAX_TOTAL) {
+            cap = size; /* no room to spare */
+            if (bp_files_total - file->cap + cap > BP_FILES_MAX_TOTAL) {
+                return false;
+            }
+        }
         data = (uint8_t *)realloc(file->data, (size_t)cap);
         if (!data) {
             return false;
         }
+        bp_files_total = bp_files_total - file->cap + cap;
         file->data = data;
         file->cap = (uint32_t)cap;
     }
@@ -118,7 +137,7 @@ static bool bp_file_size_set(const char *pathname, size_t size)
     uint32_t instance = 0;
     bp_file_t *file = bp_file_by_path(pathname, &instance);
 
-    if (!file || !bp_file_resize(file, size)) {
+    if (!file || !bp_file_resize(file, size, true)) {
         return false;
     }
     bp_file_modified(file, instance);
@@ -162,7 +181,7 @@ static size_t bp_file_write_stream(
         return 0;
     }
     end = (uint64_t)start + size;
-    if (end > file->len && !bp_file_resize(file, end)) {
+    if (end > file->len && !bp_file_resize(file, end, true)) {
         return 0;
     }
     memcpy(&file->data[start], buffer, size);
@@ -196,6 +215,7 @@ uint32_t bp_file_create(uint32_t object_instance)
     snprintf(
         file->pathname, sizeof(file->pathname), BP_FILE_PREFIX "%lu",
         (unsigned long)instance);
+    file->max_size = BP_FILE_DEFAULT_MAX_SIZE;
     Device_getCurrentDateTime(&file->modified);
     /* bacnet-stack keeps the pointer: file lives until the deletion */
     (void)bacfile_pathname_set(instance, file->pathname);
@@ -211,6 +231,7 @@ bool bp_file_delete(uint32_t object_instance)
         return false;
     }
     if (file) {
+        bp_files_total -= file->cap;
         free(file->data);
         free(file);
     }
@@ -387,7 +408,7 @@ BP_API int32_t bacnet_plugin_file_set_content(
         return BP_ERR_OBJECT;
     }
     file->len = 0;
-    if (!bp_file_resize(file, length)) {
+    if (!bp_file_resize(file, length, false)) {
         return length > BP_FILE_MAX_SIZE ? BP_ERR_INVALID_ARGUMENT
                                          : BP_ERR_NO_MEMORY;
     }
@@ -425,16 +446,27 @@ BP_API int64_t bacnet_plugin_file_get_content(
 }
 
 BP_API int32_t bacnet_plugin_file_configure(
-    uint32_t instance, const char *file_type, int32_t read_only)
+    uint32_t instance,
+    const char *file_type,
+    int32_t read_only,
+    int64_t max_size)
 {
     char *previous = NULL;
     char *stored;
+    bp_file_t *file;
 
     if (!bp_state.initialized) {
         return BP_ERR_NOT_INITIALIZED;
     }
-    if (!bp_file(instance)) {
+    file = bp_file(instance);
+    if (!file) {
         return BP_ERR_OBJECT;
+    }
+    if (max_size > (int64_t)BP_FILE_MAX_SIZE) {
+        return BP_ERR_INVALID_ARGUMENT;
+    }
+    if (max_size >= 0) {
+        file->max_size = (uint32_t)max_size;
     }
     if (file_type) {
         if (strlen(file_type) > MAX_CHARACTER_STRING_BYTES) {

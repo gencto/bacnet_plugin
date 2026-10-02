@@ -1243,6 +1243,28 @@ void main() {
     const notes = BacnetObject(type: BacnetObjectType.file, instance: 1);
     const firmware = BacnetObject(type: BacnetObjectType.file, instance: 2);
 
+    test('remote clients cannot grow files without limit', () async {
+      // 16 MiB by default
+      await expectLater(
+        client.writeFileStream(device, 1, const [1], start: 20000000),
+        throwsA(isA<BacnetProtocolException>()),
+      );
+      await expectLater(
+        client.writeProperty(
+          device,
+          BacnetObjectType.file,
+          1,
+          BacnetPropertyId.fileSize,
+          const BacnetUnsigned(1 << 30),
+        ),
+        throwsA(isA<BacnetProtocolException>()),
+      );
+      expect(
+        await client.read(device, notes, BacnetProperties.fileSize),
+        lessThan(1 << 20),
+      );
+    });
+
     Future<String> fileLine(String text) async {
       final deadline = DateTime.now().add(const Duration(seconds: 10));
       while (DateTime.now().isBefore(deadline)) {

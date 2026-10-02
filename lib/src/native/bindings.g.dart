@@ -113,15 +113,20 @@ external ffi.Pointer<ffi.Uint8> bacnet_plugin_events_data();
 @ffi.Native<ffi.Uint32 Function()>(isLeaf: true)
 external int bacnet_plugin_events_length();
 
-/// Sets the File_Type (a media type, copied; NULL keeps it) and Read_Only
-/// (0 or 1; negative keeps it) of File object `instance`.
-@ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Char>, ffi.Int32)>(
-  isLeaf: true,
-)
+/// Sets the File_Type (a media type, copied; NULL keeps it), Read_Only (0 or
+/// 1; negative keeps it) and the size up to which remote clients may grow
+/// the file (AtomicWriteFile, File_Size; negative keeps it, 16 MiB by
+/// default) of File object `instance`. Remote writes also stop when all
+/// files together take 256 MiB; the content set by
+/// bacnet_plugin_file_set_content() is not limited.
+@ffi.Native<
+  ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Char>, ffi.Int32, ffi.Int64)
+>(isLeaf: true)
 external int bacnet_plugin_file_configure(
   int instance,
   ffi.Pointer<ffi.Char> file_type,
   int read_only,
+  int max_size,
 );
 
 /// Copies up to `capacity` octets of the content of File object `instance`

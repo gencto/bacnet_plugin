@@ -285,8 +285,14 @@ final class _Worker implements RequestTransport {
         :final instance,
         :final fileType,
         :final readOnly,
+        :final maxSize,
       ):
-        _engine.configureFile(instance, fileType: fileType, readOnly: readOnly);
+        _engine.configureFile(
+          instance,
+          fileType: fileType,
+          readOnly: readOnly,
+          maxSize: maxSize,
+        );
       case SetNumberCommand():
         _engine.setNumber(
           command.objectType,

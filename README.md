@@ -974,6 +974,9 @@ sensor.reportEvent(
 
 ## Migrating from 0.7.x
 
+- Remote clients grow File objects of the server up to `maxSize`
+  (16 MiB by default, `addFile`/`configureFile`); larger AtomicWriteFile
+  and File_Size writes fail. Before, the limit was 2 GiB per file.
 - `PropertyMonitor` reads Protocol_Services_Supported of each device once
   and uses SubscribeCOVPropertyMultiple where the device has it. Pass
   `useCovMultiple: false` to subscribe every property on its own as

@@ -44,6 +44,11 @@ subscriptions in `PropertyMonitor`, fuzzing of the native engine. See
   read of their Object_Name, made bacnet-stack's `Schedule_Object_Name`
   check the UTF-8 of stack memory past the string, with an uninitialized
   length (found by the native fuzzer).
+- Remote clients could make the server allocate up to 2 GiB per File
+  object (AtomicWriteFile at a large start position, File_Size writes).
+  They now grow a file up to `maxSize` of `addFile`/`configureFile`
+  (16 MiB by default) and all files together up to 256 MiB; the content
+  set by the application is not limited (found by the native fuzzer).
 
 ## [0.7.0] - Unreleased
 

@@ -492,11 +492,18 @@ BP_API int64_t bacnet_plugin_file_get_content(
     uint32_t instance, uint32_t offset, uint8_t *buffer, uint32_t capacity);
 
 /**
- * Sets the File_Type (a media type, copied; NULL keeps it) and Read_Only
- * (0 or 1; negative keeps it) of File object `instance`.
+ * Sets the File_Type (a media type, copied; NULL keeps it), Read_Only (0 or
+ * 1; negative keeps it) and the size up to which remote clients may grow
+ * the file (AtomicWriteFile, File_Size; negative keeps it, 16 MiB by
+ * default) of File object `instance`. Remote writes also stop when all
+ * files together take 256 MiB; the content set by
+ * bacnet_plugin_file_set_content() is not limited.
  */
 BP_API int32_t bacnet_plugin_file_configure(
-    uint32_t instance, const char *file_type, int32_t read_only);
+    uint32_t instance,
+    const char *file_type,
+    int32_t read_only,
+    int64_t max_size);
 
 #ifdef __cplusplus
 }
