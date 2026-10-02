@@ -19,6 +19,7 @@
 
 #include "bacnet_plugin.h"
 #include "bp_internal.h"
+#include "bacnet/basic/object/device.h"
 #include "bacnet/basic/tsm/tsm.h"
 
 #define FUZZ_DEVICE 1234u
@@ -95,6 +96,17 @@ static void fuzz_setup(void)
     }
     bacnet_plugin_backup_configure(
         backup_files, 1, BP_BACKUP_PREPARE | BP_BACKUP_APPLY, 10);
+    /* regression: object names are filled into uninitialized strings
+       (Who-Has, ReadProperty); Schedule_Object_Name read them first */
+    for (i = 0; i < sizeof(types) / sizeof(types[0]); i++) {
+        BACNET_CHARACTER_STRING name;
+
+        /* garbage that claims more UTF-8 octets than the string holds */
+        memset(&name, 'A', sizeof(name));
+        name.encoding = CHARACTER_UTF8;
+        name.length = sizeof(name.value) + 64;
+        (void)Device_Object_Name_Copy(types[i], 1, &name);
+    }
     /* the device answering the open requests: 127.0.0.1:47807 */
     bacnet_plugin_bind_device(FUZZ_REMOTE, "127.0.0.1", 47807, 0, NULL, 0, 1476);
 }

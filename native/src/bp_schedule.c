@@ -108,8 +108,39 @@ bool bp_schedule_priority_set(uint32_t instance, uint8_t priority)
 
 /* ---- object table wrappers ------------------------------------------ */
 
+/* Schedule_Object_Name() checks the UTF-8 of the string it is about to fill
+   before filling it: callers pass uninitialized strings (Who-Has, the
+   ReadProperty of Object_Name), so it reads past them. */
+bool bp_schedule_object_name(
+    uint32_t object_instance, BACNET_CHARACTER_STRING *object_name)
+{
+    if (!object_name) {
+        return false;
+    }
+    characterstring_init_ansi(object_name, "");
+    return Schedule_Object_Name(object_instance, object_name);
+}
+
 int bp_schedule_read_property(BACNET_READ_PROPERTY_DATA *rpdata)
 {
+    if (rpdata && rpdata->object_property == PROP_OBJECT_NAME &&
+        rpdata->application_data && rpdata->application_data_len > 0 &&
+        Schedule_Valid_Instance(rpdata->object_instance)) {
+        BACNET_CHARACTER_STRING name;
+
+        if (rpdata->array_index != BACNET_ARRAY_ALL) {
+            rpdata->error_class = ERROR_CLASS_PROPERTY;
+            rpdata->error_code = ERROR_CODE_PROPERTY_IS_NOT_AN_ARRAY;
+            return BACNET_STATUS_ERROR;
+        }
+        if (!bp_schedule_object_name(rpdata->object_instance, &name)) {
+            rpdata->error_class = ERROR_CLASS_OBJECT;
+            rpdata->error_code = ERROR_CODE_UNKNOWN_OBJECT;
+            return BACNET_STATUS_ERROR;
+        }
+        return encode_application_character_string(
+            rpdata->application_data, &name);
+    }
     if (rpdata && rpdata->object_property == PROP_PRIORITY_FOR_WRITING &&
         rpdata->application_data && rpdata->application_data_len > 0 &&
         Schedule_Valid_Instance(rpdata->object_instance)) {

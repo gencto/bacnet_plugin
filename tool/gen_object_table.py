@@ -57,6 +57,8 @@ REPLACED = {
     # Priority_For_Writing and marked writes of schedules
     # (native/src/bp_schedule.c)
     "OBJECT_SCHEDULE": {
+        # Schedule_Object_Name reads the string it fills (uninitialized)
+        "Schedule_Object_Name,": "bp_schedule_object_name,",
         "Schedule_Read_Property,": "bp_schedule_read_property,",
         "Schedule_Write_Property,": "bp_schedule_write_property,",
         "Schedule_Delete,": "bp_schedule_delete,",

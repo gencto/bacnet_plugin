@@ -941,6 +941,34 @@ void main() {
       instance: 900,
     );
 
+    test('name schedules (Who-Has, Object_Name)', () async {
+      // bacnet-stack checked the uninitialized name it was about to fill
+      // (tool/fuzz_native.dart checks that deterministically)
+      final whoHas = await RawDatagramSocket.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      addTearDown(whoHas.close);
+      // Who-Has object name "Setpoint"
+      const npdu = [
+        0x01, 0x00, 0x10, 0x07, 0x3D, 0x09, 0x00, //
+        0x53, 0x65, 0x74, 0x70, 0x6F, 0x69, 0x6E, 0x74,
+      ];
+      for (var i = 0; i < 20; i++) {
+        whoHas.send(
+          [0x81, 0x0A, 0x00, 4 + npdu.length, ...npdu],
+          InternetAddress.loopbackIPv4,
+          serverPort,
+        );
+      }
+      for (var i = 0; i < 20; i++) {
+        expect(
+          await client.read(device, schedule, BacnetProperties.objectName),
+          'Setpoint',
+        );
+      }
+    });
+
     Future<void> expectTarget(double value) async {
       final deadline = DateTime.now().add(const Duration(seconds: 10));
       while (true) {

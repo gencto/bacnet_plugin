@@ -37,6 +37,14 @@ subscriptions in `PropertyMonitor`, fuzzing of the native engine. See
   the engine (client and server handlers, segmentation, files, schedules,
   trend logs, backup) with AddressSanitizer and UndefinedBehaviorSanitizer.
 
+### Fixed
+
+- Schedule objects of the server read past an uninitialized string when
+  they were named: a Who-Has by name from any device on the network, or a
+  read of their Object_Name, made bacnet-stack's `Schedule_Object_Name`
+  check the UTF-8 of stack memory past the string, with an uninitialized
+  length (found by the native fuzzer).
+
 ## [0.7.0] - Unreleased
 
 Provisioning with Who-Am-I/You-Are, WriteGroup and Channel objects, COV

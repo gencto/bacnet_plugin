@@ -720,7 +720,7 @@ static object_functions_t BP_Object_Table[] = {
       Schedule_Count,
       Schedule_Index_To_Instance,
       Schedule_Valid_Instance,
-      Schedule_Object_Name,
+      bp_schedule_object_name,
       bp_schedule_read_property,
       bp_schedule_write_property,
       Schedule_Property_Lists,

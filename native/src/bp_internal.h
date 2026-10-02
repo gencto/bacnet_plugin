@@ -242,6 +242,8 @@ void bp_service_reported(
 #include "bacnet/wp.h"
 void bp_internal_writes_init(void);
 bool bp_schedule_priority_set(uint32_t instance, uint8_t priority);
+bool bp_schedule_object_name(
+    uint32_t object_instance, BACNET_CHARACTER_STRING *object_name);
 int bp_schedule_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
 bool bp_schedule_write_property(BACNET_WRITE_PROPERTY_DATA *wp_data);
 void bp_schedule_timer(uint32_t object_instance, uint16_t milliseconds);
