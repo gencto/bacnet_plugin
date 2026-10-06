@@ -557,6 +557,17 @@ void bp_on_audit_log_query(
         (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len);
         return;
     }
+    /* auditLog [0] is mandatory; the APDU handler delivers an empty service
+       request as a NULL, zero-length buffer, so reject it before any pointer
+       arithmetic on request */
+    if (request == NULL || len == 0) {
+        pdu_len += bacerror_encode_apdu(
+            &buf[pdu_len], service_data->invoke_id,
+            SERVICE_CONFIRMED_AUDIT_LOG_QUERY, ERROR_CLASS_OBJECT,
+            ERROR_CODE_UNKNOWN_OBJECT);
+        (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len);
+        return;
+    }
     /* auditLog [0] BACnetObjectIdentifier */
     tag_len = bacnet_object_id_context_decode(
         &request[offset], len - offset, 0, &object_type, &object_instance);

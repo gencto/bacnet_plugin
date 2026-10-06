@@ -98,6 +98,13 @@ static bool bp_scm_decode(const uint8_t *apdu, uint16_t size, bp_scm_request_t *
 
     memset(out, 0, sizeof(*out));
 
+    /* subscriberProcessIdentifier [0] is mandatory; the APDU handler delivers an
+       empty service request as a NULL, zero-length buffer, so reject it before
+       any pointer arithmetic on apdu */
+    if (apdu == NULL || size == 0) {
+        return false;
+    }
+
     len = bacnet_unsigned_context_decode(
         &apdu[offset], size - offset, 0, &unsigned_value);
     if (len <= 0) {

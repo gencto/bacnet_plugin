@@ -151,6 +151,13 @@ static bool bp_enroll_decode(
     out->priority_min = 0;
     out->priority_max = 255;
 
+    /* acknowledgmentFilter [0] is mandatory; the APDU handler delivers an empty
+       service request as a NULL, zero-length buffer, so reject it before any
+       pointer arithmetic on apdu */
+    if (apdu == NULL || size == 0) {
+        return false;
+    }
+
     len = bacnet_enumerated_context_decode(&apdu[offset], size - offset, 0, &value);
     if (len <= 0) {
         return false;

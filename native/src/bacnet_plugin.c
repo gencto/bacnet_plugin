@@ -284,7 +284,9 @@ BP_API int32_t bacnet_plugin_init(
 
 #if !defined(_WIN32) && defined(BACDL_BIP6)
     if (bp_state.ipv6) {
+#if defined(BACDL_MULTIPLE)
         datalink_set("bip6");
+#endif
         bip6_set_port(port ? port : 0xBAC0);
         if (!bip6_init(iface && *iface ? iface : NULL)) {
             return BP_ERR_DATALINK;
@@ -292,7 +294,11 @@ BP_API int32_t bacnet_plugin_init(
     } else
 #endif
     {
+#if defined(BACDL_MULTIPLE)
+        /* with a single compile-time datalink the macros already resolve to
+           bip_*; datalink_set() exists only in the runtime-dispatch build */
         datalink_set("bip");
+#endif
         bip_set_port(port ? port : 0xBAC0);
         if (!bip_init(iface && *iface ? iface : NULL)) {
             return BP_ERR_DATALINK;
