@@ -45,9 +45,18 @@ class NativeEngine {
   void init({
     required String? interface,
     required int port,
+    required bool useIPv6,
     required int deviceInstance,
     required int socketBufferSize,
   }) {
+    if (useIPv6) {
+      final rc = bacnet_plugin_set_ipv6(1);
+      if (rc != BP_OK) {
+        throw BacnetException(
+          'BACnet/IPv6 is not available: ${nativeErrorMessage(rc)}',
+        );
+      }
+    }
     final rc = _withOptionalString(
       interface,
       (iface) =>
@@ -55,7 +64,7 @@ class NativeEngine {
     );
     if (rc != BP_OK) {
       throw BacnetException(
-        'Failed to initialize BACnet/IP on '
+        'Failed to initialize BACnet/${useIPv6 ? 'IPv6' : 'IP'} on '
         '${interface ?? 'default interface'}:$port: ${nativeErrorMessage(rc)}',
       );
     }

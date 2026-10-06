@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **BACnet/IPv6** (ANNEX U): `BacnetConfig(useIPv6: true)` runs the client and
+  server over the BACnet/IPv6 datalink instead of IPv4 (POSIX only; the engine
+  now builds with `BACDL_MULTIPLE` and selects the transport at runtime). The
+  IPv6 port reuses bacnet-stack's `bvlc6`/VMAC layer. (The IPv6 path is not
+  exercised by CI's container, which has no IPv6 loopback; its end-to-end test
+  skips where IPv6 is unavailable.)
 - **Example object explorer**: the example app gains an object explorer
   screen that reads every property of an object with ReadPropertyMultiple
   (property `all`), shows values and errors, and writes the present value

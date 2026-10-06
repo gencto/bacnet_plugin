@@ -1059,6 +1059,21 @@ await bbmd.writeBroadcastDistributionTable([
 await bbmd.deleteForeignDeviceTableEntry('192.168.5.20');
 ```
 
+### BACnet/IPv6
+
+On POSIX systems the client and server can run over the BACnet/IPv6 datalink
+(ASHRAE 135 ANNEX U) instead of BACnet/IPv4:
+
+```dart
+final server = BacnetServer(
+  config: const BacnetConfig(interface: 'eth0', useIPv6: true),
+);
+```
+
+The named interface must have an IPv6 address. IPv6 is not available on
+Windows, and the engine's test container has no IPv6 loopback, so the
+end-to-end IPv6 test skips where IPv6 is unavailable.
+
 A device that is not a BBMD, or refuses a change, answers with a NAK:
 `BacnetBbmdException.result` tells which (`BacnetBvlcResult`).
 `client.registerForeignDevice` registers the client itself with a BBMD.

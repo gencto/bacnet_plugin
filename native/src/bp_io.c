@@ -114,8 +114,13 @@ BP_API void bacnet_plugin_wakeup(void)
 
 void bp_wait(uint32_t timeout_ms)
 {
+#if !defined(_WIN32) && defined(BACDL_BIP6)
+    int bip = bp_state.ipv6 ? bip6_get_socket() : bip_get_socket();
+    int bcast = bp_state.ipv6 ? -1 : bip_get_broadcast_socket();
+#else
     int bip = bip_get_socket();
     int bcast = bip_get_broadcast_socket();
+#endif
 #if defined(_WIN32)
     fd_set fds;
     struct timeval tv;

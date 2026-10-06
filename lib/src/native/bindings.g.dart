@@ -256,6 +256,12 @@ external int bacnet_plugin_init(
   int socket_buffer_bytes,
 );
 
+/// Selects the BACnet/IPv6 datalink (ANNEX U) for the next
+/// bacnet_plugin_init(). Must be called before init. Returns BP_OK,
+/// BP_ERR_ALREADY_INITIALIZED, or BP_ERR_UNSUPPORTED (Windows).
+@ffi.Native<ffi.Int32 Function(ffi.Int32)>(isLeaf: true)
+external int bacnet_plugin_set_ipv6(int enabled);
+
 /// Copies the own BACnet/IP address (IPv4 address and UDP port, 6 bytes) to
 /// `mac`, which must hold at least 6 bytes: where devices send
 /// notifications to this engine.

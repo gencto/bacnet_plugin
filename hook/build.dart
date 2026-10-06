@@ -27,6 +27,9 @@ const stackDirectories = <String>[
 const stackFiles = <String>[
   'src/bacnet/basic/npdu/h_npdu.c',
   'src/bacnet/basic/npdu/s_router.c',
+  // the runtime datalink dispatcher (BACDL_MULTIPLE): routes to BACnet/IPv4
+  // or, on POSIX, BACnet/IPv6
+  'src/bacnet/datalink/datalink.c',
   'src/bacnet/datalink/bvlc.c',
   'src/bacnet/datalink/bvlc6.c',
   'src/bacnet/datalink/cobs.c',
@@ -49,6 +52,9 @@ const _win32PortFiles = <String>[
 /// Compile time limits of the stack, sized for large installations.
 const stackDefines = <String, String?>{
   'BACDL_BIP': null,
+  // runtime transport selection; BACnet/IPv6 (BACDL_BIP6) is added for POSIX
+  // in main() where the IPv6 port is available
+  'BACDL_MULTIPLE': null,
   'BACNET_STACK_STATIC_DEFINE': null,
   'PRINT_ENABLED': '0',
   'MAX_TSM_TRANSACTIONS': '255',
@@ -98,6 +104,12 @@ void main(List<String> args) async {
       for (final dir in stackDirectories)
         ..._cFiles(Directory.fromUri(stackRoot.resolve(dir))),
       for (final file in stackFiles) stackRoot.resolve(file).toFilePath(),
+      // BACnet/IPv6 virtual link layer and VMAC handler (POSIX only, where
+      // the engine ships an IPv6 datalink port)
+      if (!isWindows)
+        ..._cFiles(
+          Directory.fromUri(stackRoot.resolve('src/bacnet/basic/bbmd6/')),
+        ),
       if (isWindows)
         for (final file in _win32PortFiles)
           stackRoot.resolve(file).toFilePath(),
@@ -118,6 +130,8 @@ void main(List<String> args) async {
       defines: {
         ...stackDefines,
         'BP_ENGINE_VERSION': _packageVersion(pubspec),
+        // BACnet/IPv6 datalink is POSIX only (native/src/bp_port_posix6.c)
+        if (!isWindows) 'BACDL_BIP6': null,
         if (isWindows) ...{
           'BACNET_IP_BROADCAST_USE_INADDR_ANY': null,
           '_CRT_SECURE_NO_WARNINGS': null,

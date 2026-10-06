@@ -13,6 +13,7 @@ class WorkerStartup {
     required this.mainPort,
     required this.interface,
     required this.port,
+    required this.useIPv6,
     required this.deviceInstance,
     required this.apduTimeoutMs,
     required this.apduRetries,
@@ -33,6 +34,7 @@ class WorkerStartup {
   final SendPort mainPort;
   final String? interface;
   final int port;
+  final bool useIPv6;
   final int deviceInstance;
   final int apduTimeoutMs;
   final int apduRetries;

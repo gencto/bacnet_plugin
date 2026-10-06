@@ -107,6 +107,7 @@ typedef struct {
 typedef struct {
     bool initialized;
     bool server_enabled;
+    bool ipv6; /* BACnet/IPv6 datalink instead of BACnet/IPv4 */
     bool strict_source;
     bool suppress_write_events;
     /* set while an object of the server writes another one */
@@ -178,6 +179,10 @@ void bp_string_clear(void);
 
 bool bp_wake_init(void);
 void bp_wake_drain(void);
+#if !defined(_WIN32) && defined(BACDL_BIP6)
+/** The open BACnet/IPv6 UDP socket (bp_port_posix6.c), -1 when closed. */
+int bip6_get_socket(void);
+#endif
 /** Waits up to timeout_ms for traffic on the BACnet or wakeup sockets. */
 void bp_wait(uint32_t timeout_ms);
 #if defined(_WIN32)

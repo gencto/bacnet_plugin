@@ -180,6 +180,14 @@ BP_API const char *bacnet_plugin_version(void);
  * @param socket_buffer_bytes SO_RCVBUF / SO_SNDBUF size, 0 keeps OS default.
  * @return BP_OK or a negative BP_ERR_* code.
  */
+/**
+ * Selects the BACnet/IPv6 datalink (ANNEX U) for the next
+ * bacnet_plugin_init(), instead of BACnet/IPv4. Must be called before init.
+ * Returns BP_OK, BP_ERR_ALREADY_INITIALIZED, or BP_ERR_UNSUPPORTED when the
+ * platform has no IPv6 datalink (Windows).
+ */
+BP_API int32_t bacnet_plugin_set_ipv6(int32_t enabled);
+
 BP_API int32_t bacnet_plugin_init(
     const char *iface,
     uint16_t port,

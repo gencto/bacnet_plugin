@@ -80,6 +80,7 @@ final class _Worker implements RequestTransport {
     _engine.init(
       interface: startup.interface,
       port: startup.port,
+      useIPv6: startup.useIPv6,
       deviceInstance: startup.deviceInstance,
       socketBufferSize: startup.socketBufferSize,
     );

@@ -17,6 +17,10 @@
 #include "bacnet/basic/sys/mstimer.h"
 #include "bacnet/basic/tsm/tsm.h"
 #include "bacnet/datalink/bvlc.h"
+#include "bacnet/datalink/datalink.h"
+#if !defined(_WIN32) && defined(BACDL_BIP6)
+#include "bacnet/datalink/bip6.h"
+#endif
 #include "bacnet/dcc.h"
 #include "bacnet/npdu.h"
 #include "bacnet/version.h"
@@ -183,7 +187,7 @@ BP_API int32_t bacnet_plugin_poll(uint32_t timeout_ms, uint32_t max_packets)
         uint16_t len;
 
         memset(&src, 0, sizeof(src));
-        len = bip_receive(&src, bp_state.rx_buf, MAX_MPDU, 0);
+        len = datalink_receive(&src, bp_state.rx_buf, MAX_MPDU, 0);
         if (len == 0) {
             break;
         }
@@ -210,6 +214,22 @@ BP_API const char *bacnet_plugin_version(void)
 {
     return "bacnet_plugin/" BP_XSTRINGIFY(
         BP_ENGINE_VERSION) " bacnet-stack/" BACNET_VERSION_TEXT;
+}
+
+BP_API int32_t bacnet_plugin_set_ipv6(int32_t enabled)
+{
+    if (bp_state.initialized) {
+        return BP_ERR_ALREADY_INITIALIZED;
+    }
+#if !defined(_WIN32) && defined(BACDL_BIP6)
+    bp_state.ipv6 = enabled != 0;
+    return BP_OK;
+#else
+    if (enabled) {
+        return BP_ERR_UNSUPPORTED;
+    }
+    return BP_OK;
+#endif
 }
 
 BP_API int32_t bacnet_plugin_init(
@@ -259,9 +279,21 @@ BP_API int32_t bacnet_plugin_init(
     address_own_device_id_set(Device_Object_Instance_Number());
     bp_register_client_handlers();
 
-    bip_set_port(port ? port : 0xBAC0);
-    if (!bip_init(iface && *iface ? iface : NULL)) {
-        return BP_ERR_DATALINK;
+#if !defined(_WIN32) && defined(BACDL_BIP6)
+    if (bp_state.ipv6) {
+        datalink_set("bip6");
+        bip6_set_port(port ? port : 0xBAC0);
+        if (!bip6_init(iface && *iface ? iface : NULL)) {
+            return BP_ERR_DATALINK;
+        }
+    } else
+#endif
+    {
+        datalink_set("bip");
+        bip_set_port(port ? port : 0xBAC0);
+        if (!bip_init(iface && *iface ? iface : NULL)) {
+            return BP_ERR_DATALINK;
+        }
     }
 #if defined(_WIN32)
     bp_apply_socket_buffer(bip_get_socket());
