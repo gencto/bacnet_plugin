@@ -24,7 +24,7 @@ class ServerProcess {
     final process = await Process.start(
       Platform.resolvedExecutable,
       ['run', 'tool/demo_server.dart', '$port', '$device', '$objects'],
-      environment: {'BACNET_IFACE': '127.0.0.1'},
+      environment: {'BACNET_IFACE': '127.0.0.1', 'BACNET_HEARTBEAT': '1'},
     );
     final lines = <String>[];
     final ready = Completer<void>();
@@ -90,6 +90,18 @@ void main() {
   });
 
   tearDownAll(() async {
+    // diagnostic: show whether the client received replies and how many it
+    // dropped for a source mismatch (strict source)
+    try {
+      final s = await client.stats();
+      stderr.writeln(
+        '[client] rx=${s.packetsReceived} sent=${s.requestsSent} '
+        'timeouts=${s.timeouts} dropped=${s.repliesDropped} '
+        'offline=${s.offlineDevices}',
+      );
+    } on Object catch (e) {
+      stderr.writeln('[client] stats error: $e');
+    }
     await client.close();
     await server.stop();
   });

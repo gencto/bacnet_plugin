@@ -23,6 +23,7 @@ import '../core/types.dart';
 import '../models/alarms.dart';
 import '../models/audit.dart';
 import '../models/bacnet_property.dart';
+import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
 import '../models/complex_values.dart';
 import '../models/events.dart';
@@ -104,6 +105,9 @@ class BacnetServer {
 
   /// Configuration of this server.
   BacnetConfig get config => _config;
+
+  /// Engine statistics (received packets, queue depth, bound devices).
+  Future<BacnetStats> stats() => _system.stats();
 
   /// Writes performed by remote clients on objects of this server.
   Stream<PropertyWriteEvent> get writeEvents => _system.events
