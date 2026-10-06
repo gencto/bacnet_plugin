@@ -49,6 +49,8 @@ subscriptions in `PropertyMonitor`, fuzzing of the native engine. See
   They now grow a file up to `maxSize` of `addFile`/`configureFile`
   (16 MiB by default) and all files together up to 256 MiB; the content
   set by the application is not limited (found by the native fuzzer).
+- `BacnetBbmdClient` retries a request the UDP socket cannot send at once
+  (`send` returns 0 on Windows while the previous datagram is on its way).
 
 ## [0.7.0] - not published separately (in 0.8.0)
 

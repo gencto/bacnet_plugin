@@ -5,6 +5,8 @@ import 'package:bacnet_plugin/bacnet_plugin.dart';
 import 'package:bacnet_plugin/src/codec/requests.dart';
 import 'package:bacnet_plugin/src/codec/responses.dart';
 
+import 'udp.dart';
+
 /// A minimal BACnet/IP device with SubscribeCOVPropertyMultiple (ASHRAE 135
 /// clause 13.16), which bacnet-stack does not implement: it acknowledges
 /// the subscriptions (or refuses the properties in [refused] with a
@@ -136,7 +138,8 @@ final class CovMultipleDevice {
 
   void _send(InternetAddress address, int port, List<int> apdu) {
     final length = 4 + 2 + apdu.length;
-    _socket.send(
+    sendDatagram(
+      _socket,
       [0x81, 0x0A, length >> 8, length & 0xFF, 0x01, 0x00, ...apdu],
       address,
       port,

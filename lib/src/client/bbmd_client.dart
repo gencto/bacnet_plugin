@@ -151,7 +151,7 @@ final class BacnetBbmdClient {
     try {
       for (var attempt = 0; attempt <= retries; attempt++) {
         final answer = pending = Completer<(int, Uint8List)>();
-        socket.send(request, address, port);
+        await _send(socket, request, address);
         final int function;
         final Uint8List answerData;
         try {
@@ -174,5 +174,19 @@ final class BacnetBbmdClient {
     } finally {
       socket.close();
     }
+  }
+
+  /// Sends [data] to the BBMD. `send` returns 0 while the datagram would
+  /// block (on Windows while the previous one is still being sent): retry.
+  Future<void> _send(
+    RawDatagramSocket socket,
+    List<int> data,
+    InternetAddress address,
+  ) async {
+    for (var attempt = 0; attempt < 100; attempt++) {
+      if (socket.send(data, address, port) > 0) return;
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    // not sent: the attempt times out and is repeated
   }
 }
