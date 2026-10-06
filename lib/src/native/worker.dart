@@ -293,6 +293,30 @@ final class _Worker implements RequestTransport {
           readOnly: readOnly,
           maxSize: maxSize,
         );
+      case TimeMasterCommand(
+        :final enabled,
+        :final intervalSeconds,
+        :final utc,
+        :final align,
+        :final offsetSeconds,
+        :final recipients,
+      ):
+        _engine.configureTimeMaster(
+          enabled: enabled,
+          intervalSeconds: intervalSeconds,
+          utc: utc,
+          align: align,
+          offsetSeconds: offsetSeconds,
+          recipients: [
+            for (final r in recipients)
+              (
+                deviceId: r.deviceId,
+                mac: r.mac,
+                network: r.network,
+                adr: r.adr,
+              ),
+          ],
+        );
       case SetNumberCommand():
         _engine.setNumber(
           command.objectType,

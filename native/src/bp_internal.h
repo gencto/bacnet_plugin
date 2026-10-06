@@ -221,6 +221,11 @@ void bp_tx_end(bp_transaction_t *tx);
 void bp_cov_scan(uint32_t now);
 void bp_event_reporting(uint32_t seconds);
 void bp_alarm_ack_hooks(void);
+
+/* ---- bp_timesync.c ----------------------------------------------------- */
+
+/** Sends TimeSynchronization to the recipients when the interval elapsed. */
+void bp_time_master_tick(uint32_t now_ms);
 #include "bacnet/list_element.h"
 /* reports a successful Add/RemoveListElement of a remote client */
 void bp_list_element_changed(

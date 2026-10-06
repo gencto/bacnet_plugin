@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - Unreleased
+
+### Added
+
+- **Time Master** (ASHRAE 135 clause 13.12, BIBB DM-TS-A / DM-UTC-A):
+  `server.enableTimeMaster` makes the server send a TimeSynchronization — or
+  a UTCTimeSynchronization (`utc: true`) — at an interval to a list of
+  recipients (a device, an address, or a local broadcast when the recipient
+  list is empty), optionally aligned to the wall clock with an offset.
+  `server.disableTimeMaster` stops it.
+
 ## [0.8.0] - 2026-10-06
 
 Tools: the `bacnet` command line tool, device descriptions, shared COV

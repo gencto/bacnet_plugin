@@ -1188,6 +1188,81 @@ class BacnetServer {
   /// Broadcasts an I-Am for the local device.
   Future<void> sendIAm() => _system.call<void>(SendIAmCommand.new);
 
+  /// Enables the Time Master (ASHRAE 135 clause 13.12): the server sends a
+  /// TimeSynchronization — or a UTCTimeSynchronization when [utc] — every
+  /// [interval] to [recipients], using the host clock (and, for [utc], the
+  /// UTC offset of the Device object).
+  ///
+  /// Each recipient is a device ([BacnetRecipient.device], resolved through
+  /// the binding table — nothing is sent to it until it is bound), an address
+  /// ([BacnetRecipient.ip]), or a local broadcast (a [BacnetAddressRecipient]
+  /// with an empty mac). When [recipients] is empty the server broadcasts on
+  /// the local network. At most 16 recipients.
+  ///
+  /// When [alignToClock] the sends are aligned to the wall clock, [offset]
+  /// past each interval (e.g. an hourly sync with a one-minute offset fires at
+  /// 00:01, 01:01, ...).
+  ///
+  /// ```dart
+  /// // broadcast UTC time every hour, aligned to the top of the hour
+  /// await server.enableTimeMaster(
+  ///   interval: const Duration(hours: 1),
+  ///   utc: true,
+  ///   alignToClock: true,
+  /// );
+  /// ```
+  Future<void> enableTimeMaster({
+    required Duration interval,
+    List<BacnetRecipient> recipients = const [],
+    bool utc = false,
+    bool alignToClock = false,
+    Duration offset = Duration.zero,
+  }) {
+    final seconds = interval.inSeconds;
+    if (seconds <= 0) {
+      throw ArgumentError.value(interval, 'interval', 'must be positive');
+    }
+    if (offset.isNegative) {
+      throw ArgumentError.value(offset, 'offset', 'must not be negative');
+    }
+    if (recipients.length > 16) {
+      throw ArgumentError.value(recipients, 'recipients', 'at most 16');
+    }
+    return _system.call<void>(
+      (id) => TimeMasterCommand(
+        id,
+        enabled: true,
+        intervalSeconds: seconds,
+        utc: utc,
+        align: alignToClock,
+        offsetSeconds: offset.inSeconds,
+        recipients: [for (final r in recipients) _timeRecipient(r)],
+      ),
+    );
+  }
+
+  /// Disables the Time Master started by [enableTimeMaster].
+  Future<void> disableTimeMaster() => _system.call<void>(
+    (id) => TimeMasterCommand(
+      id,
+      enabled: false,
+      intervalSeconds: 60,
+      utc: false,
+      align: false,
+      offsetSeconds: 0,
+      recipients: const [],
+    ),
+  );
+
+  static TimeMasterRecipient _timeRecipient(BacnetRecipient recipient) =>
+      switch (recipient) {
+        BacnetDeviceRecipient(:final deviceId) => TimeMasterRecipient(
+          deviceId: deviceId,
+        ),
+        BacnetAddressRecipient(:final network, :final mac) =>
+          TimeMasterRecipient(network: network, mac: mac),
+      };
+
   /// The number the native engine stores; NaN relinquishes.
   static double _number(BacnetValue value) => switch (value) {
     BacnetNull() => double.nan,

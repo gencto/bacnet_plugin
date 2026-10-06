@@ -293,6 +293,52 @@ class NativeEngine {
     );
   }
 
+  /// Configures the Time Master and replaces its recipients. When [enabled]
+  /// the server sends a (UTC)TimeSynchronization every [intervalSeconds] to
+  /// [recipients] (a device, an address, or a broadcast when the mac is
+  /// empty), optionally aligned to the wall clock [offsetSeconds] past each
+  /// interval.
+  void configureTimeMaster({
+    required bool enabled,
+    required int intervalSeconds,
+    required bool utc,
+    required bool align,
+    required int offsetSeconds,
+    required List<({int deviceId, List<int> mac, int network, List<int> adr})>
+    recipients,
+  }) {
+    checkNative(bacnet_plugin_time_master_clear_recipients());
+    for (final recipient in recipients) {
+      final mac = recipient.mac;
+      final adr = recipient.adr;
+      final bytes = Uint8List(mac.length + adr.length)
+        ..setAll(0, mac)
+        ..setAll(mac.length, adr);
+      checkNative(
+        _withBytes(
+          bytes,
+          (data, _) => bacnet_plugin_time_master_add_recipient(
+            recipient.deviceId,
+            mac.isEmpty ? ffi.nullptr : data,
+            mac.length,
+            recipient.network,
+            adr.isEmpty ? ffi.nullptr : data + mac.length,
+            adr.length,
+          ),
+        ),
+      );
+    }
+    checkNative(
+      bacnet_plugin_time_master_configure(
+        enabled ? 1 : 0,
+        intervalSeconds,
+        utc ? 1 : 0,
+        align ? 1 : 0,
+        offsetSeconds,
+      ),
+    );
+  }
+
   /// Adds or replaces a static address binding.
   void bindDevice({
     required int deviceId,

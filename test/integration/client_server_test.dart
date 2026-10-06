@@ -1958,6 +1958,78 @@ void main() {
       );
     });
   });
+
+  group('time master', () {
+    late RawDatagramSocket socket;
+    late List<List<int>> received;
+
+    setUp(() async {
+      socket = await RawDatagramSocket.bind(InternetAddress.loopbackIPv4, 0);
+      received = [];
+      socket.listen((event) {
+        if (event != RawSocketEvent.read) return;
+        final datagram = socket.receive();
+        if (datagram != null) received.add(datagram.data);
+      });
+    });
+
+    tearDown(() async {
+      server.send('timemaster off');
+      await _waitFor(() => server.lines.contains('TIMEMASTER off'));
+      socket.close();
+    });
+
+    // Waits for the next unconfirmed request the server sends to [socket] and
+    // returns (service, applicationData after the service choice).
+    Future<(int, List<int>)> nextUnconfirmed() async {
+      await _waitFor(
+        () => received.isNotEmpty,
+        timeout: const Duration(seconds: 8),
+      );
+      final data = received.removeAt(0);
+      expect(data[0], 0x81, reason: 'BVLC');
+      expect(data[4], 0x01, reason: 'NPDU version');
+      // skip the NPDU: version, control, optional DNET/SNET and hop count
+      final control = data[5];
+      var offset = 6;
+      if (control & 0x20 != 0) offset += 3 + data[offset + 2];
+      if (control & 0x08 != 0) offset += 3 + data[offset + 2];
+      if (control & 0x20 != 0) offset += 1;
+      expect(data[offset] & 0xF0, 0x10, reason: 'unconfirmed request');
+      return (data[offset + 1], data.sublist(offset + 2));
+    }
+
+    test('sends TimeSynchronization to a recipient at the interval', () async {
+      final port = socket.port;
+      server.send('timemaster 1 local 127.0.0.1:$port');
+      await _waitFor(() => server.lines.any((l) => l.startsWith('TIMEMASTER')));
+
+      final (service, payload) = await nextUnconfirmed();
+      expect(service, 6, reason: 'timeSynchronization');
+      // Date application tag (0xA4), then Time application tag (0xB4)
+      expect(payload[0], 0xA4, reason: 'Date');
+      expect(payload[1], DateTime.now().year - 1900, reason: 'year');
+      expect(payload[5], 0xB4, reason: 'Time');
+
+      // it repeats: a second sync arrives within the next interval
+      final (service2, _) = await nextUnconfirmed();
+      expect(service2, 6);
+    });
+
+    test('sends UTCTimeSynchronization when asked', () async {
+      final port = socket.port;
+      server.send('timemaster 1 utc 127.0.0.1:$port');
+      await _waitFor(
+        () => server.lines.any(
+          (l) => l.contains('TIMEMASTER') && l.contains('utc'),
+        ),
+      );
+      final (service, payload) = await nextUnconfirmed();
+      expect(service, 9, reason: 'utcTimeSynchronization');
+      expect(payload[0], 0xA4, reason: 'Date');
+      expect(payload[5], 0xB4, reason: 'Time');
+    });
+  });
 }
 
 Future<void> _waitFor(

@@ -724,6 +724,29 @@ await server.enableBackup(
 );
 ```
 
+The server can also act as a **Time Master** (ASHRAE 135 clause 13.12),
+sending TimeSynchronization or UTCTimeSynchronization to its recipients at an
+interval:
+
+```dart
+// broadcast UTC time every hour, aligned to the top of the hour
+await server.enableTimeMaster(
+  interval: const Duration(hours: 1),
+  utc: true,
+  alignToClock: true,
+);
+
+// or to specific recipients (a device resolved by Who-Is, an address)
+await server.enableTimeMaster(
+  interval: const Duration(minutes: 10),
+  recipients: [
+    BacnetRecipient.device(1234),
+    BacnetRecipient.ip('192.168.1.50', 47808),
+  ],
+);
+await server.disableTimeMaster();
+```
+
 ## Provisioning, groups and COV of several properties
 
 New devices without a configured device instance ask a supervisor for one

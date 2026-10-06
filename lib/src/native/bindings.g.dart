@@ -461,6 +461,52 @@ external void bacnet_plugin_shutdown();
 @ffi.Native<ffi.Void Function(ffi.Pointer<bp_stats_t>)>(isLeaf: true)
 external void bacnet_plugin_stats(ffi.Pointer<bp_stats_t> out);
 
+/// Adds a Time Master recipient. When `device_id` is non-zero the recipient is
+/// that device (resolved through the binding table; nothing is sent until it is
+/// bound). Otherwise it is the address `mac` (and `adr` on network `net` behind
+/// a router), or a local broadcast when `mac_len` is 0. At most 16 recipients.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Uint32,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_time_master_add_recipient(
+  int device_id,
+  ffi.Pointer<ffi.Uint8> mac,
+  int mac_len,
+  int net,
+  ffi.Pointer<ffi.Uint8> adr,
+  int adr_len,
+);
+
+/// Removes every Time Master recipient. Returns BP_OK.
+@ffi.Native<ffi.Int32 Function()>(isLeaf: true)
+external int bacnet_plugin_time_master_clear_recipients();
+
+/// Configures the Time Master. When `enabled` is non-zero the server sends a
+/// TimeSynchronization (local time) or, when `utc` is non-zero, a
+/// UTCTimeSynchronization every `interval_seconds` to the recipients added
+/// with bacnet_plugin_time_master_add_recipient(). When `align` is non-zero
+/// the sends are aligned to the wall clock, `offset_seconds` past each
+/// interval. `interval_seconds` must be non-zero when enabled. The interval,
+/// alignment and offset are also mirrored (in minutes) into the Device
+/// object's Time_Synchronization_Interval, Align_Intervals and Interval_Offset.
+@ffi.Native<
+  ffi.Int32 Function(ffi.Int32, ffi.Uint32, ffi.Int32, ffi.Int32, ffi.Uint32)
+>(isLeaf: true)
+external int bacnet_plugin_time_master_configure(
+  int enabled,
+  int interval_seconds,
+  int utc,
+  int align,
+  int offset_seconds,
+);
+
 /// Appends a record to Trend Log `instance` of the server (created with
 /// bacnet_plugin_object_create()) while it is enabled.
 /// @param data application encoded value (NULL, BOOLEAN, REAL, DOUBLE,

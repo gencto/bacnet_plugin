@@ -35,6 +35,7 @@ functions:
       - bacnet_plugin_file_.*
       - bacnet_plugin_trend_log_.*
       - bacnet_plugin_backup_.*
+      - bacnet_plugin_time_master_.*
 structs:
   include:
     - bp_.*

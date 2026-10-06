@@ -505,6 +505,38 @@ BP_API int32_t bacnet_plugin_file_configure(
     int32_t read_only,
     int64_t max_size);
 
+/**
+ * Configures the Time Master. When `enabled` is non-zero the server sends a
+ * TimeSynchronization (local time) or, when `utc` is non-zero, a
+ * UTCTimeSynchronization every `interval_seconds` to the recipients added
+ * with bacnet_plugin_time_master_add_recipient(). When `align` is non-zero
+ * the sends are aligned to the wall clock, `offset_seconds` past each
+ * interval. `interval_seconds` must be non-zero when enabled.
+ */
+BP_API int32_t bacnet_plugin_time_master_configure(
+    int32_t enabled,
+    uint32_t interval_seconds,
+    int32_t utc,
+    int32_t align,
+    uint32_t offset_seconds);
+
+/** Removes every Time Master recipient. Returns BP_OK. */
+BP_API int32_t bacnet_plugin_time_master_clear_recipients(void);
+
+/**
+ * Adds a Time Master recipient. When `device_id` is non-zero the recipient is
+ * that device (resolved through the binding table; nothing is sent until it is
+ * bound). Otherwise it is the address `mac` (and `adr` on network `net` behind
+ * a router), or a local broadcast when `mac_len` is 0. At most 16 recipients.
+ */
+BP_API int32_t bacnet_plugin_time_master_add_recipient(
+    uint32_t device_id,
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len);
+
 #ifdef __cplusplus
 }
 #endif

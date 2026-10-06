@@ -78,6 +78,7 @@ static void bp_timers(void)
     }
     bp_segments_timer(now);
     bp_cov_scan(now);
+    bp_time_master_tick(now);
 }
 
 /* ---- receive path ------------------------------------------------------ */

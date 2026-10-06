@@ -209,6 +209,22 @@ Future<void> main(List<String> args) async {
         retryInterval: const Duration(seconds: 1),
       );
       print('PROVISIONED $instance');
+    } else if (words.length == 2 &&
+        words[0] == 'timemaster' &&
+        words[1] == 'off') {
+      await server.disableTimeMaster();
+      print('TIMEMASTER off');
+    } else if (words.length == 4 && words[0] == 'timemaster') {
+      // "timemaster <interval_seconds> <local|utc> <ip:port>": sends a
+      // (UTC)TimeSynchronization to that recipient at the interval
+      final host = words[3].split(':');
+      final port = int.parse(host[1]);
+      await server.enableTimeMaster(
+        interval: Duration(seconds: int.parse(words[1])),
+        utc: words[2] == 'utc',
+        recipients: [BacnetRecipient.ip(host[0], port)],
+      );
+      print('TIMEMASTER ${words[1]}s ${words[2]} to ${words[3]}');
     }
   });
   print('READY ${server.config.port} device $deviceId objects $objects');

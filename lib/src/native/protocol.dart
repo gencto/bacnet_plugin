@@ -346,6 +346,41 @@ class ConfigureFileCommand extends WorkerCommand {
   final int? maxSize;
 }
 
+/// A Time Master recipient: a device (when [deviceId] is non-zero), an
+/// address ([mac], and [adr] on [network] behind a router), or a broadcast
+/// when [mac] is empty.
+class TimeMasterRecipient {
+  const TimeMasterRecipient({
+    this.deviceId = 0,
+    this.mac = const [],
+    this.network = 0xFFFF,
+    this.adr = const [],
+  });
+  final int deviceId;
+  final List<int> mac;
+  final int network;
+  final List<int> adr;
+}
+
+/// Configures the Time Master and replaces its recipients.
+class TimeMasterCommand extends WorkerCommand {
+  const TimeMasterCommand(
+    super.id, {
+    required this.enabled,
+    required this.intervalSeconds,
+    required this.utc,
+    required this.align,
+    required this.offsetSeconds,
+    required this.recipients,
+  });
+  final bool enabled;
+  final int intervalSeconds;
+  final bool utc;
+  final bool align;
+  final int offsetSeconds;
+  final List<TimeMasterRecipient> recipients;
+}
+
 /// Deletes a server object.
 class DeleteObjectCommand extends WorkerCommand {
   const DeleteObjectCommand(super.id, this.objectType, this.instance);
