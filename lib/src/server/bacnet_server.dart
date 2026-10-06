@@ -879,6 +879,71 @@ class BacnetServer {
     return created;
   }
 
+  // ---- lighting and color objects -------------------------------------------
+
+  /// Adds a Lighting Output object (dimmable light): clients drive it by
+  /// writing [BacnetProperties.lightingCommand] (a [BacnetLightingCommand])
+  /// or its Present_Value (0.0..100.0 %). Returns its instance.
+  ///
+  /// ```dart
+  /// await server.addLightingOutput(1, name: 'Desk lamp');
+  /// // a client ramps it to 80 % over two seconds:
+  /// await client.write(device, lamp, BacnetProperties.lightingCommand,
+  ///     const BacnetLightingCommand(
+  ///       operation: BacnetLightingOperation.fadeTo,
+  ///       targetLevel: 80,
+  ///       fadeTime: Duration(seconds: 2),
+  ///     ));
+  /// ```
+  Future<int> addLightingOutput(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.lightingOutput,
+    instance,
+    name: name,
+    description: description,
+  );
+
+  /// Adds a Binary Lighting Output object (a switched light): clients write
+  /// its Present_Value ([BacnetBinaryLightingPV]). Returns its instance.
+  Future<int> addBinaryLightingOutput(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.binaryLightingOutput,
+    instance,
+    name: name,
+    description: description,
+  );
+
+  /// Adds a Color object (CIE xy chromaticity): clients drive it by writing
+  /// [BacnetProperties.colorCommand] (a [BacnetColorCommand]). Returns its
+  /// instance.
+  Future<int> addColor(int instance, {String? name, String? description}) =>
+      addObject(
+        BacnetObjectType.color,
+        instance,
+        name: name,
+        description: description,
+      );
+
+  /// Adds a Color Temperature object (correlated color temperature in
+  /// kelvin): clients drive it by writing [BacnetProperties.colorCommand].
+  /// Returns its instance.
+  Future<int> addColorTemperature(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.colorTemperature,
+    instance,
+    name: name,
+    description: description,
+  );
+
   // ---- backup and restore ---------------------------------------------------
 
   /// Lets clients back up and restore this server (ASHRAE 135 clause 19.1,

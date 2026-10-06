@@ -747,6 +747,38 @@ await server.enableTimeMaster(
 await server.disableTimeMaster();
 ```
 
+## Lighting and color
+
+Lighting Output, Binary Lighting Output, Color and Color Temperature objects
+are driven with the typed `BacnetLightingCommand` and `BacnetColorCommand`
+values, written to `Lighting_Command` and `Color_Command`:
+
+```dart
+// host the objects on a server
+await server.addLightingOutput(1, name: 'Desk lamp');
+await server.addColorTemperature(1, name: 'Tunable white');
+
+// a client fades a lamp to 80 % over two seconds
+await client.write(1234, lamp, BacnetProperties.lightingCommand,
+    const BacnetLightingCommand(
+      operation: BacnetLightingOperation.fadeTo,
+      targetLevel: 80,
+      fadeTime: Duration(seconds: 2),
+    ));
+
+// and warms a tunable-white fitting to 2700 K
+await client.write(1234, white, BacnetProperties.colorCommand,
+    const BacnetColorCommand(
+      operation: BacnetColorOperation.fadeToColorTemperature,
+      targetColorTemperature: 2700,
+      fadeTime: Duration(seconds: 1),
+    ));
+
+final command =
+    await client.read(1234, lamp, BacnetProperties.lightingCommand);
+print(command.operation.label); // Fade To
+```
+
 ## Provisioning, groups and COV of several properties
 
 New devices without a configured device instance ask a supervisor for one

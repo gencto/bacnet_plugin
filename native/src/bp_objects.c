@@ -16,6 +16,10 @@
 #include "bacnet/basic/object/calendar.h"
 #include "bacnet/basic/object/channel.h"
 #include "bacnet/basic/object/schedule.h"
+#include "bacnet/basic/object/lo.h"
+#include "bacnet/basic/object/blo.h"
+#include "bacnet/basic/object/color_object.h"
+#include "bacnet/basic/object/color_temperature.h"
 #include "bacnet/basic/object/bi.h"
 #include "bacnet/basic/object/bo.h"
 #include "bacnet/basic/object/bv.h"
@@ -86,6 +90,17 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
         case OBJECT_CHANNEL:
             return description ? Channel_Description_Set : Channel_Name_Set;
 #endif
+        case OBJECT_LIGHTING_OUTPUT:
+            return description ? Lighting_Output_Description_Set
+                               : Lighting_Output_Name_Set;
+        case OBJECT_BINARY_LIGHTING_OUTPUT:
+            return description ? Binary_Lighting_Output_Description_Set
+                               : Binary_Lighting_Output_Name_Set;
+        case OBJECT_COLOR:
+            return description ? Color_Description_Set : Color_Name_Set;
+        case OBJECT_COLOR_TEMPERATURE:
+            return description ? Color_Temperature_Description_Set
+                               : Color_Temperature_Name_Set;
         default:
             return NULL;
     }

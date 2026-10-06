@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Lighting and color**: typed `BacnetLightingCommand`, `BacnetColorCommand`
+  and `BacnetXYColor`, the `BacnetLightingOperation`, `BacnetColorOperation`
+  and `BacnetBinaryLightingPV` enumerations, and the writable
+  `BacnetProperties.lightingCommand` / `colorCommand` descriptors. Server
+  helpers `addLightingOutput`, `addBinaryLightingOutput`, `addColor` and
+  `addColorTemperature` host the objects.
 - **Time Master** (ASHRAE 135 clause 13.12, BIBB DM-TS-A / DM-UTC-A):
   `server.enableTimeMaster` makes the server send a TimeSynchronization — or
   a UTCTimeSynchronization (`utc: true`) — at an interval to a list of

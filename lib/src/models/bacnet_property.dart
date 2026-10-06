@@ -683,6 +683,22 @@ abstract final class BacnetProperties {
     _unsigned,
   );
 
+  // ---- lighting and color objects --------------------------------------------
+
+  /// Lighting_Command of a Lighting Output object.
+  static const lightingCommand = BacnetWritableProperty<BacnetLightingCommand>(
+    BacnetPropertyId.lightingCommand,
+    BacnetLightingCommand.fromValue,
+    _encodeLightingCommand,
+  );
+
+  /// Color_Command of a Color or Color Temperature object.
+  static const colorCommand = BacnetWritableProperty<BacnetColorCommand>(
+    BacnetPropertyId.colorCommand,
+    BacnetColorCommand.fromValue,
+    _encodeColorCommand,
+  );
+
   /// Present_Value of a Calendar object: true when today is in Date_List.
   static const calendarPresentValue = BacnetProperty<bool>(
     BacnetPropertyId.presentValue,
@@ -987,6 +1003,11 @@ BacnetValue _encodeWeeklySchedule(BacnetWeeklySchedule value) =>
     value.toValue();
 
 BacnetValue _encodeDateRange(BacnetDateRange value) => value.toValue();
+
+BacnetValue _encodeLightingCommand(BacnetLightingCommand value) =>
+    value.toValue();
+
+BacnetValue _encodeColorCommand(BacnetColorCommand value) => value.toValue();
 
 BacnetValue _encodeCalendarEntries(List<BacnetCalendarEntry> value) =>
     BacnetList([for (final entry in value) entry.toValue()]);

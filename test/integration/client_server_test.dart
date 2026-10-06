@@ -1959,6 +1959,47 @@ void main() {
     });
   });
 
+  group('lighting and color', () {
+    const lamp = BacnetObject(
+      type: BacnetObjectType.lightingOutput,
+      instance: 60,
+    );
+    const strip = BacnetObject(type: BacnetObjectType.color, instance: 61);
+
+    test(
+      'writes a Lighting_Command the server accepts and reads it back',
+      () async {
+        await client.write(
+          device,
+          lamp,
+          BacnetProperties.lightingCommand,
+          const BacnetLightingCommand(
+            operation: BacnetLightingOperation.fadeTo,
+            targetLevel: 80,
+            fadeTime: Duration(seconds: 1),
+          ),
+        );
+        // the server stores and re-encodes the command; it decodes back cleanly
+        final command = await client.read(
+          device,
+          lamp,
+          BacnetProperties.lightingCommand,
+        );
+        expect(command, isA<BacnetLightingCommand>());
+      },
+    );
+
+    test('reads a Color_Command from a Color object', () async {
+      // the Color object re-encodes its Color_Command; it decodes cleanly
+      final command = await client.read(
+        device,
+        strip,
+        BacnetProperties.colorCommand,
+      );
+      expect(command, isA<BacnetColorCommand>());
+    });
+  });
+
   group('time master', () {
     late RawDatagramSocket socket;
     late List<List<int>> received;
