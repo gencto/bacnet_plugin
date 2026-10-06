@@ -79,6 +79,7 @@ enum AckDecoding {
   getEventInformation,
   getAlarmSummary,
   getEnrollmentSummary,
+  auditLogQuery,
   createObject,
   atomicReadFile,
   atomicWriteFile,
@@ -412,6 +413,36 @@ class EventEnrollmentCommand extends WorkerCommand {
   final int notificationClass;
   final int eventEnable;
   final int notifyType;
+}
+
+/// Enables or disables an Audit Log object.
+class AuditLogConfigureCommand extends WorkerCommand {
+  const AuditLogConfigureCommand(
+    super.id,
+    this.instance, {
+    required this.enabled,
+  });
+  final int instance;
+  final bool enabled;
+}
+
+/// Configures an Audit Reporter object and its recipient.
+class AuditReporterConfigureCommand extends WorkerCommand {
+  const AuditReporterConfigureCommand(
+    super.id,
+    this.instance, {
+    required this.auditLevel,
+    required this.operations,
+    required this.auditLogInstance,
+    required this.maxSendDelaySeconds,
+    required this.recipient,
+  });
+  final int instance;
+  final int auditLevel;
+  final int operations;
+  final int auditLogInstance;
+  final int maxSendDelaySeconds;
+  final TimeMasterRecipient? recipient;
 }
 
 /// Deletes a server object.

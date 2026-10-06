@@ -37,6 +37,7 @@ functions:
       - bacnet_plugin_backup_.*
       - bacnet_plugin_time_master_.*
       - bacnet_plugin_event_enrollment_.*
+      - bacnet_plugin_audit_.*
 structs:
   include:
     - bp_.*

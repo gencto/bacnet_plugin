@@ -95,6 +95,11 @@ REPLACED = {
         "NULL /* Create */": "Accumulator_Create",
         "NULL /* Delete */": "Accumulator_Delete",
     },
+    # ReadRange of the Audit Log buffer (native/src/bp_audit.c); bacnet-stack
+    # leaves the RR_Info slot of its own Audit Log object NULL
+    "OBJECT_AUDIT_LOG": {
+        "NULL /* ReadRangeInfo */,": "bp_al_rr_info,",
+    },
     # the content of files is kept in memory (native/src/bp_files.c)
     "OBJECT_FILE": {
         "bacfile_read_property,": "bp_file_read_property,",
@@ -131,7 +136,28 @@ APPENDED = [
       bp_ee_delete,
       NULL /* Timer */,
       NULL /* Writable_Property_List */ },
-#endif"""
+#endif""",
+    """    { OBJECT_AUDIT_REPORTER,
+      bp_ar_init,
+      bp_ar_count,
+      bp_ar_index_to_instance,
+      bp_ar_valid_instance,
+      bp_ar_object_name,
+      bp_ar_read_property,
+      bp_ar_write_property,
+      bp_ar_property_lists,
+      NULL /* ReadRangeInfo */,
+      NULL /* Iterator */,
+      NULL /* Value_Lists */,
+      NULL /* COV */,
+      NULL /* COV Clear */,
+      NULL /* Intrinsic Reporting */,
+      NULL /* Add_List_Element */,
+      NULL /* Remove_List_Element */,
+      bp_ar_create,
+      bp_ar_delete,
+      NULL /* Timer */,
+      NULL /* Writable_Property_List */ },""",
 ]
 
 

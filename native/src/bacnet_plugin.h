@@ -563,6 +563,47 @@ BP_API int32_t bacnet_plugin_event_enrollment_configure(
     uint8_t event_enable,
     uint8_t notify_type);
 
+/**
+ * Enables or disables an Audit Log object (created first with
+ * bacnet_plugin_object_create()): a disabled log drops records. Returns BP_OK
+ * or a negative BP_ERR_* code.
+ */
+BP_API int32_t
+bacnet_plugin_audit_log_configure(uint32_t instance, int32_t enabled);
+
+/**
+ * Configures an Audit Reporter object (created first with
+ * bacnet_plugin_object_create()). It generates an audit record for each
+ * operation whose bit is set in `operations_mask` (over BACnetAuditOperation,
+ * e.g. 1 << AUDIT_OPERATION_WRITE) while `audit_level` is not AUDIT_LEVEL_NONE,
+ * storing it in Audit Log `audit_log_instance` (BACNET_MAX_INSTANCE for none)
+ * and sending it to the recipient set with
+ * bacnet_plugin_audit_reporter_set_recipient(). `max_send_delay` is stored for
+ * the Maximum_Send_Delay property. Returns BP_OK or a negative BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_audit_reporter_configure(
+    uint32_t instance,
+    uint8_t audit_level,
+    uint32_t operations_mask,
+    uint32_t audit_log_instance,
+    uint32_t max_send_delay);
+
+/**
+ * Sets the Audit_Notification_Recipient of Audit Reporter `instance`. When
+ * `device_id` is non-zero the recipient is that device (resolved through the
+ * binding table). Otherwise it is the address `mac` (and `adr` on network
+ * `net` behind a router); an empty `mac` with no device clears the recipient.
+ * Returns BP_OK or a negative BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_audit_reporter_set_recipient(
+    uint32_t instance,
+    uint32_t device_id,
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len);
+
 #ifdef __cplusplus
 }
 #endif

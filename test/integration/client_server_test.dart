@@ -157,7 +157,7 @@ void main() {
       deviceObject,
       BacnetProperties.objectList,
     );
-    expect(objects, hasLength(131));
+    expect(objects, hasLength(133));
     expect(
       await client.read(device, deviceObject, BacnetProperties.vendorName),
       'bacnet_plugin',
@@ -169,8 +169,9 @@ void main() {
     // device, network port, 100 AV, BV, MSV, alarms: NC, AV, BV, 2 files,
     // scheduled AV, calendar, schedule, 2 logged AVs, 2 trend logs,
     // settings file, grouped AV, channel, 3 lighting/color objects,
-    // 6 control/grouping objects and event enrollment: NC, AV, EE
-    expect(objects, hasLength(131));
+    // 6 control/grouping objects, event enrollment: NC, AV, EE, and
+    // auditing: Audit Log and Audit Reporter
+    expect(objects, hasLength(133));
     final scanner = DeviceScanner(client);
     final details = await scanner.getDeviceDetails(device);
     expect(details.deviceName, 'DemoServer');
@@ -179,7 +180,7 @@ void main() {
 
   test('describes the device', () async {
     final description = await client.describeDevice(device);
-    expect(description.objects, hasLength(131));
+    expect(description.objects, hasLength(133));
     expect(description.deviceName, 'DemoServer');
     const av50 = BacnetObject(type: BacnetObjectType.analogValue, instance: 50);
     expect(
@@ -2293,6 +2294,72 @@ void main() {
         priority: 8,
       );
       await recovered;
+    });
+  });
+
+  group('auditing', () {
+    const auditLog = BacnetObject(type: BacnetObjectType.auditLog, instance: 1);
+    const reporter = BacnetObject(
+      type: BacnetObjectType.auditReporter,
+      instance: 1,
+    );
+    const source = BacnetObject(
+      type: BacnetObjectType.analogValue,
+      instance: 70,
+    );
+
+    test('exposes the audit log and reporter objects', () async {
+      expect(
+        await client.read(device, auditLog, BacnetProperties.objectName),
+        'Audit log',
+      );
+      expect(
+        await client.read(device, reporter, BacnetProperties.objectName),
+        'Write reporter',
+      );
+      expect(
+        await client.read(
+          device,
+          reporter,
+          BacnetProperty.enumerated(BacnetPropertyId.auditLevel),
+        ),
+        BacnetAuditLevel.auditAll.value,
+      );
+    });
+
+    test('reports a write as an AuditNotification and logs it', () async {
+      final received = client.auditNotifications
+          .firstWhere(
+            (e) =>
+                e.notification.operation == BacnetAuditOperation.write &&
+                e.notification.targetObject == source,
+          )
+          .timeout(const Duration(seconds: 10));
+      await client.write(
+        device,
+        source,
+        BacnetProperties.analogPresentValue,
+        42,
+        priority: 8,
+      );
+      final event = await received;
+      expect(event.notification.targetObject, source);
+      expect(event.notification.targetProperty, BacnetPropertyId.presentValue);
+      expect(event.notification.sourceTimestamp, isNotNull);
+
+      // the Audit Log stored the same operation; AuditLogQuery returns it
+      final result = await client.queryAuditLog(device, auditLog);
+      expect(result.auditLog, auditLog);
+      expect(result.records, isNotEmpty);
+      expect(
+        result.records.any(
+          (r) =>
+              r.notification?.operation == BacnetAuditOperation.write &&
+              r.notification?.targetObject == source,
+        ),
+        isTrue,
+        reason: 'the write is in the audit log',
+      );
     });
   });
 

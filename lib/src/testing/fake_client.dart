@@ -16,6 +16,7 @@ import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
 import '../core/types.dart';
 import '../models/alarms.dart';
+import '../models/audit.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
@@ -1066,6 +1067,11 @@ class FakeBacnetClient implements BacnetClient {
       .cast<EventNotificationEvent>();
 
   @override
+  Stream<AuditNotificationEvent> get auditNotifications => events
+      .where((e) => e is AuditNotificationEvent)
+      .cast<AuditNotificationEvent>();
+
+  @override
   Stream<WhoAmIEvent> get whoAmIRequests =>
       events.where((e) => e is WhoAmIEvent).cast<WhoAmIEvent>();
 
@@ -2076,6 +2082,29 @@ class FakeBacnetClient implements BacnetClient {
               _enrollmentStateMatches(eventStateFilter, summary.eventState))
             summary,
       ]),
+    );
+  }
+
+  @override
+  Future<BacnetAuditLogQueryResult> queryAuditLog(
+    int deviceId,
+    BacnetObject auditLog, {
+    int? startAtSequenceNumber,
+    int? requestedCount,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    requests.add(FakeBacnetRequest('queryAuditLog', deviceId: deviceId));
+    return _request(
+      BacnetConfirmedService.auditLogQuery,
+      deviceId,
+      cancelToken,
+      (device) => BacnetAuditLogQueryResult(
+        auditLog: auditLog,
+        records: const [],
+        noMoreItems: true,
+      ),
     );
   }
 

@@ -11,6 +11,7 @@
 #include "bacnet/bacstr.h"
 #include "bacnet/basic/object/ai.h"
 #include "bacnet/basic/object/ao.h"
+#include "bacnet/basic/object/auditlog.h"
 #include "bacnet/basic/object/av.h"
 #include "bacnet/basic/object/bacfile.h"
 #include "bacnet/basic/object/calendar.h"
@@ -85,6 +86,10 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
         case OBJECT_EVENT_ENROLLMENT:
             return description ? bp_ee_description_set : bp_ee_name_set;
 #endif
+        case OBJECT_AUDIT_LOG:
+            return description ? Audit_Log_Description_Set : Audit_Log_Name_Set;
+        case OBJECT_AUDIT_REPORTER:
+            return description ? bp_ar_description_set : bp_ar_name_set;
         case OBJECT_FILE:
             return description ? bp_file_description_set
                                : bacfile_object_name_set;

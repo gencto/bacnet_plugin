@@ -317,6 +317,24 @@ final class _Worker implements RequestTransport {
               ),
           ],
         );
+      case AuditLogConfigureCommand():
+        _engine.configureAuditLog(command.instance, enabled: command.enabled);
+      case AuditReporterConfigureCommand():
+        _engine.configureAuditReporter(
+          command.instance,
+          auditLevel: command.auditLevel,
+          operations: command.operations,
+          auditLogInstance: command.auditLogInstance,
+          maxSendDelaySeconds: command.maxSendDelaySeconds,
+          recipient: command.recipient == null
+              ? null
+              : (
+                  deviceId: command.recipient!.deviceId,
+                  mac: command.recipient!.mac,
+                  network: command.recipient!.network,
+                  adr: command.recipient!.adr,
+                ),
+        );
       case EventEnrollmentCommand():
         _engine.configureEventEnrollment(
           command.instance,
@@ -488,6 +506,8 @@ final class _Worker implements RequestTransport {
             _emitCovMultiple(event.data, confirmed: true);
           case BacnetConfirmedService.eventNotification:
             _emit(_eventNotification(event, confirmed: true));
+          case BacnetConfirmedService.auditNotification:
+            _emit(_auditNotification(event, confirmed: true));
           default:
             _emit(_serviceEvent(event, confirmed: true));
         }
@@ -559,6 +579,7 @@ final class _Worker implements RequestTransport {
         AckDecoding.getEventInformation => decodeGetEventInformationAck(data),
         AckDecoding.getAlarmSummary => decodeGetAlarmSummaryAck(data),
         AckDecoding.getEnrollmentSummary => decodeGetEnrollmentSummaryAck(data),
+        AckDecoding.auditLogQuery => decodeAuditLogQueryAck(data),
         AckDecoding.createObject => decodeCreateObjectAck(data),
         AckDecoding.atomicReadFile => decodeAtomicReadFileAck(data),
         AckDecoding.atomicWriteFile => decodeAtomicWriteFileAck(data),
@@ -592,6 +613,8 @@ final class _Worker implements RequestTransport {
         _emitCovMultiple(event.data, confirmed: false);
       case BacnetUnconfirmedService.eventNotification:
         _emit(_eventNotification(event, confirmed: false));
+      case BacnetUnconfirmedService.auditNotification:
+        _emit(_auditNotification(event, confirmed: false));
       default:
         _emit(_unconfirmedEvent(event));
     }
@@ -700,6 +723,20 @@ final class _Worker implements RequestTransport {
       );
     } on BacnetDecodeException catch (e) {
       _log(BacnetLogLevel.warning, 'malformed event notification: $e');
+      return _serviceEvent(event, confirmed: confirmed);
+    }
+  }
+
+  BacnetEvent _auditNotification(NativeEvent event, {required bool confirmed}) {
+    try {
+      return AuditNotificationEvent(
+        notification: decodeAuditNotification(event.data),
+        confirmed: confirmed,
+        mac: event.sourceMac,
+        net: event.sourceNetwork,
+      );
+    } on BacnetDecodeException catch (e) {
+      _log(BacnetLogLevel.warning, 'malformed audit notification: $e');
       return _serviceEvent(event, confirmed: confirmed);
     }
   }

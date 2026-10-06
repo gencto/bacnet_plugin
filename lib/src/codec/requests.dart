@@ -490,6 +490,25 @@ Uint8List encodeGetEnrollmentSummary({
   return w.toBytes();
 }
 
+/// Encodes an AuditLogQuery request (ASHRAE 135 clause 13.9). This
+/// implementation queries [auditLog] for records at or after
+/// [startAtSequenceNumber] (1 based), up to [requestedCount] (0 or null for
+/// all); it does not send query parameters.
+Uint8List encodeAuditLogQuery({
+  required BacnetObject auditLog,
+  int? startAtSequenceNumber,
+  int? requestedCount,
+}) {
+  final w = BacnetWriter(12)..ctxObjectId(0, auditLog.type, auditLog.instance);
+  if (startAtSequenceNumber != null) {
+    w.ctxUnsigned(2, startAtSequenceNumber);
+  }
+  if (requestedCount != null) {
+    w.ctxUnsigned(3, requestedCount);
+  }
+  return w.toBytes();
+}
+
 /// Encodes an AddListElement or RemoveListElement request (ASHRAE 135
 /// clauses 15.1 and 15.2); [elements] are the list elements one after
 /// another.

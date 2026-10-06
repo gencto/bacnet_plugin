@@ -66,6 +66,11 @@ const stackDefines = <String, String?>{
   // channels of the server: members and control groups
   'CHANNEL_MEMBERS_MAX': '32',
   'CONTROL_GROUPS_MAX': '16',
+  // auditing: the BACnetAuditNotification fields the engine encodes (source
+  // timestamp, target object and property); the rest stay out of the record
+  'BACNET_AUDIT_NOTIFICATION_SOURCE_TIMESTAMP_ENABLE': null,
+  'BACNET_AUDIT_NOTIFICATION_TARGET_OBJECT_ENABLE': null,
+  'BACNET_AUDIT_NOTIFICATION_TARGET_PROPERTY_ENABLE': null,
 };
 
 void main(List<String> args) async {

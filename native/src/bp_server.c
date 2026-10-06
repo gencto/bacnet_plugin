@@ -54,6 +54,10 @@ static bool bp_on_write_store(BACNET_WRITE_PROPERTY_DATA *wp_data)
         wp_data->application_data_len > 0
             ? (uint32_t)wp_data->application_data_len
             : 0);
+    /* audit writes from the network, not the server's own internal writes */
+    if (!bp_state.internal_write) {
+        bp_audit_report_write(wp_data);
+    }
     return true;
 }
 
@@ -409,6 +413,8 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_ATOMIC_WRITE_FILE, bp_on_atomic_write_file);
         bp_files_init();
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_AUDIT_LOG_QUERY, bp_on_audit_log_query);
 #if defined(INTRINSIC_REPORTING)
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_ACKNOWLEDGE_ALARM, bp_on_alarm_ack);

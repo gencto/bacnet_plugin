@@ -9,6 +9,7 @@ import '../constants/property_ids.dart';
 import '../constants/services.dart';
 import '../core/exceptions.dart';
 import '../models/alarms.dart';
+import '../models/audit.dart';
 import '../models/bacnet_value.dart';
 import '../models/channels.dart';
 import '../models/complex_values.dart';
@@ -1038,4 +1039,127 @@ ReinitializeDeviceData decodeReinitializeDevice(Uint8List data) {
   final state = BacnetReinitializedState(r.readContextUnsigned(0));
   final password = r.nextIsContext(1) ? r.readContextCharacterString(1) : null;
   return (state: state, password: password);
+}
+
+// ---- auditing (ASHRAE 135-2016bi) -------------------------------------------
+
+/// Reads a BACnetRecipient wrapped in context tag [tag]: device [0] or
+/// address [1].
+BacnetRecipient _readRecipient(BacnetReader r, int tag) {
+  r.expectOpening(tag);
+  final BacnetRecipient recipient;
+  if (r.nextIsContext(0)) {
+    recipient = BacnetRecipient.device(r.readContextObjectId(0).instance);
+  } else {
+    r.expectOpening(1);
+    final network = r.readApplicationValue();
+    final mac = r.readApplicationValue();
+    r.expectClosing(1);
+    recipient = BacnetAddressRecipient(
+      network: switch (network) {
+        BacnetUnsigned(:final value) => value,
+        _ => 0,
+      },
+      mac: switch (mac) {
+        BacnetOctetString(:final value) => value,
+        _ => const <int>[],
+      },
+    );
+  }
+  r.expectClosing(tag);
+  return recipient;
+}
+
+/// Reads the body of a BACnetAuditNotification (its context-tagged fields,
+/// without the enclosing tag).
+BacnetAuditNotification _readAuditNotificationBody(BacnetReader r) {
+  final sourceTimestamp = r.nextIsOpening(0) ? _readTimeStamp(r, 0) : null;
+  final sourceDevice = _readRecipient(r, 2);
+  final operation = BacnetAuditOperation(r.readContextUnsigned(4));
+  final targetDevice = _readRecipient(r, 10);
+  final targetObject = r.nextIsContext(11) ? r.readContextObjectId(11) : null;
+  BacnetPropertyId? targetProperty;
+  if (r.nextIsOpening(12)) {
+    r.expectOpening(12);
+    targetProperty = BacnetPropertyId(r.readContextUnsigned(0));
+    if (r.nextIsContext(1)) {
+      r.readContextUnsigned(1); // property array index, not kept
+    }
+    r.expectClosing(12);
+  }
+  return BacnetAuditNotification(
+    operation: operation,
+    sourceDevice: sourceDevice,
+    targetDevice: targetDevice,
+    sourceTimestamp: sourceTimestamp,
+    targetObject: targetObject,
+    targetProperty: targetProperty,
+  );
+}
+
+/// Decodes an AuditNotification service request: the notification wrapped in
+/// context tag 0.
+BacnetAuditNotification decodeAuditNotification(Uint8List data) {
+  final r = BacnetReader(data);
+  r.expectOpening(0);
+  final notification = _readAuditNotificationBody(r);
+  r.expectClosing(0);
+  return notification;
+}
+
+/// Reads one BACnetAuditLogRecord: timestamp [0] and log-datum [1] CHOICE.
+BacnetAuditLogRecord _readAuditLogRecord(BacnetReader r) {
+  r.expectOpening(0);
+  final date = r.readApplicationValue();
+  final time = r.readApplicationValue();
+  r.expectClosing(0);
+  final timestamp = switch ((date, time)) {
+    (final BacnetDate d, final BacnetTime t) => BacnetDateTime(
+      d,
+      t,
+    ).toDateTime(),
+    _ => null,
+  };
+  r.expectOpening(1);
+  int? logStatus;
+  BacnetAuditNotification? notification;
+  double? timeChange;
+  if (r.nextIsOpening(1)) {
+    r.expectOpening(1);
+    notification = _readAuditNotificationBody(r);
+    r.expectClosing(1);
+  } else if (r.nextIsContext(2)) {
+    timeChange = r.readContextReal(2);
+  } else {
+    final bits = r.readContextBitString(0);
+    logStatus = 0;
+    for (var i = 0; i < bits.bits.length; i++) {
+      if (bits.bits[i]) logStatus = logStatus! | (1 << i);
+    }
+  }
+  r.expectClosing(1);
+  return BacnetAuditLogRecord(
+    timestamp: timestamp ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    notification: notification,
+    logStatus: logStatus,
+    timeChange: timeChange,
+  );
+}
+
+/// Decodes an AuditLogQuery-ACK (ASHRAE 135 clause 13.9).
+BacnetAuditLogQueryResult decodeAuditLogQueryAck(Uint8List data) {
+  final r = BacnetReader(data);
+  final auditLog = r.readContextObjectId(0);
+  final records = <BacnetAuditLogRecord>[];
+  r.expectOpening(1);
+  while (!r.nextIsClosing(1)) {
+    records.add(_readAuditLogRecord(r));
+  }
+  r.expectClosing(1);
+  final noMoreItems = r.readContextBoolean(2);
+  return BacnetAuditLogQueryResult(
+    auditLog: auditLog,
+    records: List.unmodifiable(records),
+    noMoreItems: noMoreItems,
+  );
 }

@@ -198,7 +198,9 @@ void bp_receive_packet(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
 {
     bp_state.stats.packets_received++;
     if (bp_accept_reply(src, pdu, len)) {
+        bp_audit_set_source(src);
         npdu_handler(src, pdu, len);
+        bp_audit_set_source(NULL);
     }
 }
 

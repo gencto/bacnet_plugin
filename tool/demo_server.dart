@@ -224,6 +224,15 @@ Future<void> main(List<String> args) async {
     deadband: 1,
     name: 'Range watch',
   );
+  // auditing: an Audit Log and an Audit Reporter that records client writes
+  // and sends an AuditNotification to the test client (port 47862)
+  await server.addAuditLog(1, name: 'Audit log');
+  await server.addAuditReporter(
+    1,
+    name: 'Write reporter',
+    auditLog: 1,
+    recipient: BacnetRecipient.ip('127.0.0.1', 47862),
+  );
   // "provision <ip> <port>": asks the supervisor there for a device
   // instance (Who-Am-I / You-Are)
   stdin.transform(utf8.decoder).transform(const LineSplitter()).listen((

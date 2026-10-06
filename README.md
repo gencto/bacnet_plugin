@@ -18,7 +18,8 @@ Dart programs such as headless gateways and supervisory services.
   WriteProperty(Multiple) with datatype inference, SubscribeCOV(Property)
   and SubscribeCOVPropertyMultiple with decoded notifications, ReadRange/Trend Logs, alarms and events
   (typed event notifications, AcknowledgeAlarm, GetEventInformation,
-  GetAlarmSummary, Add/RemoveListElement), device management
+  GetAlarmSummary, GetEnrollmentSummary, Add/RemoveListElement),
+  auditing (AuditNotification, AuditLogQuery), device management
   (DeviceCommunicationControl, ReinitializeDevice, Create/DeleteObject),
   file transfer (AtomicReadFile/AtomicWriteFile), private transfer, text
   messages, time synchronization, router and network discovery
@@ -31,9 +32,10 @@ Dart programs such as headless gateways and supervisory services.
   Positive Integer, CharacterString Value, Notification Class, File
   (content in memory), Schedule, Calendar, Trend Log, Channel, Lighting
   Output, Binary Lighting Output, Color, Color Temperature, Loop, Timer,
-  Accumulator, Averaging, Load Control, Structured View and Event
-  Enrollment objects;
-  acts as a Time Master; answers
+  Accumulator, Averaging, Load Control, Structured View, Event
+  Enrollment, Audit Log and Audit Reporter objects;
+  acts as a Time Master; audits client operations (AuditNotification,
+  AuditLogQuery); answers
   Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property)(Multiple), ReadRange,
   Add/RemoveListElement, AtomicReadFile/AtomicWriteFile,
   DeviceCommunicationControl and ReinitializeDevice (password protected,
@@ -590,6 +592,42 @@ for (final entry in summary) {
   print('${entry.object} ${entry.eventType} ${entry.eventState}');
 }
 ```
+
+## Auditing
+
+The server can keep an **audit trail** of the operations clients perform on it
+(ASHRAE 135-2016bi). An **Audit Reporter** records each chosen operation —
+writes by default — in an **Audit Log** and, optionally, sends it as an
+AuditNotification to a recipient:
+
+```dart
+final log = await server.addAuditLog(1, name: 'Audit log');
+await server.addAuditReporter(
+  1,
+  auditLog: log,
+  operations: const [BacnetAuditOperation.write, BacnetAuditOperation.create],
+  recipient: BacnetRecipient.ip('192.168.1.10', 47808),
+);
+```
+
+A client receives those notifications and queries the log:
+
+```dart
+client.auditNotifications.listen((event) {
+  final n = event.notification;
+  print('${n.operation.label} ${n.targetObject} by ${n.sourceDevice}');
+});
+
+final result = await client.queryAuditLog(
+  1234,
+  const BacnetObject(type: BacnetObjectType.auditLog, instance: 1),
+);
+for (final record in result.records) print(record);
+```
+
+(bacnet-stack ships the Audit Log object and the record codec; the Audit
+Reporter object and the AuditNotification and AuditLogQuery services are
+implemented in the native engine.)
 
 ## Device management and files
 

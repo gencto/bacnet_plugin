@@ -21,6 +21,7 @@ import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
 import '../models/alarms.dart';
+import '../models/audit.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_value.dart';
 import '../models/complex_values.dart';
@@ -1401,6 +1402,81 @@ class BacnetServer {
             (eventEnable.toFault ? 2 : 0) |
             (eventEnable.toNormal ? 4 : 0),
         notifyType: notifyType,
+      ),
+    );
+    return created;
+  }
+
+  /// Adds an Audit Log object (ASHRAE 135-2016bi) that stores audit records —
+  /// from an [addAuditReporter] on this device, or received
+  /// AuditNotifications. Returns its instance. Read its records with
+  /// [BacnetClient.queryAuditLog] or ReadRange of Log_Buffer. [enabled]
+  /// controls whether it accepts records (a disabled log drops them).
+  Future<int> addAuditLog(
+    int instance, {
+    String? name,
+    String? description,
+    bool enabled = true,
+  }) async {
+    final created = await addObject(
+      BacnetObjectType.auditLog,
+      instance,
+      name: name,
+      description: description,
+    );
+    await _system.call<void>(
+      (id) => AuditLogConfigureCommand(id, created, enabled: enabled),
+    );
+    return created;
+  }
+
+  /// Adds an Audit Reporter object (ASHRAE 135-2016bi) that generates an audit
+  /// record for each operation in [operations] (by default writes) performed
+  /// on this device by a remote client. Returns its instance.
+  ///
+  /// Records are stored in Audit Log [auditLog] (null for none) and sent as an
+  /// AuditNotification to [recipient] (null for none). [auditLevel] other than
+  /// [BacnetAuditLevel.none] enables reporting.
+  ///
+  /// ```dart
+  /// final log = await server.addAuditLog(1, name: 'Audit');
+  /// await server.addAuditReporter(
+  ///   1,
+  ///   auditLog: log,
+  ///   recipient: BacnetRecipient.ip('192.168.1.10', 47808),
+  /// );
+  /// ```
+  Future<int> addAuditReporter(
+    int instance, {
+    String? name,
+    String? description,
+    BacnetAuditLevel auditLevel = BacnetAuditLevel.auditAll,
+    List<BacnetAuditOperation> operations = const [BacnetAuditOperation.write],
+    int? auditLog,
+    BacnetRecipient? recipient,
+    Duration maxSendDelay = Duration.zero,
+  }) async {
+    var mask = 0;
+    for (final operation in operations) {
+      if (operation >= 0 && operation < 32) {
+        mask |= 1 << operation;
+      }
+    }
+    final created = await addObject(
+      BacnetObjectType.auditReporter,
+      instance,
+      name: name,
+      description: description,
+    );
+    await _system.call<void>(
+      (id) => AuditReporterConfigureCommand(
+        id,
+        created,
+        auditLevel: auditLevel,
+        operations: mask,
+        auditLogInstance: auditLog ?? _arrayAll,
+        maxSendDelaySeconds: maxSendDelay.inSeconds,
+        recipient: recipient == null ? null : _timeRecipient(recipient),
       ),
     );
     return created;

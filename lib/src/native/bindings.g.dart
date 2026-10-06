@@ -101,6 +101,50 @@ external int bacnet_plugin_device_set_string(
 @ffi.Native<ffi.Int32 Function(ffi.Uint16)>()
 external int bacnet_plugin_device_set_vendor_id(int vendor_id);
 
+/// Enables or disables an Audit Log object (created first with
+/// bacnet_plugin_object_create()): a disabled log drops records.
+@ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Int32)>(isLeaf: true)
+external int bacnet_plugin_audit_log_configure(int instance, int enabled);
+
+/// Configures an Audit Reporter object (created first with
+/// bacnet_plugin_object_create()). It generates an audit record for each
+/// operation whose bit is set in `operations_mask` while `audit_level` is not
+/// AUDIT_LEVEL_NONE, storing it in Audit Log `audit_log_instance`
+/// (BACNET_MAX_INSTANCE for none) and sending it to the recipient set with
+/// bacnet_plugin_audit_reporter_set_recipient().
+@ffi.Native<
+  ffi.Int32 Function(ffi.Uint32, ffi.Uint8, ffi.Uint32, ffi.Uint32, ffi.Uint32)
+>(isLeaf: true)
+external int bacnet_plugin_audit_reporter_configure(
+  int instance,
+  int audit_level,
+  int operations_mask,
+  int audit_log_instance,
+  int max_send_delay,
+);
+
+/// Sets the Audit_Notification_Recipient of Audit Reporter `instance`.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_audit_reporter_set_recipient(
+  int instance,
+  int device_id,
+  ffi.Pointer<ffi.Uint8> mac,
+  int mac_len,
+  int net,
+  ffi.Pointer<ffi.Uint8> adr,
+  int adr_len,
+);
+
 /// Configures an Event Enrollment object (created first with
 /// bacnet_plugin_object_create()). It monitors `monitored_property` of the
 /// referenced object with the OUT_OF_RANGE algorithm: a REAL value above

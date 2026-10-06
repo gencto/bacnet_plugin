@@ -374,6 +374,66 @@ class NativeEngine {
     );
   }
 
+  /// Enables or disables Audit Log object [instance].
+  void configureAuditLog(int instance, {required bool enabled}) {
+    checkNative(bacnet_plugin_audit_log_configure(instance, enabled ? 1 : 0));
+  }
+
+  /// Configures Audit Reporter object [instance]: which operations it audits,
+  /// where it stores records and the recipient it notifies.
+  void configureAuditReporter(
+    int instance, {
+    required int auditLevel,
+    required int operations,
+    required int auditLogInstance,
+    required int maxSendDelaySeconds,
+    required ({int deviceId, List<int> mac, int network, List<int> adr})?
+    recipient,
+  }) {
+    checkNative(
+      bacnet_plugin_audit_reporter_configure(
+        instance,
+        auditLevel,
+        operations,
+        auditLogInstance,
+        maxSendDelaySeconds,
+      ),
+    );
+    if (recipient == null) {
+      checkNative(
+        bacnet_plugin_audit_reporter_set_recipient(
+          instance,
+          0,
+          ffi.nullptr,
+          0,
+          0,
+          ffi.nullptr,
+          0,
+        ),
+      );
+      return;
+    }
+    final mac = recipient.mac;
+    final adr = recipient.adr;
+    final bytes = Uint8List(mac.length + adr.length)
+      ..setAll(0, mac)
+      ..setAll(mac.length, adr);
+    checkNative(
+      _withBytes(
+        bytes,
+        (data, _) => bacnet_plugin_audit_reporter_set_recipient(
+          instance,
+          recipient.deviceId,
+          mac.isEmpty ? ffi.nullptr : data,
+          mac.length,
+          recipient.network,
+          adr.isEmpty ? ffi.nullptr : data + mac.length,
+          adr.length,
+        ),
+      ),
+    );
+  }
+
   /// Adds or replaces a static address binding.
   void bindDevice({
     required int deviceId,

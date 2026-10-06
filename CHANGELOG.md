@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Auditing** (ASHRAE 135-2016bi): a server **Audit Log** object
+  (`server.addAuditLog`) stores timestamped audit records and answers
+  ReadRange and **AuditLogQuery**; an **Audit Reporter** object
+  (`server.addAuditReporter`) generates a record for each write (and other
+  chosen operations) a remote client performs, storing it in an Audit Log and
+  sending it as an **AuditNotification** to a recipient. The client receives
+  AuditNotifications (`client.auditNotifications`) and queries a remote Audit
+  Log (`client.queryAuditLog`). The Audit Reporter object, the AuditNotification
+  and AuditLogQuery services are implemented in the native engine (bacnet-stack
+  ships only the Audit Log object and the record codec).
 - **Event Enrollment object** (ASHRAE 135 clause 12.12):
   `server.addEventEnrollment` hosts an Event Enrollment that watches a property
   of another object — local or, once bound, remote — with the OUT_OF_RANGE

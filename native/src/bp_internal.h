@@ -376,4 +376,39 @@ bool bp_ee_delete(uint32_t instance);
 void bp_ee_task(uint32_t seconds);
 #endif
 
+/* ---- Auditing (bp_audit.c) -------------------------------------------- */
+
+#include "bacnet/bacstr.h"
+/** ReadRange info for the Audit Log object (its RR_Info slot is NULL). */
+bool bp_al_rr_info(BACNET_READ_RANGE_DATA *request, RR_PROP_INFO *info);
+/** Remembers the source of the request in progress for the Audit Reporter. */
+void bp_audit_set_source(const BACNET_ADDRESS *src);
+/** Reports a successful WriteProperty to the Audit Reporters. */
+void bp_audit_report_write(const BACNET_WRITE_PROPERTY_DATA *wp_data);
+/** Reports an object create or delete (AUDIT_OPERATION_CREATE/DELETE). */
+void bp_audit_report_lifecycle(
+    uint8_t operation, uint16_t object_type, uint32_t object_instance);
+/** Answers AuditLogQuery from an Audit Log's records. */
+void bp_on_audit_log_query(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data);
+/* Audit Reporter object (OBJECT_AUDIT_REPORTER). */
+void bp_ar_init(void);
+unsigned bp_ar_count(void);
+uint32_t bp_ar_index_to_instance(unsigned index);
+bool bp_ar_valid_instance(uint32_t instance);
+bool bp_ar_object_name(uint32_t instance, BACNET_CHARACTER_STRING *name);
+bool bp_ar_name_set(uint32_t instance, const char *name);
+bool bp_ar_description_set(uint32_t instance, const char *description);
+int bp_ar_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
+bool bp_ar_write_property(BACNET_WRITE_PROPERTY_DATA *wp_data);
+void bp_ar_property_lists(
+    const int32_t **required,
+    const int32_t **optional,
+    const int32_t **proprietary);
+uint32_t bp_ar_create(uint32_t instance);
+bool bp_ar_delete(uint32_t instance);
+
 #endif
