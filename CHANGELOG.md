@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Example object explorer**: the example app gains an object explorer
+  screen that reads every property of an object with ReadPropertyMultiple
+  (property `all`), shows values and errors, and writes the present value
+  (opened from the object monitor's toolbar).
 - **Server state persistence**: `server.captureState` snapshots the objects a
   server hosts and their present values into a `BacnetServerState`
   (`toJson`/`fromJson`). A pluggable `BacnetServerStateStore` abstraction
