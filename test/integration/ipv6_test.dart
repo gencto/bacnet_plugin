@@ -35,7 +35,9 @@ Future<void> main() async {
     );
     await server.start();
     try {
-      await server.init(4194305, 'IPv6Server');
+      // 4194302 is the maximum assignable device instance (4194303 is the
+      // reserved "unconfigured" value)
+      await server.init(4194302, 'IPv6Server');
       await server.addObject(
         BacnetObjectType.analogValue,
         1,
