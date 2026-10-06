@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Server SubscribeCOVPropertyMultiple** (ASHRAE 135 clauses 13.16, 13.17):
+  the server now answers SubscribeCOVPropertyMultiple, tracks the
+  subscriptions (lifetime, cancellation, confirmed or unconfirmed), and sends
+  COVNotificationMultiple when the monitored properties change — grouping all
+  changed properties of a subscriber into one notification. A REAL
+  present-value is reported past its COV increment; a bad object or property
+  is refused with a SubscribeCOVPropertyMultiple-Error.
+
 - **Lighting and color**: typed `BacnetLightingCommand`, `BacnetColorCommand`
   and `BacnetXYColor`, the `BacnetLightingOperation`, `BacnetColorOperation`
   and `BacnetBinaryLightingPV` enumerations, and the writable

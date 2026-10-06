@@ -27,6 +27,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "bacnet/apdu.h"
 #include "bacnet/bacaddr.h"
 #include "bacnet/bacdef.h"
 #include "bacnet/bacenum.h"
@@ -226,6 +227,19 @@ void bp_alarm_ack_hooks(void);
 
 /** Sends TimeSynchronization to the recipients when the interval elapsed. */
 void bp_time_master_tick(uint32_t now_ms);
+
+/* ---- bp_cov_multiple.c ------------------------------------------------- */
+
+/** Handles a SubscribeCOVPropertyMultiple request of a remote client. */
+void bp_scm_handler(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data);
+/** Detects changes and sends COVNotificationMultiple; ages subscriptions. */
+void bp_scm_task(uint32_t seconds);
+/** Drops every SubscribeCOVPropertyMultiple subscription. */
+void bp_scm_reset(void);
 #include "bacnet/list_element.h"
 /* reports a successful Add/RemoveListElement of a remote client */
 void bp_list_element_changed(

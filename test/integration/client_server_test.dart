@@ -1952,10 +1952,18 @@ void main() {
       );
     });
 
-    test('devices without the service reject it', () async {
+    test('the server errors on an object it does not have', () async {
+      // the demo server answers SubscribeCOVPropertyMultiple but has no
+      // Analog Input 1 (the `sensor` of these specifications)
       await expectLater(
         client.subscribeCOVPropertyMultiple(device, specifications),
-        throwsA(isA<BacnetRejectException>()),
+        throwsA(
+          isA<BacnetProtocolException>().having(
+            (e) => e.errorCode,
+            'errorCode',
+            BacnetErrorCode.unknownObject,
+          ),
+        ),
       );
     });
   });
@@ -1999,6 +2007,58 @@ void main() {
       );
       expect(command, isA<BacnetColorCommand>());
     });
+  });
+
+  group('server SubscribeCOVPropertyMultiple', () {
+    const av = BacnetObject(type: BacnetObjectType.analogValue, instance: 0);
+    final specifications = [
+      BacnetCovSubscriptionSpecification(av, const [
+        BacnetCovReference(BacnetPropertyId.presentValue),
+      ]),
+    ];
+
+    test('answers the subscription and notifies the subscriber', () async {
+      // AV-0's value moves every 200 ms on the demo server
+      final events = client.covEvents
+          .where((e) => e.deviceId == device && e.object == av)
+          .take(2)
+          .toList();
+      await client.subscribeCOVPropertyMultiple(
+        device,
+        specifications,
+        processId: 42,
+        maxNotificationDelay: const Duration(seconds: 2),
+      );
+      final received = await events.timeout(const Duration(seconds: 15));
+      expect(received, hasLength(2));
+      // the initial notification plus at least one change, both carrying the
+      // monitored present-value
+      expect(received.first.subscriberProcessId, 42);
+      expect(received.first.values, contains(BacnetPropertyId.presentValue));
+      expect(
+        received.last.values[BacnetPropertyId.presentValue],
+        isA<BacnetReal>(),
+      );
+      await client.unsubscribeCOVPropertyMultiple(
+        device,
+        specifications,
+        processId: 42,
+      );
+    });
+
+    test(
+      'reports a bad property with a SubscribeCOVPropertyMultiple-Error',
+      () async {
+        await expectLater(
+          client.subscribeCOVPropertyMultiple(device, [
+            BacnetCovSubscriptionSpecification(av, const [
+              BacnetCovReference(BacnetPropertyId.weeklySchedule),
+            ]),
+          ], processId: 43),
+          throwsA(isA<BacnetProtocolException>()),
+        );
+      },
+    );
   });
 
   group('control and grouping objects', () {

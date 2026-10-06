@@ -382,6 +382,8 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_SUBSCRIBE_COV_PROPERTY, handler_cov_subscribe);
         apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_SUBSCRIBE_COV_PROPERTY_MULTIPLE, bp_scm_handler);
+        apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_DEVICE_COMMUNICATION_CONTROL,
             bp_on_dcc);
         apdu_set_confirmed_handler(
@@ -417,6 +419,7 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
             SERVICE_CONFIRMED_GET_ALARM_SUMMARY, handler_get_alarm_summary);
 #endif
         handler_cov_init();
+        bp_scm_reset();
         Device_Write_Property_Store_Callback_Set(bp_on_write_store);
         bp_alarm_ack_hooks();
         bp_state.nc_rescan = true;

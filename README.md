@@ -33,7 +33,7 @@ Dart programs such as headless gateways and supervisory services.
   Output, Binary Lighting Output, Color, Color Temperature, Loop, Timer,
   Accumulator, Averaging, Load Control and Structured View objects;
   acts as a Time Master; answers
-  Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property), ReadRange,
+  Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property)(Multiple), ReadRange,
   Add/RemoveListElement, AtomicReadFile/AtomicWriteFile,
   DeviceCommunicationControl and ReinitializeDevice (password protected,
   reported to the application, backup and restore) natively; reports
