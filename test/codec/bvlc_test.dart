@@ -7,6 +7,7 @@ import 'package:bacnet_plugin/src/codec/bvlc.dart';
 import 'package:test/test.dart';
 
 import '../support/alarm_vectors.dart';
+import '../support/udp.dart';
 
 // BVLLs encoded by bacnet-stack (bvlc_encode_* of datalink/bvlc.c)
 const _readBdt = '81020004';
@@ -38,7 +39,7 @@ final class _FakeBbmd {
       if (datagram == null) return;
       requests.add(datagram.data);
       for (final reply in answer(datagram.data, datagram.port)) {
-        _socket.send(reply, datagram.address, datagram.port);
+        sendDatagram(_socket, reply, datagram.address, datagram.port);
       }
     });
   }
@@ -266,7 +267,8 @@ void main() {
       final quiet = await _FakeBbmd.bind((request, clientPort) {
         // an answer from another socket, one of another function, then the
         // right one
-        other.send(
+        sendDatagram(
+          other,
           hexBytes(_readBdtAckEmpty),
           InternetAddress.loopbackIPv4,
           clientPort,

@@ -31,6 +31,27 @@ Future<void> main(List<String> args) async {
     serialNumber: 'DEMO-$deviceId',
     password: 'demo-password',
   );
+  // listen before adding objects: events nobody listens to are lost, and
+  // the schedule below writes its first value right away
+  server.fileWrites.listen((e) => print('FILE $e'));
+  server.writeEvents.listen((e) async {
+    print('WRITE $e');
+    if (e.objectType == BacnetObjectType.analogValue &&
+        e.instance == 911 &&
+        e.propertyId == BacnetPropertyId.presentValue &&
+        e.value != null) {
+      await server.logValue(
+        2,
+        e.value!,
+        statusFlags: const BacnetStatusFlags(overridden: true),
+      );
+    }
+  });
+  server.alarmAcknowledgements.listen((e) => print('ACK $e'));
+  server.listElementEvents.listen((e) => print('LIST $e'));
+  server.communicationControls.listen((e) => print('DCC $e'));
+  server.reinitializeRequests.listen((e) => print('REINIT $e'));
+  server.writeGroupEvents.listen((e) => print('GROUP $e'));
   for (var i = 0; i < objects; i++) {
     await server.addObject(
       BacnetObjectType.analogValue,
@@ -171,7 +192,6 @@ Future<void> main(List<String> args) async {
       ),
     ],
   );
-  server.writeGroupEvents.listen((e) => print('GROUP $e'));
   // "provision <ip> <port>": asks the supervisor there for a device
   // instance (Who-Am-I / You-Are)
   stdin.transform(utf8.decoder).transform(const LineSplitter()).listen((
@@ -191,24 +211,6 @@ Future<void> main(List<String> args) async {
       print('PROVISIONED $instance');
     }
   });
-  server.fileWrites.listen((e) => print('FILE $e'));
-  server.writeEvents.listen((e) async {
-    print('WRITE $e');
-    if (e.objectType == BacnetObjectType.analogValue &&
-        e.instance == 911 &&
-        e.propertyId == BacnetPropertyId.presentValue &&
-        e.value != null) {
-      await server.logValue(
-        2,
-        e.value!,
-        statusFlags: const BacnetStatusFlags(overridden: true),
-      );
-    }
-  });
-  server.alarmAcknowledgements.listen((e) => print('ACK $e'));
-  server.listElementEvents.listen((e) => print('LIST $e'));
-  server.communicationControls.listen((e) => print('DCC $e'));
-  server.reinitializeRequests.listen((e) => print('REINIT $e'));
   print('READY ${server.config.port} device $deviceId objects $objects');
   final random = Random(1);
   // keep values moving to exercise COV

@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'udp.dart';
+
 /// A network layer message received by a [FakeRouter].
 typedef ReceivedNetworkMessage = ({
   int bvlcFunction,
@@ -72,7 +74,8 @@ final class FakeRouter {
 
   /// Sends [type] with [data] to [port] on the loopback interface.
   void send(int port, int type, List<int> data) {
-    _socket.send(
+    sendDatagram(
+      _socket,
       _bvlc([0x01, 0x80, type, ...data]),
       InternetAddress.loopbackIPv4,
       port,
@@ -121,7 +124,8 @@ final class FakeRouter {
       _ => null,
     };
     if (answer case (final type, final data)) {
-      _socket.send(
+      sendDatagram(
+        _socket,
         _bvlc([0x01, 0x80, type, ...data]),
         datagram.address,
         datagram.port,

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'udp.dart';
+
 /// A minimal BACnet/IP device that answers every ReadProperty with the
 /// object list of [objectCount] Analog Values, sent as segmented
 /// ComplexACK (ASHRAE 135 clause 5.4.5, server in SEGMENTED_RESPONSE).
@@ -197,7 +199,8 @@ final class SegmentingDevice {
 
   void _send(InternetAddress address, int port, List<int> apdu) {
     final length = 4 + 2 + apdu.length;
-    _socket.send(
+    sendDatagram(
+      _socket,
       [0x81, 0x0A, length >> 8, length & 0xFF, 0x01, 0x00, ...apdu],
       address,
       port,
