@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - Unreleased
+## [0.8.0] - 2026-10-06
 
 Tools: the `bacnet` command line tool, device descriptions, shared COV
 subscriptions in `PropertyMonitor`, fuzzing of the native engine. See
@@ -50,7 +50,7 @@ subscriptions in `PropertyMonitor`, fuzzing of the native engine. See
   (16 MiB by default) and all files together up to 256 MiB; the content
   set by the application is not limited (found by the native fuzzer).
 
-## [0.7.0] - Unreleased
+## [0.7.0] - not published separately (in 0.8.0)
 
 Provisioning with Who-Am-I/You-Are, WriteGroup and Channel objects, COV
 of several properties with one subscription. See *Migrating from 0.6.x*
@@ -87,7 +87,7 @@ in the README.
   (`FakeBacnetRequest.arguments`) and take COV subscriptions of several
   properties.
 
-## [0.6.0] - Unreleased
+## [0.6.0] - not published separately (in 0.8.0)
 
 Schedules, calendars and trend logs on the server, backup and restore.
 See *Migrating from 0.5.x* in the README.
@@ -127,7 +127,7 @@ See *Migrating from 0.5.x* in the README.
 - Exception_Schedule writes with a different number of special events were
   ignored by bacnet-stack.
 
-## [0.5.0] - Unreleased
+## [0.5.0] - not published separately (in 0.8.0)
 
 Device management, files and messages, routers and BBMDs, files on the
 server. See *Migrating from 0.4.x* in the README.
