@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Server state persistence**: `server.captureState` snapshots the objects a
+  server hosts and their present values into a `BacnetServerState`
+  (`toJson`/`fromJson`). A pluggable `BacnetServerStateStore` abstraction
+  persists it — implement it for any backend; `JsonFileServerStateStore`
+  writes a JSON file atomically. `server.saveState(store)` and
+  `server.restoreState(store)` keep a server's configuration across restarts
+  of its (ephemeral) container.
 - **Auditing** (ASHRAE 135-2016bi): a server **Audit Log** object
   (`server.addAuditLog`) stores timestamped audit records and answers
   ReadRange and **AuditLogQuery**; an **Audit Reporter** object

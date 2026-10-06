@@ -45,7 +45,8 @@ Dart programs such as headless gateways and supervisory services.
   AcknowledgeAlarm, GetEventInformation, GetAlarmSummary and
   GetEnrollmentSummary; WriteGroup;
   asks a supervisor for its device instance (Who-Am-I/You-Are); batch
-  updates of present values; write notifications.
+  updates of present values; write notifications; state persistence
+  (snapshot and restore its objects and values through a pluggable store).
 - **Built for load**: request scheduler with global and per-device
   concurrency limits, back pressure, automatic address binding, concurrent
   reads merged into ReadPropertyMultiple, batched isolate messaging and
@@ -628,6 +629,30 @@ for (final record in result.records) print(record);
 (bacnet-stack ships the Audit Log object and the record codec; the Audit
 Reporter object and the AuditNotification and AuditLogQuery services are
 implemented in the native engine.)
+
+## Server state persistence
+
+A server's container is often ephemeral, so its objects and values can be
+snapshotted and restored. The snapshot is stored through a pluggable
+`BacnetServerStateStore`; `JsonFileServerStateStore` writes a JSON file (atomic
+replace), and you can implement the interface for any other backend.
+
+```dart
+final store = JsonFileServerStateStore(File('/data/server-state.json'));
+
+// on start: re-create the saved objects and values, if any
+await server.start();
+await server.init(4194300, 'Controller');
+await server.restoreState(store);
+
+// later, after configuration or value changes (or on shutdown):
+await server.saveState(store);
+```
+
+`captureState` records the objects added with `addObject` (and its helpers)
+with their identity, name, description and present value; re-apply richer
+per-object configuration (units, limits, schedules, recipients) from the
+application after `restoreState`.
 
 ## Device management and files
 

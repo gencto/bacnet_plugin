@@ -28,6 +28,7 @@ import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
+import 'server_state.dart';
 
 /// One present value update for [BacnetServer.updatePresentValues].
 @immutable
@@ -93,6 +94,10 @@ class BacnetServer {
 
   final BacnetConfig _config;
   final BacnetSystem _system = BacnetSystem.instance;
+
+  /// The objects created with [addObject] (and its helpers), keyed by
+  /// (object type, instance), for [captureState].
+  final Map<(int, int), BacnetObjectState> _hosted = {};
   bool _started = false;
   int? _deviceId;
   StreamSubscription<ReinitializeDeviceEvent>? _backupRequests;
@@ -246,8 +251,8 @@ class BacnetServer {
     bool? outOfService,
     List<String>? stateTexts,
     BacnetValue? presentValue,
-  }) {
-    return _system.call<int>(
+  }) async {
+    final created = await _system.call<int>(
       (id) => CreateObjectCommand(
         id,
         objectType: objectType,
@@ -268,6 +273,13 @@ class BacnetServer {
         presentValueString: presentValue?.asString,
       ),
     );
+    _hosted[(objectType.value, created)] = BacnetObjectState(
+      type: objectType,
+      instance: created,
+      name: name,
+      description: description,
+    );
+    return created;
   }
 
   /// Adds a File object whose content the server keeps in memory and
@@ -350,8 +362,95 @@ class BacnetServer {
       );
 
   /// Removes an object from the server.
-  Future<void> removeObject(BacnetObjectType objectType, int instance) =>
-      _system.call<void>((id) => DeleteObjectCommand(id, objectType, instance));
+  Future<void> removeObject(BacnetObjectType objectType, int instance) {
+    _hosted.remove((objectType.value, instance));
+    return _system.call<void>(
+      (id) => DeleteObjectCommand(id, objectType, instance),
+    );
+  }
+
+  // ---- state persistence ----------------------------------------------------
+
+  /// Captures the objects this server hosts (added with [addObject] and its
+  /// helpers) and their current present values into a [BacnetServerState].
+  ///
+  /// Objects created by remote clients (CreateObject) are not included, and
+  /// only the object identity, name, description and present value are
+  /// captured — re-apply richer per-object configuration (units, limits,
+  /// schedules, recipients) from the application after [restoreState].
+  Future<BacnetServerState> captureState() async {
+    final objects = <BacnetObjectState>[];
+    for (final hosted in _hosted.values) {
+      BacnetValue? value;
+      try {
+        value = await readProperty(
+          hosted.type,
+          hosted.instance,
+          BacnetPropertyId.presentValue,
+        );
+      } on BacnetException {
+        value = null; // objects without a present value
+      }
+      objects.add(
+        BacnetObjectState(
+          type: hosted.type,
+          instance: hosted.instance,
+          name: hosted.name,
+          description: hosted.description,
+          presentValue: value,
+        ),
+      );
+    }
+    return BacnetServerState(objects: objects, deviceInstance: _deviceId);
+  }
+
+  /// Captures the server state with [captureState] and persists it with
+  /// [store] (e.g. a [JsonFileServerStateStore]).
+  Future<void> saveState(BacnetServerStateStore store) async =>
+      store.save(await captureState());
+
+  /// Loads a snapshot from [store] and re-creates its objects and present
+  /// values on this server. Does nothing when [store] holds no snapshot.
+  /// Returns true when a snapshot was applied.
+  Future<bool> restoreState(BacnetServerStateStore store) async {
+    final state = await store.load();
+    if (state == null) {
+      return false;
+    }
+    await applyState(state);
+    return true;
+  }
+
+  /// Re-creates the objects and present values of [state] on this server
+  /// (used by [restoreState]).
+  Future<void> applyState(BacnetServerState state) async {
+    for (final object in state.objects) {
+      await addObject(
+        object.type,
+        object.instance,
+        name: object.name,
+        description: object.description,
+      );
+      // setPresentValue only accepts scalar datatypes; complex present values
+      // (and relinquished nulls) are left for the application to re-apply.
+      final value = object.presentValue;
+      final settable =
+          value is BacnetReal ||
+          value is BacnetDouble ||
+          value is BacnetUnsigned ||
+          value is BacnetSigned ||
+          value is BacnetEnumerated ||
+          value is BacnetBoolean ||
+          value is BacnetCharacterString;
+      if (value != null && settable) {
+        try {
+          await setPresentValue(object.type, object.instance, value);
+        } on BacnetException {
+          // the object has no writable present value: keep it unset
+        }
+      }
+    }
+  }
 
   /// Sets the present value of an object (local update, triggers COV
   /// notifications to subscribers).
