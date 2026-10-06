@@ -313,7 +313,8 @@ void bp_tl_property_lists(
     const int32_t **required,
     const int32_t **optional,
     const int32_t **proprietary);
-void bp_tl_writable_property_list(uint32_t instance, const int32_t **properties);
+void bp_tl_writable_property_list(
+    uint32_t instance, const int32_t **properties);
 bool bp_tl_rr_info(BACNET_READ_RANGE_DATA *request, RR_PROP_INFO *info);
 uint32_t bp_tl_create(uint32_t object_instance);
 bool bp_tl_delete(uint32_t object_instance);
@@ -353,6 +354,26 @@ uint32_t bp_nc_create(uint32_t instance);
 bool bp_nc_delete(uint32_t instance);
 int bp_nc_add_list_element(BACNET_LIST_ELEMENT_DATA *list_element);
 int bp_nc_remove_list_element(BACNET_LIST_ELEMENT_DATA *list_element);
+
+/* ---- Event Enrollment objects (bp_event_enrollment.c) ----------------- */
+
+void bp_ee_init(void);
+unsigned bp_ee_count(void);
+uint32_t bp_ee_index_to_instance(unsigned index);
+bool bp_ee_valid_instance(uint32_t instance);
+bool bp_ee_object_name(uint32_t instance, BACNET_CHARACTER_STRING *name);
+bool bp_ee_name_set(uint32_t instance, const char *name);
+bool bp_ee_description_set(uint32_t instance, const char *description);
+int bp_ee_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
+bool bp_ee_write_property(BACNET_WRITE_PROPERTY_DATA *wp_data);
+void bp_ee_property_lists(
+    const int32_t **required,
+    const int32_t **optional,
+    const int32_t **proprietary);
+uint32_t bp_ee_create(uint32_t instance);
+bool bp_ee_delete(uint32_t instance);
+/** Runs the OUT_OF_RANGE algorithm of every enrollment and emits events. */
+void bp_ee_task(uint32_t seconds);
 #endif
 
 #endif

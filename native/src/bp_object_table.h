@@ -868,6 +868,29 @@ static object_functions_t BP_Object_Table[] = {
       NULL /* Timer */,
       Alert_Enrollment_Writable_Property_List },
 #endif
+#if defined(INTRINSIC_REPORTING)
+    { OBJECT_EVENT_ENROLLMENT,
+      bp_ee_init,
+      bp_ee_count,
+      bp_ee_index_to_instance,
+      bp_ee_valid_instance,
+      bp_ee_object_name,
+      bp_ee_read_property,
+      bp_ee_write_property,
+      bp_ee_property_lists,
+      NULL /* ReadRangeInfo */,
+      NULL /* Iterator */,
+      NULL /* Value_Lists */,
+      NULL /* COV */,
+      NULL /* COV Clear */,
+      NULL /* Intrinsic Reporting */,
+      NULL /* Add_List_Element */,
+      NULL /* Remove_List_Element */,
+      bp_ee_create,
+      bp_ee_delete,
+      NULL /* Timer */,
+      NULL /* Writable_Property_List */ },
+#endif
     { /** @note The array of object functions must be terminated
        *  with an entry with an Object_Type of MAX_BACNET_OBJECT_TYPE
        *  or greater, which will signal the end of the array.

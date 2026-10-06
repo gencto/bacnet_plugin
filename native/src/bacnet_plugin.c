@@ -55,6 +55,9 @@ static void bp_timers(void)
                 bp_event_reporting(seconds);
                 bp_backup_timer(seconds);
                 bp_scm_task(seconds);
+#if defined(INTRINSIC_REPORTING)
+                bp_ee_task(seconds);
+#endif
             }
             if (bp_state.fdr_ttl > 0) {
                 uint32_t renew =

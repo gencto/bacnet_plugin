@@ -101,6 +101,47 @@ external int bacnet_plugin_device_set_string(
 @ffi.Native<ffi.Int32 Function(ffi.Uint16)>()
 external int bacnet_plugin_device_set_vendor_id(int vendor_id);
 
+/// Configures an Event Enrollment object (created first with
+/// bacnet_plugin_object_create()). It monitors `monitored_property` of the
+/// referenced object with the OUT_OF_RANGE algorithm: a REAL value above
+/// `high_limit` for `time_delay` seconds reports a to-offnormal event
+/// (HighLimit), below `low_limit` a LowLimit event, and a return inside the
+/// limits by more than `deadband` reports to-normal. Pass BACNET_ARRAY_ALL as
+/// `monitored_index` for a scalar property. `notification_class` names the
+/// Notification Class object that holds the recipients; `event_enable` is a bit
+/// mask (bit 0 to-offnormal, bit 1 to-fault, bit 2 to-normal) and `notify_type`
+/// is NOTIFY_ALARM or NOTIFY_EVENT. Returns BP_OK or a negative BP_ERR_* code.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Uint32,
+    ffi.Uint16,
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Float,
+    ffi.Float,
+    ffi.Float,
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Uint8,
+    ffi.Uint8,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_event_enrollment_configure(
+  int instance,
+  int monitored_type,
+  int monitored_instance,
+  int monitored_property,
+  int monitored_index,
+  double low_limit,
+  double high_limit,
+  double deadband,
+  int time_delay,
+  int notification_class,
+  int event_enable,
+  int notify_type,
+);
+
 /// Empties the event buffer.
 @ffi.Native<ffi.Void Function()>(isLeaf: true)
 external void bacnet_plugin_events_clear();

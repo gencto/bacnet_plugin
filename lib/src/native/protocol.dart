@@ -382,6 +382,38 @@ class TimeMasterCommand extends WorkerCommand {
   final List<TimeMasterRecipient> recipients;
 }
 
+/// Configures an Event Enrollment object (created first with an
+/// [CreateObjectCommand]) with the OUT_OF_RANGE event algorithm.
+class EventEnrollmentCommand extends WorkerCommand {
+  const EventEnrollmentCommand(
+    super.id,
+    this.instance, {
+    required this.monitoredType,
+    required this.monitoredInstance,
+    required this.monitoredProperty,
+    required this.monitoredIndex,
+    required this.lowLimit,
+    required this.highLimit,
+    required this.deadband,
+    required this.timeDelaySeconds,
+    required this.notificationClass,
+    required this.eventEnable,
+    required this.notifyType,
+  });
+  final int instance;
+  final int monitoredType;
+  final int monitoredInstance;
+  final int monitoredProperty;
+  final int monitoredIndex;
+  final double lowLimit;
+  final double highLimit;
+  final double deadband;
+  final int timeDelaySeconds;
+  final int notificationClass;
+  final int eventEnable;
+  final int notifyType;
+}
+
 /// Deletes a server object.
 class DeleteObjectCommand extends WorkerCommand {
   const DeleteObjectCommand(super.id, this.objectType, this.instance);

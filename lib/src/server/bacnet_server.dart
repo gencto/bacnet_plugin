@@ -55,6 +55,9 @@ class BacnetPresentValueUpdate {
   final int priority;
 }
 
+/// BACnetArrayAll: refers to a whole property rather than one array element.
+const _arrayAll = 0xFFFFFFFF;
+
 /// BACnet server hosting objects and answering client requests.
 ///
 /// Read/write/COV requests from the network are answered entirely by the
@@ -1320,6 +1323,87 @@ class BacnetServer {
     }
     // last: the algorithm starts with the complete configuration
     await write(object, BacnetProperties.eventEnable, eventEnable);
+  }
+
+  /// Adds an Event Enrollment object (ASHRAE 135 clause 12.12) that monitors a
+  /// property of another object — local or, once bound, remote — and reports
+  /// events to the recipients of [notificationClass]. Returns its instance.
+  ///
+  /// It evaluates the OUT_OF_RANGE algorithm every second on the REAL value of
+  /// [property] (Present_Value by default; pass [arrayIndex] for an array
+  /// element) of [monitored]: a value above [highLimit] or below [lowLimit]
+  /// for [timeDelay] reports a to-offnormal event, and a return inside the
+  /// limits by more than [deadband] reports to-normal. Leave a limit null to
+  /// disable that side. [eventEnable] selects the reported transitions and
+  /// [notifyType] whether they are alarms or events.
+  ///
+  /// ```dart
+  /// await server.addNotificationClass(1, recipients: [...]);
+  /// await server.addAnalogValue(7, presentValue: 20);
+  /// await server.addEventEnrollment(
+  ///   1,
+  ///   monitored: const BacnetObject(
+  ///     type: BacnetObjectType.analogValue,
+  ///     instance: 7,
+  ///   ),
+  ///   notificationClass: 1,
+  ///   highLimit: 30,
+  ///   lowLimit: 10,
+  ///   deadband: 0.5,
+  /// );
+  /// ```
+  Future<int> addEventEnrollment(
+    int instance, {
+    required BacnetObject monitored,
+    required int notificationClass,
+    BacnetPropertyId property = BacnetPropertyId.presentValue,
+    int? arrayIndex,
+    double? highLimit,
+    double? lowLimit,
+    double deadband = 0,
+    Duration timeDelay = Duration.zero,
+    BacnetEventTransitionBits eventEnable = const BacnetEventTransitionBits(
+      toOffNormal: true,
+      toFault: true,
+      toNormal: true,
+    ),
+    BacnetNotifyType notifyType = BacnetNotifyType.alarm,
+    String? name,
+    String? description,
+  }) async {
+    if (timeDelay.isNegative) {
+      throw ArgumentError.value(timeDelay, 'timeDelay', 'must not be negative');
+    }
+    if (arrayIndex != null) {
+      RangeError.checkValueInInterval(arrayIndex, 0, 0xFFFFFFFE, 'arrayIndex');
+    }
+    final created = await addObject(
+      BacnetObjectType.eventEnrollment,
+      instance,
+      name: name,
+      description: description,
+    );
+    await _system.call<void>(
+      (id) => EventEnrollmentCommand(
+        id,
+        created,
+        monitoredType: monitored.type,
+        monitoredInstance: monitored.instance,
+        monitoredProperty: property,
+        monitoredIndex: arrayIndex ?? _arrayAll,
+        lowLimit: lowLimit ?? double.negativeInfinity,
+        highLimit: highLimit ?? double.infinity,
+        deadband: deadband,
+        timeDelaySeconds: timeDelay.inSeconds,
+        notificationClass: notificationClass,
+        eventEnable:
+            (eventEnable.toOffNormal ? 1 : 0) |
+            (eventEnable.toFault ? 2 : 0) |
+            (eventEnable.toNormal ? 4 : 0),
+        notifyType: notifyType,
+      ),
+    );
+    return created;
   }
 
   /// Broadcasts an I-Am for the local device.

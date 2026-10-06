@@ -9,12 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Event Enrollment object** (ASHRAE 135 clause 12.12):
+  `server.addEventEnrollment` hosts an Event Enrollment that watches a property
+  of another object — local or, once bound, remote — with the OUT_OF_RANGE
+  algorithm (high/low limits, deadband and time delay) and reports to the
+  recipients of a Notification Class. The object is implemented in the native
+  engine (bacnet-stack ships only Alert Enrollment).
 - **GetEnrollmentSummary** (ASHRAE 135 clause 13.12):
   `client.getEnrollmentSummary` summarizes a device's event-initiating objects
   (object, event type, event state, priority, notification class), filtered by
   acknowledgment, event state, event type, priority range and notification
   class. The server answers it by enumerating the objects with a configured
-  Notification_Class.
+  Notification_Class (intrinsic-reporting objects and Event Enrollments).
 - **Server SubscribeCOVPropertyMultiple** (ASHRAE 135 clauses 13.16, 13.17):
   the server now answers SubscribeCOVPropertyMultiple, tracks the
   subscriptions (lifetime, cancellation, confirmed or unconfirmed), and sends

@@ -82,6 +82,8 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
 #if defined(INTRINSIC_REPORTING)
         case OBJECT_NOTIFICATION_CLASS:
             return description ? bp_nc_description_set : bp_nc_name_set;
+        case OBJECT_EVENT_ENROLLMENT:
+            return description ? bp_ee_description_set : bp_ee_name_set;
 #endif
         case OBJECT_FILE:
             return description ? bp_file_description_set

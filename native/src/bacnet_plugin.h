@@ -537,6 +537,32 @@ BP_API int32_t bacnet_plugin_time_master_add_recipient(
     const uint8_t *adr,
     uint8_t adr_len);
 
+/**
+ * Configures an Event Enrollment object (created first with
+ * bacnet_plugin_object_create()). It monitors `monitored_property` of the
+ * referenced object with the OUT_OF_RANGE algorithm: a REAL value above
+ * `high_limit` for `time_delay` seconds reports a to-offnormal event
+ * (HighLimit), below `low_limit` a LowLimit event, and a return inside the
+ * limits by more than `deadband` reports to-normal. Pass BACNET_ARRAY_ALL as
+ * `monitored_index` for a scalar property. `notification_class` names the
+ * Notification Class object that holds the recipients; `event_enable` is a bit
+ * mask (bit 0 to-offnormal, bit 1 to-fault, bit 2 to-normal) and `notify_type`
+ * is NOTIFY_ALARM or NOTIFY_EVENT. Returns BP_OK or a negative BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_event_enrollment_configure(
+    uint32_t instance,
+    uint16_t monitored_type,
+    uint32_t monitored_instance,
+    uint32_t monitored_property,
+    uint32_t monitored_index,
+    float low_limit,
+    float high_limit,
+    float deadband,
+    uint32_t time_delay,
+    uint32_t notification_class,
+    uint8_t event_enable,
+    uint8_t notify_type);
+
 #ifdef __cplusplus
 }
 #endif

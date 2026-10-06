@@ -157,7 +157,7 @@ void main() {
       deviceObject,
       BacnetProperties.objectList,
     );
-    expect(objects, hasLength(128));
+    expect(objects, hasLength(131));
     expect(
       await client.read(device, deviceObject, BacnetProperties.vendorName),
       'bacnet_plugin',
@@ -168,9 +168,9 @@ void main() {
     final objects = await client.scanDevice(device);
     // device, network port, 100 AV, BV, MSV, alarms: NC, AV, BV, 2 files,
     // scheduled AV, calendar, schedule, 2 logged AVs, 2 trend logs,
-    // settings file, grouped AV, channel, 3 lighting/color objects and
-    // 6 control/grouping objects
-    expect(objects, hasLength(128));
+    // settings file, grouped AV, channel, 3 lighting/color objects,
+    // 6 control/grouping objects and event enrollment: NC, AV, EE
+    expect(objects, hasLength(131));
     final scanner = DeviceScanner(client);
     final details = await scanner.getDeviceDetails(device);
     expect(details.deviceName, 'DemoServer');
@@ -179,7 +179,7 @@ void main() {
 
   test('describes the device', () async {
     final description = await client.describeDevice(device);
-    expect(description.objects, hasLength(128));
+    expect(description.objects, hasLength(131));
     expect(description.deviceName, 'DemoServer');
     const av50 = BacnetObject(type: BacnetObjectType.analogValue, instance: 50);
     expect(
@@ -2141,6 +2141,158 @@ void main() {
         );
         expect(name, expectedName, reason: '${object.type.label} name');
       }
+    });
+  });
+
+  group('event enrollment', () {
+    const notificationClass = BacnetObject(
+      type: BacnetObjectType.notificationClass,
+      instance: 2,
+    );
+    const enrollment = BacnetObject(
+      type: BacnetObjectType.eventEnrollment,
+      instance: 1,
+    );
+    const source = BacnetObject(
+      type: BacnetObjectType.analogValue,
+      instance: 101,
+    );
+    final recipient = BacnetDestination(
+      recipient: BacnetRecipient.ip('127.0.0.1', 47862),
+      processId: 50,
+    );
+
+    Future<EventNotificationEvent> next(
+      bool Function(EventNotificationEvent) test,
+    ) => client.eventNotifications
+        .firstWhere(test)
+        .timeout(const Duration(seconds: 10));
+
+    test('exposes the enrollment and its configuration', () async {
+      expect(
+        await client.read(device, enrollment, BacnetProperties.objectName),
+        'Range watch',
+      );
+      expect(
+        await client.read(device, enrollment, BacnetProperties.eventState),
+        BacnetEventState.normal,
+      );
+      expect(
+        await client.read(
+          device,
+          enrollment,
+          BacnetProperties.notificationClass,
+        ),
+        2,
+      );
+      // the enrollment is an event-initiating object
+      final summary = await client.getEnrollmentSummary(device);
+      final entry = summary.firstWhere((s) => s.object == enrollment);
+      expect(entry.eventType, BacnetEventType.outOfRange);
+      expect(entry.notificationClass, 2);
+    });
+
+    test('reports OUT_OF_RANGE transitions to the recipient', () async {
+      await client.addListElements(
+        device,
+        notificationClass,
+        BacnetProperties.recipientList,
+        [recipient],
+      );
+      addTearDown(
+        () => client.removeListElements(
+          device,
+          notificationClass,
+          BacnetProperties.recipientList,
+          [recipient],
+        ),
+      );
+
+      // the monitored value leaves the high limit
+      final offnormal = next(
+        (e) =>
+            e.object == enrollment &&
+            e.processId == 50 &&
+            e.toState == BacnetEventState.highLimit,
+      );
+      await client.write(
+        device,
+        source,
+        BacnetProperties.analogPresentValue,
+        35,
+        priority: 8,
+      );
+      final event = await offnormal;
+      expect(event.eventType, BacnetEventType.outOfRange);
+      expect(event.notificationClass, 2);
+      expect(event.notifyType, BacnetNotifyType.alarm);
+      expect(event.fromState, BacnetEventState.normal);
+      switch (event.eventValues) {
+        case BacnetOutOfRangeValues(
+          :final exceedingValue,
+          :final exceededLimit,
+        ):
+          expect(exceedingValue, closeTo(35, 0.001));
+          expect(exceededLimit, closeTo(30, 0.001));
+        default:
+          fail('expected out-of-range values, got ${event.eventValues}');
+      }
+
+      // the value returns within the limits
+      final normal = next(
+        (e) =>
+            e.object == enrollment &&
+            e.processId == 50 &&
+            e.toState == BacnetEventState.normal,
+      );
+      await client.write(
+        device,
+        source,
+        BacnetProperties.analogPresentValue,
+        20,
+        priority: 8,
+      );
+      final back = await normal;
+      expect(back.fromState, BacnetEventState.highLimit);
+
+      // and leaves the low limit
+      final lowLimit = next(
+        (e) =>
+            e.object == enrollment &&
+            e.processId == 50 &&
+            e.toState == BacnetEventState.lowLimit,
+      );
+      await client.write(
+        device,
+        source,
+        BacnetProperties.analogPresentValue,
+        5,
+        priority: 8,
+      );
+      final low = await lowLimit;
+      expect(low.fromState, BacnetEventState.normal);
+      switch (low.eventValues) {
+        case BacnetOutOfRangeValues(:final exceededLimit):
+          expect(exceededLimit, closeTo(10, 0.001));
+        default:
+          fail('expected out-of-range values, got ${low.eventValues}');
+      }
+
+      // return it to normal so the enrollment is quiescent afterwards
+      final recovered = next(
+        (e) =>
+            e.object == enrollment &&
+            e.processId == 50 &&
+            e.toState == BacnetEventState.normal,
+      );
+      await client.write(
+        device,
+        source,
+        BacnetProperties.analogPresentValue,
+        20,
+        priority: 8,
+      );
+      await recovered;
     });
   });
 

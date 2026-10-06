@@ -339,6 +339,41 @@ class NativeEngine {
     );
   }
 
+  /// Configures Event Enrollment object [instance] (created first with an
+  /// object create) with the OUT_OF_RANGE event algorithm on the monitored
+  /// property.
+  void configureEventEnrollment(
+    int instance, {
+    required int monitoredType,
+    required int monitoredInstance,
+    required int monitoredProperty,
+    required int monitoredIndex,
+    required double lowLimit,
+    required double highLimit,
+    required double deadband,
+    required int timeDelaySeconds,
+    required int notificationClass,
+    required int eventEnable,
+    required int notifyType,
+  }) {
+    checkNative(
+      bacnet_plugin_event_enrollment_configure(
+        instance,
+        monitoredType,
+        monitoredInstance,
+        monitoredProperty,
+        monitoredIndex,
+        lowLimit,
+        highLimit,
+        deadband,
+        timeDelaySeconds,
+        notificationClass,
+        eventEnable,
+        notifyType,
+      ),
+    );
+  }
+
   /// Adds or replaces a static address binding.
   void bindDevice({
     required int deviceId,

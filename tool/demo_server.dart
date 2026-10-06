@@ -203,6 +203,27 @@ Future<void> main(List<String> args) async {
   await server.addAveraging(1, name: 'Temp average');
   await server.addLoadControl(1, name: 'Load shed');
   await server.addStructuredView(1, name: 'Room view');
+  // event enrollment: watches a dedicated analog value with OUT_OF_RANGE and
+  // reports to its own notification class (2)
+  await server.addNotificationClass(2, name: 'EE Alarms');
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    objects + 1,
+    name: 'EE-source',
+    presentValue: const BacnetReal(20),
+  );
+  await server.addEventEnrollment(
+    1,
+    monitored: BacnetObject(
+      type: BacnetObjectType.analogValue,
+      instance: objects + 1,
+    ),
+    notificationClass: 2,
+    highLimit: 30,
+    lowLimit: 10,
+    deadband: 1,
+    name: 'Range watch',
+  );
   // "provision <ip> <port>": asks the supervisor there for a device
   // instance (Who-Am-I / You-Are)
   stdin.transform(utf8.decoder).transform(const LineSplitter()).listen((

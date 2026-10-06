@@ -31,13 +31,15 @@ Dart programs such as headless gateways and supervisory services.
   Positive Integer, CharacterString Value, Notification Class, File
   (content in memory), Schedule, Calendar, Trend Log, Channel, Lighting
   Output, Binary Lighting Output, Color, Color Temperature, Loop, Timer,
-  Accumulator, Averaging, Load Control and Structured View objects;
+  Accumulator, Averaging, Load Control, Structured View and Event
+  Enrollment objects;
   acts as a Time Master; answers
   Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property)(Multiple), ReadRange,
   Add/RemoveListElement, AtomicReadFile/AtomicWriteFile,
   DeviceCommunicationControl and ReinitializeDevice (password protected,
   reported to the application, backup and restore) natively; reports
-  alarms of analog and binary objects (intrinsic reporting) and answers
+  alarms of analog and binary objects (intrinsic reporting) and Event
+  Enrollments and answers
   AcknowledgeAlarm, GetEventInformation, GetAlarmSummary and
   GetEnrollmentSummary; WriteGroup;
   asks a supervisor for its device instance (Who-Am-I/You-Are); batch
@@ -550,6 +552,44 @@ memory only).
 Notification Class instances 0..63 are available, with up to 10
 recipients each. bacnet-stack keeps one destination per recipient: adding
 a destination for a recipient that is already in the list replaces it.
+
+An **Event Enrollment** object monitors a property of another object — local,
+or remote once the device is bound — instead of enabling the algorithm on the
+object itself:
+
+```dart
+await server.addNotificationClass(2, name: 'Range alarms');
+await server.addEventEnrollment(
+  1,
+  monitored: const BacnetObject(type: BacnetObjectType.analogValue, instance: 7),
+  notificationClass: 2,
+  highLimit: 30,
+  lowLimit: 10,
+  deadband: 1,
+  timeDelay: const Duration(seconds: 5),
+  name: 'Range watch',
+);
+```
+
+The enrollment runs the OUT_OF_RANGE algorithm every second and reports to the
+recipients of its Notification Class. (bacnet-stack ships only Alert
+Enrollment, so the object is implemented in the native engine.)
+
+`client.getEnrollmentSummary` lists a device's event-initiating objects — the
+intrinsic-reporting objects and Event Enrollments with a configured
+Notification Class — with their event type, event state, priority and
+notification class, filtered by acknowledgment, event state, event type,
+priority range or notification class:
+
+```dart
+final summary = await client.getEnrollmentSummary(
+  1234,
+  notificationClassFilter: 2,
+);
+for (final entry in summary) {
+  print('${entry.object} ${entry.eventType} ${entry.eventState}');
+}
+```
 
 ## Device management and files
 

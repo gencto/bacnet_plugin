@@ -317,6 +317,21 @@ final class _Worker implements RequestTransport {
               ),
           ],
         );
+      case EventEnrollmentCommand():
+        _engine.configureEventEnrollment(
+          command.instance,
+          monitoredType: command.monitoredType,
+          monitoredInstance: command.monitoredInstance,
+          monitoredProperty: command.monitoredProperty,
+          monitoredIndex: command.monitoredIndex,
+          lowLimit: command.lowLimit,
+          highLimit: command.highLimit,
+          deadband: command.deadband,
+          timeDelaySeconds: command.timeDelaySeconds,
+          notificationClass: command.notificationClass,
+          eventEnable: command.eventEnable,
+          notifyType: command.notifyType,
+        );
       case SetNumberCommand():
         _engine.setNumber(
           command.objectType,
