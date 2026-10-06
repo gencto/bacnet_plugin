@@ -43,14 +43,17 @@ jobs:
           python3 tool/gen_object_table.py
           git diff --exit-code -- lib native/src
       - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib test hook benchmark tool
-      - run: dart analyze --fatal-infos lib test hook benchmark tool
+        run: dart format --output=none --set-exit-if-changed lib test hook benchmark tool bin
+      - run: dart analyze --fatal-infos lib test hook benchmark tool bin
       - name: Compile native engine with warnings enabled
         run: |
           gcc -fsyntax-only -Wall -Wextra -Werror -Wno-unused-parameter \
             -DBACDL_BIP=1 -DPRINT_ENABLED=0 -DBACNET_STACK_STATIC_DEFINE \
             -Inative/bacnet-stack/src -Inative/src \
-            native/src/*.c
+            native/src/*.c native/fuzz/fuzz_npdu.c
+      # what pub publishes builds and loads the native library
+      - name: Check the published package
+        run: dart run tool/check_package.dart
 
   test:
     needs: analyze
@@ -83,6 +86,49 @@ jobs:
       - name: Client/server integration tests (loopback)
         if: runner.os != 'Windows'
         run: dart test --tags integration --reporter expanded
+
+  # libFuzzer with AddressSanitizer and UndefinedBehaviorSanitizer on the
+  # native engine (client and server handlers); findings are uploaded
+  fuzz:
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      # bacnet-stack is cloned from github.com/bacnet-stack, which runners
+      # sometimes fail to reach: retry instead of failing the job
+      - name: Fetch bacnet-stack submodule
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          for attempt in 1 2 3 4; do
+            git submodule update --init --depth 1 && exit 0
+            echo "submodule fetch failed (attempt $attempt), retrying"
+            sleep $((attempt * 15))
+          done
+          exit 1
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: clang with the libFuzzer runtime
+        run: |
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
+            install -y clang libclang-rt-dev
+      - run: dart pub get --no-example
+      - name: Fuzz the native engine for 2 minutes
+        run: dart run tool/fuzz_native.dart 120
+      - name: Upload the inputs that crashed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-findings
+          path: |
+            build/fuzz/crash-*
+            build/fuzz/oom-*
+            build/fuzz/leak-*
+            build/fuzz/timeout-*
+          if-no-files-found: ignore
 
   flutter-example:
     needs: analyze
