@@ -29,8 +29,10 @@ Dart programs such as headless gateways and supervisory services.
   services.
 - **Server**: hosts Analog/Binary/Multi-state Input/Output/Value, Integer,
   Positive Integer, CharacterString Value, Notification Class, File
-  (content in memory), Schedule, Calendar, Trend Log and Channel objects;
-  answers
+  (content in memory), Schedule, Calendar, Trend Log, Channel, Lighting
+  Output, Binary Lighting Output, Color, Color Temperature, Loop, Timer,
+  Accumulator, Averaging, Load Control and Structured View objects;
+  acts as a Time Master; answers
   Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property), ReadRange,
   Add/RemoveListElement, AtomicReadFile/AtomicWriteFile,
   DeviceCommunicationControl and ReinitializeDevice (password protected,

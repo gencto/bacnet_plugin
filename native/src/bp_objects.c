@@ -20,6 +20,12 @@
 #include "bacnet/basic/object/blo.h"
 #include "bacnet/basic/object/color_object.h"
 #include "bacnet/basic/object/color_temperature.h"
+#include "bacnet/basic/object/loop.h"
+#include "bacnet/basic/object/timer.h"
+#include "bacnet/basic/object/acc.h"
+#include "bacnet/basic/object/averaging.h"
+#include "bacnet/basic/object/lc.h"
+#include "bacnet/basic/object/structured_view.h"
 #include "bacnet/basic/object/bi.h"
 #include "bacnet/basic/object/bo.h"
 #include "bacnet/basic/object/bv.h"
@@ -101,6 +107,21 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
         case OBJECT_COLOR_TEMPERATURE:
             return description ? Color_Temperature_Description_Set
                                : Color_Temperature_Name_Set;
+        case OBJECT_LOOP:
+            return description ? Loop_Description_Set : Loop_Name_Set;
+        case OBJECT_TIMER:
+            return description ? Timer_Description_Set : Timer_Name_Set;
+        case OBJECT_ACCUMULATOR:
+            return description ? Accumulator_Description_Set
+                               : Accumulator_Name_Set;
+        case OBJECT_AVERAGING:
+            return description ? Averaging_Description_Set : Averaging_Name_Set;
+        case OBJECT_LOAD_CONTROL:
+            return description ? Load_Control_Description_Set
+                               : Load_Control_Name_Set;
+        case OBJECT_STRUCTURED_VIEW:
+            return description ? Structured_View_Description_Set
+                               : Structured_View_Name_Set;
         default:
             return NULL;
     }

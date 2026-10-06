@@ -157,7 +157,7 @@ void main() {
       deviceObject,
       BacnetProperties.objectList,
     );
-    expect(objects, hasLength(119));
+    expect(objects, hasLength(128));
     expect(
       await client.read(device, deviceObject, BacnetProperties.vendorName),
       'bacnet_plugin',
@@ -168,8 +168,9 @@ void main() {
     final objects = await client.scanDevice(device);
     // device, network port, 100 AV, BV, MSV, alarms: NC, AV, BV, 2 files,
     // scheduled AV, calendar, schedule, 2 logged AVs, 2 trend logs,
-    // settings file, grouped AV, channel
-    expect(objects, hasLength(119));
+    // settings file, grouped AV, channel, 3 lighting/color objects and
+    // 6 control/grouping objects
+    expect(objects, hasLength(128));
     final scanner = DeviceScanner(client);
     final details = await scanner.getDeviceDetails(device);
     expect(details.deviceName, 'DemoServer');
@@ -178,7 +179,7 @@ void main() {
 
   test('describes the device', () async {
     final description = await client.describeDevice(device);
-    expect(description.objects, hasLength(119));
+    expect(description.objects, hasLength(128));
     expect(description.deviceName, 'DemoServer');
     const av50 = BacnetObject(type: BacnetObjectType.analogValue, instance: 50);
     expect(
@@ -1997,6 +1998,43 @@ void main() {
         BacnetProperties.colorCommand,
       );
       expect(command, isA<BacnetColorCommand>());
+    });
+  });
+
+  group('control and grouping objects', () {
+    test('creates loop, timer, accumulator, averaging, load control and '
+        'structured view with names', () async {
+      const named = <(BacnetObject, String)>[
+        (BacnetObject(type: BacnetObjectType.loop, instance: 1), 'PID loop'),
+        (
+          BacnetObject(type: BacnetObjectType.timer, instance: 1),
+          'Egress timer',
+        ),
+        (
+          BacnetObject(type: BacnetObjectType.accumulator, instance: 1),
+          'Energy meter',
+        ),
+        (
+          BacnetObject(type: BacnetObjectType.averaging, instance: 1),
+          'Temp average',
+        ),
+        (
+          BacnetObject(type: BacnetObjectType.loadControl, instance: 1),
+          'Load shed',
+        ),
+        (
+          BacnetObject(type: BacnetObjectType.structuredView, instance: 1),
+          'Room view',
+        ),
+      ];
+      for (final (object, expectedName) in named) {
+        final name = await client.read(
+          device,
+          object,
+          BacnetProperties.objectName,
+        );
+        expect(name, expectedName, reason: '${object.type.label} name');
+      }
     });
   });
 

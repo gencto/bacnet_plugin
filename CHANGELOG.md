@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BacnetProperties.lightingCommand` / `colorCommand` descriptors. Server
   helpers `addLightingOutput`, `addBinaryLightingOutput`, `addColor` and
   `addColorTemperature` host the objects.
+- **More server objects**: `addLoop`, `addTimer`, `addAccumulator`,
+  `addAveraging`, `addLoadControl` and `addStructuredView` host Loop, Timer,
+  Accumulator, Averaging, Load Control and Structured View objects (dynamic
+  creation of Accumulator objects is now wired through to the engine).
 - **Time Master** (ASHRAE 135 clause 13.12, BIBB DM-TS-A / DM-UTC-A):
   `server.enableTimeMaster` makes the server send a TimeSynchronization — or
   a UTCTimeSynchronization (`utc: true`) — at an interval to a list of

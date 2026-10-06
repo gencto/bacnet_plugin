@@ -944,6 +944,78 @@ class BacnetServer {
     description: description,
   );
 
+  // ---- control and grouping objects -----------------------------------------
+
+  /// Adds a Loop object (a PID control loop). Returns its instance. Configure
+  /// its setpoint, process variable and manipulated variable references and
+  /// tuning constants with [setProperty].
+  Future<int> addLoop(int instance, {String? name, String? description}) =>
+      addObject(
+        BacnetObjectType.loop,
+        instance,
+        name: name,
+        description: description,
+      );
+
+  /// Adds a Timer object (ASHRAE 135 clause 12.X). Returns its instance.
+  Future<int> addTimer(int instance, {String? name, String? description}) =>
+      addObject(
+        BacnetObjectType.timer,
+        instance,
+        name: name,
+        description: description,
+      );
+
+  /// Adds an Accumulator object (a pulse counter, e.g. a utility meter).
+  /// Returns its instance.
+  Future<int> addAccumulator(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.accumulator,
+    instance,
+    name: name,
+    description: description,
+  );
+
+  /// Adds an Averaging object (tracks the minimum, maximum and average of a
+  /// monitored property over a window). Returns its instance.
+  Future<int> addAveraging(int instance, {String? name, String? description}) =>
+      addObject(
+        BacnetObjectType.averaging,
+        instance,
+        name: name,
+        description: description,
+      );
+
+  /// Adds a Load Control object (sheds electrical load on request, ASHRAE
+  /// 135 clause 12.X). Returns its instance.
+  Future<int> addLoadControl(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.loadControl,
+    instance,
+    name: name,
+    description: description,
+  );
+
+  /// Adds a Structured View object (groups other objects into a hierarchy for
+  /// navigation). Returns its instance; add its members by writing
+  /// Subordinate_List with [setProperty].
+  Future<int> addStructuredView(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.structuredView,
+    instance,
+    name: name,
+    description: description,
+  );
+
   // ---- backup and restore ---------------------------------------------------
 
   /// Lets clients back up and restore this server (ASHRAE 135 clause 19.1,

@@ -196,6 +196,13 @@ Future<void> main(List<String> args) async {
   await server.addLightingOutput(60, name: 'Desk lamp');
   await server.addColor(61, name: 'RGB strip');
   await server.addColorTemperature(62, name: 'Tunable white');
+  // control and grouping objects
+  await server.addLoop(1, name: 'PID loop');
+  await server.addTimer(1, name: 'Egress timer');
+  await server.addAccumulator(1, name: 'Energy meter');
+  await server.addAveraging(1, name: 'Temp average');
+  await server.addLoadControl(1, name: 'Load shed');
+  await server.addStructuredView(1, name: 'Room view');
   // "provision <ip> <port>": asks the supervisor there for a device
   // instance (Who-Am-I / You-Are)
   stdin.transform(utf8.decoder).transform(const LineSplitter()).listen((

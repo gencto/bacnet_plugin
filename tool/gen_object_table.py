@@ -89,6 +89,12 @@ REPLACED = {
     "OBJECT_CALENDAR": {
         "Calendar_Write_Property,": "bp_calendar_write_property,",
     },
+    # bacnet-stack implements dynamic creation of accumulators but leaves it
+    # out of the default table (unlike the other control objects)
+    "OBJECT_ACCUMULATOR": {
+        "NULL /* Create */": "Accumulator_Create",
+        "NULL /* Delete */": "Accumulator_Delete",
+    },
     # the content of files is kept in memory (native/src/bp_files.c)
     "OBJECT_FILE": {
         "bacfile_read_property,": "bp_file_read_property,",
