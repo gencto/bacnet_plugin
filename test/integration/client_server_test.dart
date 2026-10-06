@@ -35,9 +35,19 @@ class ServerProcess {
           lines.add(line);
           if (line.startsWith('READY') && !ready.isCompleted) ready.complete();
         });
-    process.stderr.transform(utf8.decoder).listen(lines.add);
+    process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+          lines.add(line);
+          // surface server errors (e.g. a native crash) in the test output
+          stderr.writeln('[demo_server:$port] $line');
+        });
     unawaited(
       process.exitCode.then((code) {
+        // a server that dies after READY makes every request time out; log the
+        // exit so the cause (e.g. a signal) is visible in CI
+        if (code != 0) stderr.writeln('[demo_server:$port] exited with $code');
         if (!ready.isCompleted) {
           ready.completeError(StateError('server exited ($code): $lines'));
         }

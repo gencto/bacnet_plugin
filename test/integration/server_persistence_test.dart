@@ -16,7 +16,8 @@ void main() {
     dir = Directory.systemTemp.createTempSync('bacnet_persist');
     server = BacnetServer(
       config: const BacnetConfig(
-        interface: 'lo',
+        // the loopback IP, not the interface name: macOS names it lo0, not lo
+        interface: '127.0.0.1',
         port: 47899,
         logLevel: BacnetLogLevel.warning,
       ),
