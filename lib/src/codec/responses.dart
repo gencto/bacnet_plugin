@@ -13,6 +13,7 @@ import '../models/bacnet_value.dart';
 import '../models/channels.dart';
 import '../models/complex_values.dart';
 import '../models/cov_multiple.dart';
+import '../models/enrollment_summary.dart';
 import '../models/events.dart';
 import '../models/files.dart';
 import 'reader.dart';
@@ -673,6 +674,50 @@ List<BacnetAlarmSummary> decodeGetAlarmSummaryAck(Uint8List data) {
     } else {
       throw BacnetDecodeException(
         'malformed alarm summary: $object $state $acked',
+      );
+    }
+  }
+  return List.unmodifiable(result);
+}
+
+/// Decodes a GetEnrollmentSummary-ACK (ASHRAE 135 clause 13.12).
+List<BacnetEnrollmentSummary> decodeGetEnrollmentSummaryAck(Uint8List data) {
+  final r = BacnetReader(data);
+  final result = <BacnetEnrollmentSummary>[];
+  while (!r.isAtEnd) {
+    final object = r.readApplicationValue();
+    final eventType = r.readApplicationValue();
+    final eventState = r.readApplicationValue();
+    final priority = r.readApplicationValue();
+    if ((object, eventType, eventState, priority) case (
+      final BacnetObject object,
+      BacnetEnumerated(value: final eventType),
+      BacnetEnumerated(value: final eventState),
+      BacnetUnsigned(value: final priority),
+    )) {
+      // notificationClass is optional: a following Unsigned belongs to this
+      // entry, an object identifier begins the next one.
+      int? notificationClass;
+      if (!r.isAtEnd) {
+        final next = r.peekTag();
+        if (next.isApplication &&
+            next.number == BacnetApplicationTag.unsignedInt) {
+          notificationClass = r.readApplicationValue().asInt;
+        }
+      }
+      result.add(
+        BacnetEnrollmentSummary(
+          object: object,
+          eventType: BacnetEventType(eventType),
+          eventState: BacnetEventState(eventState),
+          priority: priority,
+          notificationClass: notificationClass,
+        ),
+      );
+    } else {
+      throw BacnetDecodeException(
+        'malformed enrollment summary: $object $eventType $eventState '
+        '$priority',
       );
     }
   }

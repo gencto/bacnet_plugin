@@ -38,7 +38,8 @@ Dart programs such as headless gateways and supervisory services.
   DeviceCommunicationControl and ReinitializeDevice (password protected,
   reported to the application, backup and restore) natively; reports
   alarms of analog and binary objects (intrinsic reporting) and answers
-  AcknowledgeAlarm, GetEventInformation and GetAlarmSummary; WriteGroup;
+  AcknowledgeAlarm, GetEventInformation, GetAlarmSummary and
+  GetEnrollmentSummary; WriteGroup;
   asks a supervisor for its device instance (Who-Am-I/You-Are); batch
   updates of present values; write notifications.
 - **Built for load**: request scheduler with global and per-device

@@ -2009,6 +2009,52 @@ void main() {
     });
   });
 
+  group('get enrollment summary', () {
+    // the demo server configures event reporting on Alarm-AV (instance
+    // `objects` = 100) and Alarm-BV (BV 1), both on notification class 1
+    const alarmAv = BacnetObject(
+      type: BacnetObjectType.analogValue,
+      instance: 100,
+    );
+    const alarmBv = BacnetObject(
+      type: BacnetObjectType.binaryValue,
+      instance: 1,
+    );
+
+    test('summarizes the event-initiating objects', () async {
+      final summary = await client.getEnrollmentSummary(device);
+      final objects = summary.map((s) => s.object).toSet();
+      expect(objects, containsAll(<BacnetObject>[alarmAv, alarmBv]));
+      // the 100 plain AVs (instances 0..99, no notification class) are not
+      // event-initiating
+      expect(
+        summary.where(
+          (s) =>
+              s.object.type == BacnetObjectType.analogValue &&
+              s.object.instance < 100,
+        ),
+        isEmpty,
+        reason: 'only the configured alarm objects are event-initiating',
+      );
+      final av = summary.firstWhere((s) => s.object == alarmAv);
+      expect(av.eventType, BacnetEventType.outOfRange);
+      expect(av.notificationClass, 1);
+    });
+
+    test('filters by notification class', () async {
+      final none = await client.getEnrollmentSummary(
+        device,
+        notificationClassFilter: 99,
+      );
+      expect(none, isEmpty);
+      final some = await client.getEnrollmentSummary(
+        device,
+        notificationClassFilter: 1,
+      );
+      expect(some, isNotEmpty);
+    });
+  });
+
   group('server SubscribeCOVPropertyMultiple', () {
     const av = BacnetObject(type: BacnetObjectType.analogValue, instance: 0);
     final specifications = [

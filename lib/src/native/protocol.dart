@@ -78,6 +78,7 @@ enum AckDecoding {
   readRange,
   getEventInformation,
   getAlarmSummary,
+  getEnrollmentSummary,
   createObject,
   atomicReadFile,
   atomicWriteFile,

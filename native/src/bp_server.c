@@ -417,6 +417,9 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
             handler_get_event_information);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_GET_ALARM_SUMMARY, handler_get_alarm_summary);
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_GET_ENROLLMENT_SUMMARY,
+            bp_on_get_enrollment_summary);
 #endif
         handler_cov_init();
         bp_scm_reset();

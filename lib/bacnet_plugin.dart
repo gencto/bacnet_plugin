@@ -45,6 +45,7 @@ export 'src/models/cov_multiple.dart';
 export 'src/models/device_description.dart';
 export 'src/models/device_metadata.dart';
 export 'src/models/discovered_device.dart';
+export 'src/models/enrollment_summary.dart';
 export 'src/models/events.dart';
 export 'src/models/files.dart';
 export 'src/models/network.dart';

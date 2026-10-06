@@ -22,6 +22,7 @@ import '../models/bacnet_value.dart';
 import '../models/channels.dart';
 import '../models/complex_values.dart';
 import '../models/cov_multiple.dart';
+import '../models/enrollment_summary.dart';
 import '../models/events.dart';
 import '../models/files.dart';
 import '../models/network.dart';
@@ -347,6 +348,21 @@ final class FakeBacnetObject {
         priorities.toFault,
         priorities.toNormal,
       ],
+    );
+  }
+
+  BacnetEnrollmentSummary? get _enrollmentSummary {
+    // an event-initiating object is one that carries an Event_State
+    if (!properties.containsKey(BacnetPropertyId.eventState)) return null;
+    return BacnetEnrollmentSummary(
+      object: identifier,
+      eventType: BacnetEventType(
+        properties[BacnetPropertyId.eventType]?.asInt ??
+            BacnetEventType.changeOfState,
+      ),
+      eventState: _eventState,
+      priority: 0,
+      notificationClass: properties[BacnetPropertyId.notificationClass]?.asInt,
     );
   }
 
@@ -2030,6 +2046,52 @@ class FakeBacnetClient implements BacnetClient {
       ]),
     );
   }
+
+  @override
+  Future<List<BacnetEnrollmentSummary>> getEnrollmentSummary(
+    int deviceId, {
+    BacnetAcknowledgmentFilter acknowledgmentFilter =
+        BacnetAcknowledgmentFilter.all,
+    BacnetEventStateFilter? eventStateFilter,
+    BacnetEventType? eventTypeFilter,
+    int? priorityMin,
+    int? priorityMax,
+    int? notificationClassFilter,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    requests.add(FakeBacnetRequest('getEnrollmentSummary', deviceId: deviceId));
+    return _request(
+      BacnetConfirmedService.getEnrollmentSummary,
+      deviceId,
+      cancelToken,
+      (device) => List.unmodifiable([
+        for (final summary in device.objects.map((o) => o._enrollmentSummary))
+          if (summary != null &&
+              (eventTypeFilter == null ||
+                  summary.eventType == eventTypeFilter) &&
+              (notificationClassFilter == null ||
+                  summary.notificationClass == notificationClassFilter) &&
+              _enrollmentStateMatches(eventStateFilter, summary.eventState))
+            summary,
+      ]),
+    );
+  }
+
+  static bool _enrollmentStateMatches(
+    BacnetEventStateFilter? filter,
+    BacnetEventState state,
+  ) => switch (filter) {
+    null || BacnetEventStateFilter.all => true,
+    BacnetEventStateFilter.normal => state == BacnetEventState.normal,
+    BacnetEventStateFilter.fault => state == BacnetEventState.fault,
+    BacnetEventStateFilter.active => state != BacnetEventState.normal,
+    BacnetEventStateFilter.offnormal =>
+      state == BacnetEventState.offNormal ||
+          state == BacnetEventState.highLimit ||
+          state == BacnetEventState.lowLimit,
+  };
 
   // ---- device management ----------------------------------------------------
 

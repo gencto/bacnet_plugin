@@ -543,6 +543,7 @@ final class _Worker implements RequestTransport {
         AckDecoding.readRange => decodeReadRangeAck(data),
         AckDecoding.getEventInformation => decodeGetEventInformationAck(data),
         AckDecoding.getAlarmSummary => decodeGetAlarmSummaryAck(data),
+        AckDecoding.getEnrollmentSummary => decodeGetEnrollmentSummaryAck(data),
         AckDecoding.createObject => decodeCreateObjectAck(data),
         AckDecoding.atomicReadFile => decodeAtomicReadFileAck(data),
         AckDecoding.atomicWriteFile => decodeAtomicWriteFileAck(data),

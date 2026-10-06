@@ -240,6 +240,15 @@ void bp_scm_handler(
 void bp_scm_task(uint32_t seconds);
 /** Drops every SubscribeCOVPropertyMultiple subscription. */
 void bp_scm_reset(void);
+
+/* ---- bp_enroll.c ------------------------------------------------------- */
+
+/** Answers GetEnrollmentSummary by enumerating event-initiating objects. */
+void bp_on_get_enrollment_summary(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data);
 #include "bacnet/list_element.h"
 /* reports a successful Add/RemoveListElement of a remote client */
 void bp_list_element_changed(
