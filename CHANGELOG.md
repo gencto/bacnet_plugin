@@ -5,6 +5,198 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - Unreleased
+
+Tools: the `bacnet` command line tool, device descriptions, shared COV
+subscriptions in `PropertyMonitor`, fuzzing of the native engine. See
+*Migrating from 0.7.x* in the README.
+
+### Added
+
+- **Command line tool** `bacnet` (`dart run bacnet_plugin:bacnet`):
+  `discover`, `read`, `write` (values typed for the property, or
+  `real:`/`unsigned:`/`enum:`/... prefixes), `objects`, `describe`,
+  `watch` and `routers`, with `--json` output, `--address` instead of
+  Who-Is and `--bbmd` for foreign device registration.
+- **Device descriptions**: `client.describeDevice` reads every property of
+  every object (ReadPropertyMultiple ALL, or Property_List and single
+  reads for devices without it) into a `BacnetDeviceDescription` that
+  stores as JSON and lists its objects in EPICS notation (`toEpics`).
+- **PropertyMonitor** subscribes the monitored properties of a device that
+  executes SubscribeCOVPropertyMultiple with one shared subscription
+  (`useCovMultiple`, on by default), batched to the device's APDU size;
+  properties the device refuses fall back to SubscribeCOV(Property) and
+  polling.
+- **Typed properties**: `protocolServicesSupported`
+  (`Set<BacnetServiceSupported>`, new constants) and
+  `protocolObjectTypesSupported` (`Set<BacnetObjectType>`).
+- **Testing**: fake devices answer Protocol_Services_Supported (without
+  `unsupportedServices`) and ReadPropertyMultiple with ALL, REQUIRED and
+  OPTIONAL.
+- **Native fuzzing**: `tool/fuzz_native.dart` builds a libFuzzer target of
+  the engine (client and server handlers, segmentation, files, schedules,
+  trend logs, backup) with AddressSanitizer and UndefinedBehaviorSanitizer.
+
+### Fixed
+
+- Schedule objects of the server read past an uninitialized string when
+  they were named: a Who-Has by name from any device on the network, or a
+  read of their Object_Name, made bacnet-stack's `Schedule_Object_Name`
+  check the UTF-8 of stack memory past the string, with an uninitialized
+  length (found by the native fuzzer).
+- Remote clients could make the server allocate up to 2 GiB per File
+  object (AtomicWriteFile at a large start position, File_Size writes).
+  They now grow a file up to `maxSize` of `addFile`/`configureFile`
+  (16 MiB by default) and all files together up to 256 MiB; the content
+  set by the application is not limited (found by the native fuzzer).
+
+## [0.7.0] - Unreleased
+
+Provisioning with Who-Am-I/You-Are, WriteGroup and Channel objects, COV
+of several properties with one subscription. See *Migrating from 0.6.x*
+in the README.
+
+### Added
+
+- **Who-Am-I / You-Are** (ASHRAE 135 clauses 16.11 and 16.12):
+  `client.whoAmIRequests` and `client.sendYouAre` (broadcast, or to the
+  requesting device with `destination: request.source`) assign device
+  instances to new devices; `server.requestDeviceInstance` asks a
+  supervisor for the instance of the server and applies it,
+  `server.sendWhoAmI`, `server.youAreRequests` and
+  `server.setDeviceInstance` (announced with an I-Am). `init` takes the
+  `serialNumber` that identifies the server.
+- **WriteGroup and Channel objects** (clause 15.11): `client.writeGroup`
+  writes `BacnetGroupChannelValue`s to the channels of a control group;
+  `server.addChannel` hosts Channel objects (channel number, control
+  groups, members of the server) that write their members on WriteGroup or
+  a write of their present value; `server.writeGroupEvents`.
+- **SubscribeCOVPropertyMultiple** (clauses 13.16 and 13.17):
+  `client.subscribeCOVPropertyMultiple` and
+  `unsubscribeCOVPropertyMultiple` watch several properties of several
+  objects (`BacnetCovSubscriptionSpecification`, `BacnetCovReference` with
+  COV increment and timestamps) with one request; Confirmed and
+  Unconfirmed COVNotificationMultiple arrive as one `CovNotificationEvent`
+  per object with `notificationTime` and `changeTimes`.
+  `BacnetProtocolException.firstFailedSubscription` names the subscription
+  a device refused.
+- **Typed properties**: `serialNumber`, `channelNumber` and
+  `controlGroups`.
+- **Testing**: `FakeBacnetClient.receive` delivers events such as
+  `WhoAmIEvent`; fake clients record `sendYouAre` and `writeGroup`
+  (`FakeBacnetRequest.arguments`) and take COV subscriptions of several
+  properties.
+
+## [0.6.0] - Unreleased
+
+Schedules, calendars and trend logs on the server, backup and restore.
+See *Migrating from 0.5.x* in the README.
+
+### Added
+
+- **Server — schedules and calendars**: `addSchedule` evaluates the
+  exception schedule (dates, date ranges, week-n-days or calendars), the
+  weekly schedule and the default within the effective period and writes
+  its present value to objects of the server at its priority
+  (`priorityForWriting`, `setPriorityForWriting`); `addCalendar`.
+  `PropertyWriteEvent.internal` tells the writes of schedules from those
+  of clients.
+- **Server — trend logs**: `addTrendLog` records a property of an object
+  of the server every `logInterval`, or the values the application
+  records with `logValue`, in a buffer of `bufferSize` records (optionally
+  stopping when full, between a start and stop time) and answers
+  ReadRange by position, sequence number and time; clients enable it,
+  purge it (Record_Count 0) and resize it.
+- **Backup and restore** (ASHRAE 135 clause 19.1): `client.backupDevice`
+  and `client.restoreDevice` (`BacnetDeviceBackups`) run the procedure and
+  return a `BacnetDeviceBackup` that stores as JSON; `server.enableBackup`
+  lets clients back up and restore the server, with `prepareBackup` and
+  `applyRestore` callbacks of the application, and `server.backupState`.
+  Constants `BacnetBackupState`.
+- **Typed properties**: `schedulePresentValue`, `priorityForWriting`,
+  `calendarPresentValue`, `configurationFiles`, `backupAndRestoreState`,
+  `backupPreparationTime`, `restorePreparationTime`,
+  `restoreCompletionTime`, `backupFailureTimeout` and `lastRestoreTime`.
+- **Testing**: fake devices with `configurationFiles` take part in backup
+  and restore (`backupState`, `restores`).
+
+### Fixed
+
+- Calendars of the server refused every Date_List write (bacnet-stack
+  decodes it as an application value first).
+- Exception_Schedule writes with a different number of special events were
+  ignored by bacnet-stack.
+
+## [0.5.0] - Unreleased
+
+Device management, files and messages, routers and BBMDs, files on the
+server. See *Migrating from 0.4.x* in the README.
+
+### Added
+
+- **Client — device management**: `deviceCommunicationControl`
+  (`BacnetCommunicationState`), `reinitializeDevice`
+  (`BacnetReinitializedState`), `createObject` (by type or identifier,
+  with initial values) and `deleteObject`.
+  `BacnetProtocolException.firstFailedElement` names the initial value or
+  list element a device rejected (CreateObject, Add/RemoveListElement).
+- **Client — files**: `readFileStream`/`writeFileStream` and
+  `readFileRecords`/`writeFileRecords` (AtomicReadFile/AtomicWriteFile),
+  and `readFile`/`writeFile` (`BacnetFileTransfer`) for whole files in
+  chunks that fit into the device's maximum APDU (`deviceMaxApdu`), with
+  progress and optional truncation.
+- **Client — vendor services and messages**: `privateTransfer`
+  (ConfirmedPrivateTransfer, returns the result block),
+  `sendPrivateTransfer`, `textMessage` and `sendTextMessage`.
+- **Client — routers and networks**: `networkMessages`
+  (`NetworkMessageEvent` with a sealed `BacnetNetworkMessage`:
+  I-Am-Router-To-Network, Network-Number-Is, Reject-Message-To-Network,
+  Router-Busy/Available-To-Network, routing tables, ...) and
+  `sendNetworkMessage`; `BacnetNetworkDiscovery` adds
+  `whoIsRouterToNetwork`, `discoverRouters` (`BacnetRouter`),
+  `whatIsNetworkNumber` and `readRoutingTable`. Constants
+  `BacnetNetworkMessageType` and `BacnetNetworkRejectReason`.
+- **BBMDs**: `BacnetBbmdClient` reads and writes the Broadcast
+  Distribution Table (`BacnetBdtEntry`), reads the Foreign Device Table
+  (`BacnetFdtEntry`) and deletes its entries, over an own UDP socket;
+  refusals throw `BacnetBbmdException` (`BacnetBvlcResult`).
+- **Server**: `init(password:)` and `setPassword` protect
+  DeviceCommunicationControl and ReinitializeDevice;
+  `communicationControls` (`CommunicationControlEvent`) and
+  `reinitializeRequests` (`ReinitializeDeviceEvent`) report accepted
+  requests.
+- **Server — files**: `addFile` hosts File objects with the content in
+  memory (AtomicReadFile, AtomicWriteFile, File_Size writes; appends
+  answer with their position; Modification_Date and Archive follow the
+  changes), `fileContent`, `setFileContent`, `configureFile` and
+  `fileWrites` (`FileWriteEvent`).
+- **Typed properties**: `fileType`, `fileSize`, `modificationDate`,
+  `archive`, `readOnly` and `fileAccessMethod` (`BacnetFileAccessMethod`).
+- **Testing**: fake devices simulate DeviceCommunicationControl (silent
+  device, `password`), `reinitializations`, object creation and deletion,
+  File objects (`addFile`, `fileContent`), `onPrivateTransfer` and
+  received `messages`; `FakeBacnetRouter` and
+  `FakeBacnetClient.networkNumber` simulate routers.
+
+### Changed
+
+- **Breaking, security**: the server accepted DeviceCommunicationControl
+  and ReinitializeDevice with bacnet-stack's well-known default password
+  "filister", so anyone on the network could silence it. Without a
+  password set it now refuses both.
+- **Breaking**: `CommunicationControlEvent`, `ReinitializeDeviceEvent`,
+  `NetworkMessageEvent` and `FileWriteEvent` are new `BacnetEvent`
+  subclasses; `BacnetClient` has new methods.
+
+### Fixed
+
+- Broadcasts to the local network (`sendWhoIs(network: 0)` and other
+  unconfirmed services with `network: 0`) went as a unicast to the
+  broadcast address: BBMDs did not forward them and a registered foreign
+  device did not distribute them.
+  They are Original-Broadcast-NPDUs (Distribute-Broadcast-To-Network as
+  foreign device) now.
+
 ## [0.4.1] - 2026-10-01
 
 ### Fixed

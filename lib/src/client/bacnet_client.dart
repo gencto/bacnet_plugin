@@ -1,4 +1,5 @@
 /// @docImport '../server/bacnet_server.dart';
+/// @docImport '../utilities/network_discovery.dart';
 /// @docImport '../utilities/property_monitor.dart';
 library;
 
@@ -15,14 +16,19 @@ import '../constants/services.dart';
 import '../core/bacnet_config.dart';
 import '../core/cancel_token.dart';
 import '../core/exceptions.dart';
+import '../core/ip_address.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
 import '../models/alarms.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
+import '../models/channels.dart';
 import '../models/complex_values.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
+import '../models/files.dart';
+import '../models/network.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
 import '../models/wpm_models.dart';
@@ -638,6 +644,17 @@ class BacnetClient {
       await _system.call<Object?>((id) => DeviceBindingCommand(id, deviceId)) !=
       null;
 
+  /// The maximum APDU [deviceId] accepts, from its address binding (null
+  /// when the device is not bound yet; any request binds it).
+  Future<int?> deviceMaxApdu(int deviceId) => _system
+      .call<Object?>((id) => DeviceBindingCommand(id, deviceId))
+      .then(
+        (binding) => switch (binding) {
+          [_, _, final int maxApdu] when maxApdu > 0 => maxApdu,
+          _ => null,
+        },
+      );
+
   /// The BACnet/IP address of this client (the IPv4 address of its
   /// interface and its UDP port): the recipient devices send notifications
   /// to.
@@ -649,6 +666,139 @@ class BacnetClient {
   Future<BacnetAddressRecipient> localAddress() => _system
       .call<List<int>>(LocalAddressCommand.new)
       .then((mac) => BacnetAddressRecipient(network: 0, mac: mac));
+
+  /// Who-Am-I requests of devices without a configured device instance;
+  /// a supervisor answers with [sendYouAre].
+  Stream<WhoAmIEvent> get whoAmIRequests => events.whereType<WhoAmIEvent>();
+
+  /// Assigns [deviceId] (and [macAddress]) to the device with [vendorId],
+  /// [modelName] and [serialNumber] (You-Are, the answer to a Who-Am-I).
+  /// Sent to [destination] (e.g. [WhoAmIEvent.source]), else broadcast on
+  /// [network] (0xFFFF: all networks, 0: the local one).
+  ///
+  /// ```dart
+  /// client.whoAmIRequests.listen((request) async {
+  ///   final id = await inventory.instanceFor(request.serialNumber);
+  ///   await client.sendYouAre(
+  ///     vendorId: request.vendorId,
+  ///     modelName: request.modelName,
+  ///     serialNumber: request.serialNumber,
+  ///     deviceId: id,
+  ///     destination: request.source,
+  ///   );
+  /// });
+  /// ```
+  Future<void> sendYouAre({
+    required int vendorId,
+    required String modelName,
+    required String serialNumber,
+    int? deviceId,
+    List<int>? macAddress,
+    BacnetAddressRecipient? destination,
+    int network = 0xFFFF,
+  }) => Future.sync(
+    () => _system.call<void>(
+      (id) => UnconfirmedRequestCommand(
+        id,
+        service: BacnetUnconfirmedService.youAre,
+        payload: encodeYouAre(
+          vendorId: vendorId,
+          modelName: modelName,
+          serialNumber: serialNumber,
+          deviceId: deviceId,
+          macAddress: macAddress,
+        ),
+        network: destination?.network ?? network,
+        mac: destination == null
+            ? null
+            : destination.network == 0
+            ? destination.mac
+            : const [],
+        adr: destination == null || destination.network == 0
+            ? const []
+            : destination.mac,
+      ),
+    ),
+  );
+
+  /// Writes [changes] to the Channel objects of all devices whose
+  /// Control_Groups contain [groupNumber] (WriteGroup, broadcast on
+  /// [network]) at [writePriority]; [inhibitDelay] makes the channels skip
+  /// their write delay.
+  ///
+  /// ```dart
+  /// // dim the lights of group 5 to 50 % and switch channel 3 off
+  /// await client.writeGroup(5, [
+  ///   BacnetGroupChannelValue(1, const BacnetReal(50)),
+  ///   BacnetGroupChannelValue(3, const BacnetUnsigned(0)),
+  /// ]);
+  /// ```
+  Future<void> writeGroup(
+    int groupNumber,
+    List<BacnetGroupChannelValue> changes, {
+    int writePriority = 16,
+    bool? inhibitDelay,
+    int? deviceId,
+    int network = 0xFFFF,
+  }) => Future.sync(
+    () => _system.call<void>(
+      (id) => UnconfirmedRequestCommand(
+        id,
+        service: BacnetUnconfirmedService.writeGroup,
+        payload: encodeWriteGroup(
+          groupNumber,
+          changes,
+          writePriority: writePriority,
+          inhibitDelay: inhibitDelay,
+        ),
+        deviceId: deviceId,
+        network: network,
+      ),
+    ),
+  );
+
+  /// Network layer messages received from routers and other devices
+  /// (I-Am-Router-To-Network, Network-Number-Is, Reject-Message-To-Network,
+  /// ...). [BacnetNetworkDiscovery] builds router discovery on them.
+  Stream<NetworkMessageEvent> get networkMessages =>
+      events.whereType<NetworkMessageEvent>();
+
+  /// Sends a network layer message (clause 6.4).
+  ///
+  /// The message is broadcast on the local network unless [ip] (an IPv4
+  /// address or host name) and [port] name the next hop. [network] and
+  /// [adr] address a device behind a router: [network] alone is a
+  /// broadcast on that network, 0xFFFF a global broadcast.
+  ///
+  /// ```dart
+  /// // ask the router at 192.168.1.1 for its routing table
+  /// await client.sendNetworkMessage(BacnetInitializeRoutingTable(),
+  ///     ip: '192.168.1.1');
+  /// ```
+  Future<void> sendNetworkMessage(
+    BacnetNetworkMessage message, {
+    String? ip,
+    int port = 47808,
+    int network = 0,
+    List<int> adr = const [],
+  }) async {
+    RangeError.checkValueInInterval(network, 0, 0xFFFF, 'network');
+    if (adr.length > 7 || (adr.isNotEmpty && network == 0)) {
+      throw ArgumentError.value(adr, 'adr', 'needs a network, 1 to 7 bytes');
+    }
+    final mac = ip == null ? const <int>[] : await resolveBacnetIp(ip, port);
+    return _system.call<void>(
+      (id) => NetworkMessageCommand(
+        id,
+        messageType: message.type,
+        payload: message.encode(),
+        mac: mac,
+        network: network,
+        adr: adr,
+        vendorId: message.vendorId,
+      ),
+    );
+  }
 
   /// Allocates a subscriber process identifier for COV subscriptions.
   int allocateProcessId() {
@@ -740,6 +890,72 @@ class BacnetClient {
       ),
     );
   }
+
+  /// Subscribes to changes of several properties of several objects with
+  /// one request (SubscribeCOVPropertyMultiple), e.g. to watch a whole
+  /// plant room. The device sends COVNotificationMultiple, which arrive as
+  /// one [CovNotificationEvent] per object on [covEvents] (with
+  /// [CovNotificationEvent.changeTimes] for timestamped references).
+  /// [maxNotificationDelay] lets the device collect changes before it
+  /// notifies.
+  ///
+  /// When the device refuses a subscription the
+  /// [BacnetProtocolException.firstFailedSubscription] names it; devices
+  /// without the service reject the request
+  /// ([BacnetRejectException]), use [subscribeCOV] for those.
+  ///
+  /// ```dart
+  /// await client.subscribeCOVPropertyMultiple(1234, [
+  ///   BacnetCovSubscriptionSpecification(supplyTemp, const [
+  ///     BacnetCovReference(BacnetPropertyId.presentValue, covIncrement: 0.2),
+  ///     BacnetCovReference(BacnetPropertyId.statusFlags),
+  ///   ]),
+  ///   BacnetCovSubscriptionSpecification(fan, const [
+  ///     BacnetCovReference(BacnetPropertyId.presentValue, timestamped: true),
+  ///   ]),
+  /// ], processId: 7, lifetime: const Duration(minutes: 10));
+  /// ```
+  Future<void> subscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration lifetime = const Duration(minutes: 5),
+    bool confirmed = false,
+    Duration? maxNotificationDelay,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.subscribeCovPropertyMultiple,
+      payload: encodeSubscribeCovPropertyMultiple(
+        subscriberProcessId: processId,
+        specifications: specifications,
+        confirmed: confirmed,
+        lifetime: lifetime.inSeconds,
+        maxNotificationDelay: maxNotificationDelay?.inSeconds,
+      ),
+      timeout: timeout,
+    ),
+  );
+
+  /// Cancels the subscriptions of [specifications] made with
+  /// [subscribeCOVPropertyMultiple].
+  Future<void> unsubscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.subscribeCovPropertyMultiple,
+      payload: encodeSubscribeCovPropertyMultiple(
+        subscriberProcessId: processId,
+        specifications: specifications,
+      ),
+      timeout: timeout,
+    ),
+  );
 
   // ---- lists ----------------------------------------------------------------
 
@@ -1039,6 +1255,335 @@ class BacnetClient {
       entries: entries,
     );
   }
+
+  // ---- device management ----------------------------------------------------
+
+  /// Enables or disables the communication of [deviceId]
+  /// (DeviceCommunicationControl) for [duration] (whole minutes, null for
+  /// indefinitely).
+  ///
+  /// [BacnetCommunicationState.disableInitiation] stops the device from
+  /// initiating requests (I-Am, notifications) but it still answers;
+  /// [BacnetCommunicationState.disable] also stops the answers except to
+  /// DeviceCommunicationControl and ReinitializeDevice. Devices that
+  /// require a [password] answer with a password failure without it.
+  ///
+  /// ```dart
+  /// await client.deviceCommunicationControl(
+  ///     1234, BacnetCommunicationState.disableInitiation,
+  ///     duration: const Duration(minutes: 30), password: 'secret');
+  /// ```
+  Future<void> deviceCommunicationControl(
+    int deviceId,
+    BacnetCommunicationState state, {
+    Duration? duration,
+    String? password,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.deviceCommunicationControl,
+      payload: encodeDeviceCommunicationControl(
+        state,
+        duration: duration,
+        password: password,
+      ),
+      timeout: timeout,
+    ),
+  );
+
+  /// Restarts [deviceId] or controls its backup and restore procedure
+  /// (ReinitializeDevice).
+  ///
+  /// ```dart
+  /// await client.reinitializeDevice(1234, BacnetReinitializedState.warmStart,
+  ///     password: 'secret');
+  /// ```
+  Future<void> reinitializeDevice(
+    int deviceId,
+    BacnetReinitializedState state, {
+    String? password,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.reinitializeDevice,
+      payload: encodeReinitializeDevice(state, password: password),
+      timeout: timeout,
+    ),
+  );
+
+  /// Creates an object in [deviceId] (CreateObject) and returns it: an
+  /// object of [type] whose instance the device chooses, or [object].
+  ///
+  /// [initialValues] are written while creating the object. When the
+  /// device rejects one, the [BacnetProtocolException] names its position
+  /// in [BacnetProtocolException.firstFailedElement] (1 based).
+  ///
+  /// ```dart
+  /// final setpoint = await client.createObject(1234,
+  ///     type: BacnetObjectType.analogValue,
+  ///     initialValues: const [
+  ///       BacnetPropertyValue(
+  ///         propertyIdentifier: BacnetPropertyId.objectName,
+  ///         value: BacnetCharacterString('Setpoint'),
+  ///       ),
+  ///     ]);
+  /// ```
+  Future<BacnetObject> createObject(
+    int deviceId, {
+    BacnetObjectType? type,
+    BacnetObject? object,
+    List<BacnetPropertyValue> initialValues = const [],
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<BacnetObject>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.createObject,
+      payload: encodeCreateObject(
+        type: type,
+        object: object,
+        initialValues: initialValues,
+      ),
+      decoding: AckDecoding.createObject,
+      timeout: timeout,
+    ),
+  );
+
+  /// Deletes [object] from [deviceId] (DeleteObject).
+  Future<void> deleteObject(
+    int deviceId,
+    BacnetObject object, {
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.deleteObject,
+      payload: encodeDeleteObject(object),
+      timeout: timeout,
+    ),
+  );
+
+  // ---- files ----------------------------------------------------------------
+
+  /// Reads up to [count] octets from position [start] of File object
+  /// [fileInstance] (AtomicReadFile, stream access).
+  ///
+  /// The answer has to fit into one APDU of the device unless it segments
+  /// answers; `readFile` (BacnetFileTransfer) reads whole files in fitting
+  /// chunks.
+  Future<BacnetFileChunk> readFileStream(
+    int deviceId,
+    int fileInstance, {
+    required int start,
+    required int count,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) =>
+      Future.sync(
+        () => _system.confirmed<AtomicReadFileData>(
+          deviceId: deviceId,
+          service: BacnetConfirmedService.atomicReadFile,
+          payload: encodeAtomicReadFile(
+            fileInstance,
+            start: start,
+            count: count,
+          ),
+          decoding: AckDecoding.atomicReadFile,
+          timeout: timeout,
+          background: background,
+          cancelToken: cancelToken,
+        ),
+      ).then(
+        (answer) =>
+            answer.chunk ??
+            (throw const BacnetDecodeException(
+              'AtomicReadFile-ACK with records for a stream request',
+            )),
+      );
+
+  /// Reads up to [count] records from record [start] of File object
+  /// [fileInstance] (AtomicReadFile, record access).
+  Future<BacnetFileRecords> readFileRecords(
+    int deviceId,
+    int fileInstance, {
+    required int start,
+    required int count,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) =>
+      Future.sync(
+        () => _system.confirmed<AtomicReadFileData>(
+          deviceId: deviceId,
+          service: BacnetConfirmedService.atomicReadFile,
+          payload: encodeAtomicReadFile(
+            fileInstance,
+            start: start,
+            count: count,
+            records: true,
+          ),
+          decoding: AckDecoding.atomicReadFile,
+          timeout: timeout,
+          background: background,
+          cancelToken: cancelToken,
+        ),
+      ).then(
+        (answer) =>
+            answer.records ??
+            (throw const BacnetDecodeException(
+              'AtomicReadFile-ACK with a stream for a record request',
+            )),
+      );
+
+  /// Writes [data] to File object [fileInstance] at position [start]
+  /// (AtomicWriteFile, stream access; -1 appends) and returns the position
+  /// the device wrote to.
+  Future<int> writeFileStream(
+    int deviceId,
+    int fileInstance,
+    List<int> data, {
+    int start = 0,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => Future.sync(
+    () => _system.confirmed<int>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.atomicWriteFile,
+      payload: encodeAtomicWriteFileStream(fileInstance, data, start: start),
+      decoding: AckDecoding.atomicWriteFile,
+      timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
+    ),
+  );
+
+  /// Writes [records] to File object [fileInstance] from record [start]
+  /// (AtomicWriteFile, record access; -1 appends) and returns the first
+  /// record the device wrote.
+  Future<int> writeFileRecords(
+    int deviceId,
+    int fileInstance,
+    List<List<int>> records, {
+    int start = 0,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => Future.sync(
+    () => _system.confirmed<int>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.atomicWriteFile,
+      payload: encodeAtomicWriteFileRecords(
+        fileInstance,
+        records,
+        start: start,
+      ),
+      decoding: AckDecoding.atomicWriteFile,
+      timeout: timeout,
+      background: background,
+      cancelToken: cancelToken,
+    ),
+  );
+
+  // ---- vendor services and messages -----------------------------------------
+
+  /// Calls the vendor specific service [serviceNumber] of [vendorId] in
+  /// [deviceId] (ConfirmedPrivateTransfer) and returns its result block.
+  Future<BacnetValue?> privateTransfer(
+    int deviceId,
+    int vendorId,
+    int serviceNumber, {
+    BacnetValue? parameters,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<BacnetValue?>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.privateTransfer,
+      payload: encodePrivateTransfer(
+        vendorId,
+        serviceNumber,
+        parameters: parameters,
+      ),
+      decoding: AckDecoding.privateTransfer,
+      timeout: timeout,
+    ),
+  );
+
+  /// Sends an UnconfirmedPrivateTransfer to [deviceId], or as broadcast.
+  Future<void> sendPrivateTransfer(
+    int vendorId,
+    int serviceNumber, {
+    BacnetValue? parameters,
+    int? deviceId,
+    int network = 0xFFFF,
+  }) => Future.sync(
+    () => _system.call<void>(
+      (id) => UnconfirmedRequestCommand(
+        id,
+        service: BacnetUnconfirmedService.privateTransfer,
+        payload: encodePrivateTransfer(
+          vendorId,
+          serviceNumber,
+          parameters: parameters,
+        ),
+        deviceId: deviceId,
+        network: network,
+      ),
+    ),
+  );
+
+  /// Sends a text to [deviceId] and waits for the acknowledgement
+  /// (ConfirmedTextMessage). The message names the device instance of
+  /// [BacnetConfig.deviceInstance] as its source.
+  Future<void> textMessage(
+    int deviceId,
+    String message, {
+    bool urgent = false,
+    int? classNumber,
+    String? classText,
+    Duration? timeout,
+  }) => Future.sync(
+    () => _system.confirmed<void>(
+      deviceId: deviceId,
+      service: BacnetConfirmedService.textMessage,
+      payload: encodeTextMessage(
+        _config.deviceInstance,
+        message,
+        urgent: urgent,
+        classNumber: classNumber,
+        classText: classText,
+      ),
+      timeout: timeout,
+    ),
+  );
+
+  /// Sends an UnconfirmedTextMessage to [deviceId], or as broadcast.
+  Future<void> sendTextMessage(
+    String message, {
+    int? deviceId,
+    int network = 0xFFFF,
+    bool urgent = false,
+    int? classNumber,
+    String? classText,
+  }) => Future.sync(
+    () => _system.call<void>(
+      (id) => UnconfirmedRequestCommand(
+        id,
+        service: BacnetUnconfirmedService.textMessage,
+        payload: encodeTextMessage(
+          _config.deviceInstance,
+          message,
+          urgent: urgent,
+          classNumber: classNumber,
+          classText: classText,
+        ),
+        deviceId: deviceId,
+        network: network,
+      ),
+    ),
+  );
 
   /// Sends a (UTC)TimeSynchronization to a device or as broadcast.
   Future<void> timeSynchronization(

@@ -489,6 +489,12 @@ abstract final class BacnetProperties {
     _string,
   );
 
+  /// Serial_Number (the identity of Who-Am-I, with the vendor and model).
+  static const serialNumber = BacnetProperty<String>(
+    BacnetPropertyId.serialNumber,
+    _string,
+  );
+
   /// Location.
   static const location = BacnetWritableProperty<String>(
     BacnetPropertyId.location,
@@ -507,6 +513,26 @@ abstract final class BacnetProperties {
     BacnetPropertyId.protocolRevision,
     _unsigned,
   );
+
+  /// Protocol_Services_Supported: the services the device executes.
+  ///
+  /// ```dart
+  /// final services = await client.read(1234, device,
+  ///     BacnetProperties.protocolServicesSupported);
+  /// if (services.contains(BacnetServiceSupported.readPropertyMultiple)) ...
+  /// ```
+  static const protocolServicesSupported =
+      BacnetProperty<Set<BacnetServiceSupported>>(
+        BacnetPropertyId.protocolServicesSupported,
+        _servicesSupported,
+      );
+
+  /// Protocol_Object_Types_Supported: the object types the device knows.
+  static const protocolObjectTypesSupported =
+      BacnetProperty<Set<BacnetObjectType>>(
+        BacnetPropertyId.protocolObjectTypesSupported,
+        _objectTypesSupported,
+      );
 
   /// Max_APDU_Length_Accepted.
   static const maxApduLengthAccepted = BacnetProperty<int>(
@@ -550,6 +576,52 @@ abstract final class BacnetProperties {
   static const localTime = BacnetProperty<BacnetTime>(
     BacnetPropertyId.localTime,
     _time,
+  );
+
+  /// Configuration_Files of the Device object: the File objects a backup
+  /// reads and a restore writes.
+  static const configurationFiles = BacnetProperty<List<BacnetObject>>(
+    BacnetPropertyId.configurationFiles,
+    _objectList,
+  );
+
+  /// Backup_And_Restore_State of the Device object.
+  static const backupAndRestoreState = BacnetProperty<BacnetBackupState>(
+    BacnetPropertyId.backupAndRestoreState,
+    _backupState,
+  );
+
+  /// Backup_Preparation_Time in seconds: how long the device may not answer
+  /// after accepting a backup.
+  static const backupPreparationTime = BacnetProperty<int>(
+    BacnetPropertyId.backupPreparationTime,
+    _unsigned,
+  );
+
+  /// Restore_Preparation_Time in seconds.
+  static const restorePreparationTime = BacnetProperty<int>(
+    BacnetPropertyId.restorePreparationTime,
+    _unsigned,
+  );
+
+  /// Restore_Completion_Time in seconds: how long the device may not answer
+  /// after the end of a restore.
+  static const restoreCompletionTime = BacnetProperty<int>(
+    BacnetPropertyId.restoreCompletionTime,
+    _unsigned,
+  );
+
+  /// Backup_Failure_Timeout in seconds.
+  static const backupFailureTimeout = BacnetWritableProperty<int>(
+    BacnetPropertyId.backupFailureTimeout,
+    _unsigned,
+    _encodeUnsigned,
+  );
+
+  /// Last_Restore_Time of the Device object.
+  static const lastRestoreTime = BacnetProperty<BacnetTimeStamp>(
+    BacnetPropertyId.lastRestoreTime,
+    BacnetTimeStamp.fromValue,
   );
 
   /// Device_Address_Binding.
@@ -597,6 +669,40 @@ abstract final class BacnetProperties {
         BacnetDeviceObjectPropertyReference.listFromValue,
         BacnetDeviceObjectPropertyReference.listToValue,
       );
+
+  /// Present_Value of a Schedule object: the value it writes now.
+  static const schedulePresentValue = BacnetWritableProperty<BacnetValue>(
+    BacnetPropertyId.presentValue,
+    _any,
+    _any,
+  );
+
+  /// Priority_For_Writing of a Schedule object (1..16).
+  static const priorityForWriting = BacnetProperty<int>(
+    BacnetPropertyId.priorityForWriting,
+    _unsigned,
+  );
+
+  /// Present_Value of a Calendar object: true when today is in Date_List.
+  static const calendarPresentValue = BacnetProperty<bool>(
+    BacnetPropertyId.presentValue,
+    _boolean,
+  );
+
+  /// Channel_Number of a Channel object: WriteGroup addresses channels by
+  /// it.
+  static const channelNumber = BacnetWritableProperty<int>(
+    BacnetPropertyId.channelNumber,
+    _unsigned,
+    _encodeUnsigned,
+  );
+
+  /// Control_Groups of a Channel object: the WriteGroup group numbers it
+  /// follows (0: unused element).
+  static const controlGroups = BacnetProperty<List<int>>(
+    BacnetPropertyId.controlGroups,
+    _unsignedList,
+  );
 
   /// Date_List of a Calendar object.
   static const dateList = BacnetWritableProperty<List<BacnetCalendarEntry>>(
@@ -669,6 +775,48 @@ abstract final class BacnetProperties {
     BacnetPropertyId.totalRecordCount,
     _unsigned,
   );
+
+  // ---- file ----------------------------------------------------------------------
+
+  /// File_Type of a File object: a media type such as `text/plain`.
+  static const fileType = BacnetWritableProperty<String>(
+    BacnetPropertyId.fileType,
+    _string,
+    _encodeString,
+  );
+
+  /// File_Size of a File object in octets; writing it truncates or extends
+  /// a stream file where the device allows it.
+  static const fileSize = BacnetWritableProperty<int>(
+    BacnetPropertyId.fileSize,
+    _unsigned,
+    _encodeUnsigned,
+  );
+
+  /// Modification_Date of a File object: the time of the last change.
+  static const modificationDate = BacnetProperty<BacnetDateTime>(
+    BacnetPropertyId.modificationDate,
+    BacnetDateTime.fromValue,
+  );
+
+  /// Archive of a File object: set by a backup, cleared by changes.
+  static const archive = BacnetWritableProperty<bool>(
+    BacnetPropertyId.archive,
+    _boolean,
+    _encodeBoolean,
+  );
+
+  /// Read_Only of a File object.
+  static const readOnly = BacnetProperty<bool>(
+    BacnetPropertyId.readOnly,
+    _boolean,
+  );
+
+  /// File_Access_Method of a File object: stream or record access.
+  static const fileAccessMethod = BacnetProperty<BacnetFileAccessMethod>(
+    BacnetPropertyId.fileAccessMethod,
+    _fileAccessMethod,
+  );
 }
 
 /// Typed access to the results of [BacnetClient.readMultiple].
@@ -694,6 +842,16 @@ Never _wrongType(String expected, BacnetValue value) =>
 
 BacnetValue _any(BacnetValue value) => value;
 
+BacnetBackupState _backupState(BacnetValue value) => switch (value) {
+  BacnetEnumerated(:final value) => BacnetBackupState(value),
+  _ => _wrongType('Enumerated', value),
+};
+
+BacnetFileAccessMethod _fileAccessMethod(BacnetValue value) => switch (value) {
+  BacnetEnumerated(:final value) => BacnetFileAccessMethod(value),
+  _ => _wrongType('Enumerated', value),
+};
+
 double _real(BacnetValue value) => switch (value) {
   BacnetReal(:final value) => value,
   _ => _wrongType('Real', value),
@@ -708,6 +866,9 @@ int _unsigned(BacnetValue value) => switch (value) {
   BacnetUnsigned(:final value) => value,
   _ => _wrongType('Unsigned', value),
 };
+
+List<int> _unsignedList(BacnetValue value) =>
+    List.unmodifiable(value.asList.map(_unsigned));
 
 int _signed(BacnetValue value) => switch (value) {
   BacnetSigned(:final value) => value,
@@ -773,6 +934,20 @@ BacnetDeviceStatus _deviceStatus(BacnetValue value) =>
 
 BacnetSegmentation _segmentation(BacnetValue value) =>
     BacnetSegmentation(_enumerated(value));
+
+Set<int> _setBits(BacnetValue value) => switch (value) {
+  BacnetBitString(:final bits) => {
+    for (var i = 0; i < bits.length; i++)
+      if (bits[i]) i,
+  },
+  _ => _wrongType('BitString', value),
+};
+
+Set<BacnetServiceSupported> _servicesSupported(BacnetValue value) =>
+    Set.unmodifiable(_setBits(value).map(BacnetServiceSupported.new));
+
+Set<BacnetObjectType> _objectTypesSupported(BacnetValue value) =>
+    Set.unmodifiable(_setBits(value).map(BacnetObjectType.new));
 
 List<BacnetObject> _objectList(BacnetValue value) =>
     List.unmodifiable(value.asList.map(_objectId));

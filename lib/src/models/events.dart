@@ -8,7 +8,9 @@ import '../constants/property_ids.dart';
 import '../core/types.dart';
 import 'alarms.dart';
 import 'bacnet_value.dart';
+import 'channels.dart';
 import 'complex_values.dart';
+import 'network.dart';
 
 /// Base class of the unsolicited events delivered by the BACnet stack.
 ///
@@ -125,6 +127,8 @@ class CovNotificationEvent extends BacnetEvent {
     this.timeRemaining = 0,
     this.values = const {},
     this.confirmed = false,
+    this.notificationTime,
+    this.changeTimes = const {},
   });
 
   /// Object type of the monitored object.
@@ -150,6 +154,13 @@ class CovNotificationEvent extends BacnetEvent {
 
   /// True for a confirmed notification.
   final bool confirmed;
+
+  /// When the device sent a COVNotificationMultiple, if it says so.
+  final BacnetDateTime? notificationTime;
+
+  /// When the properties of timestamped references changed (see
+  /// `BacnetCovReference.timestamped`).
+  final Map<BacnetPropertyId, BacnetTime> changeTimes;
 
   /// The monitored object.
   BacnetObject get object => BacnetObject(type: objectType, instance: instance);
@@ -178,6 +189,7 @@ class PropertyWriteEvent extends BacnetEvent {
     this.index = -1,
     this.priority = 16,
     this.rawValue,
+    this.internal = false,
   });
 
   /// Object type written to.
@@ -203,10 +215,16 @@ class PropertyWriteEvent extends BacnetEvent {
   /// Application encoded value as received.
   final Uint8List? rawValue;
 
+  /// True when an object of the server wrote the value (a Schedule writing
+  /// its present value to the members of
+  /// List_Of_Object_Property_References), false for a remote client.
+  final bool internal;
+
   @override
   String toString() =>
       'PropertyWriteEvent($objectType:$instance '
-      'property $propertyId = $value @ $priority)';
+      'property $propertyId = $value @ $priority'
+      '${internal ? ', internal' : ''})';
 }
 
 /// An I-Have: [deviceId] hosts [object] named [objectName] (the answer to
@@ -437,6 +455,68 @@ class AlarmAcknowledgedEvent extends BacnetEvent {
       'AlarmAcknowledgedEvent($object ${eventState.label} by "$source")';
 }
 
+/// A remote client changed the communication of the local server with
+/// DeviceCommunicationControl (only accepted requests, i.e. with the
+/// password of `BacnetServer.init`).
+///
+/// The native stack applies the state itself: while disabled the server
+/// answers only DeviceCommunicationControl and ReinitializeDevice, and
+/// requests of clients in the same process fail with "communication
+/// disabled".
+class CommunicationControlEvent extends BacnetEvent {
+  /// Creates the event.
+  const CommunicationControlEvent({
+    required this.state,
+    this.duration,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// The new communication state.
+  final BacnetCommunicationState state;
+
+  /// How long the state lasts (null: until changed).
+  final Duration? duration;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  @override
+  String toString() =>
+      'CommunicationControlEvent(${state.label}'
+      '${duration == null ? '' : ' for ${duration!.inMinutes} min'})';
+}
+
+/// A remote client asked the local server to reinitialize
+/// (ReinitializeDevice; only accepted requests, i.e. with the password of
+/// `BacnetServer.init`).
+///
+/// The server acknowledged the request; restarting (cold or warm start) or
+/// running the backup or restore procedure is up to the application.
+class ReinitializeDeviceEvent extends BacnetEvent {
+  /// Creates the event.
+  const ReinitializeDeviceEvent({
+    required this.state,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// The requested state.
+  final BacnetReinitializedState state;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  @override
+  String toString() => 'ReinitializeDeviceEvent(${state.label})';
+}
+
 /// A remote client added elements to or removed elements from a list
 /// property of the local server (AddListElement/RemoveListElement), e.g.
 /// the Recipient_List of a Notification Class.
@@ -487,6 +567,225 @@ class ListElementEvent extends BacnetEvent {
   String toString() =>
       'ListElementEvent(${added ? 'added to' : 'removed from'} $object '
       '${propertyId.label}: $elements)';
+}
+
+/// A Who-Am-I: a device without a configured device instance asks a
+/// supervisor for one; answer with `BacnetClient.sendYouAre`.
+class WhoAmIEvent extends BacnetEvent {
+  /// Creates the event.
+  const WhoAmIEvent({
+    required this.vendorId,
+    required this.modelName,
+    required this.serialNumber,
+    this.mac = const [],
+    this.net = 0,
+    this.adr = const [],
+  });
+
+  /// Vendor of the device.
+  final int vendorId;
+
+  /// Model_Name of the device.
+  final String modelName;
+
+  /// Serial_Number of the device.
+  final String serialNumber;
+
+  /// Source MAC address (BACnet/IP: 4 bytes IPv4 + 2 bytes port).
+  final List<int> mac;
+
+  /// Source network number (0 = local network).
+  final int net;
+
+  /// Address of the device on network [net] (empty on the local network).
+  final List<int> adr;
+
+  /// IPv4 address of the device (or of its router), if BACnet/IP.
+  String? get ipAddress =>
+      mac.length >= 4 ? '${mac[0]}.${mac[1]}.${mac[2]}.${mac[3]}' : null;
+
+  /// The address of the device, to answer it directly with
+  /// `BacnetClient.sendYouAre`.
+  BacnetAddressRecipient get source => net == 0
+      ? BacnetAddressRecipient(network: 0, mac: mac)
+      : BacnetAddressRecipient(network: net, mac: adr);
+
+  @override
+  String toString() =>
+      'WhoAmIEvent(vendor $vendorId, $modelName, serial $serialNumber)';
+}
+
+/// A You-Are: a supervisor assigns a device instance (and MAC address) to
+/// the device with [vendorId], [modelName] and [serialNumber].
+class YouAreEvent extends BacnetEvent {
+  /// Creates the event.
+  const YouAreEvent({
+    required this.vendorId,
+    required this.modelName,
+    required this.serialNumber,
+    this.deviceId,
+    this.macAddress,
+    this.mac = const [],
+    this.net = 0,
+    this.adr = const [],
+  });
+
+  /// Vendor of the addressed device.
+  final int vendorId;
+
+  /// Model_Name of the addressed device.
+  final String modelName;
+
+  /// Serial_Number of the addressed device.
+  final String serialNumber;
+
+  /// The assigned device instance.
+  final int? deviceId;
+
+  /// The assigned MAC address.
+  final Uint8List? macAddress;
+
+  /// Source MAC address of the supervisor.
+  final List<int> mac;
+
+  /// Source network number of the supervisor.
+  final int net;
+
+  /// Address of the supervisor on network [net] (empty on the local
+  /// network).
+  final List<int> adr;
+
+  /// The address of the supervisor.
+  BacnetAddressRecipient get source => net == 0
+      ? BacnetAddressRecipient(network: 0, mac: mac)
+      : BacnetAddressRecipient(network: net, mac: adr);
+
+  /// True when the request addresses the device with [vendorId],
+  /// [modelName] and [serialNumber].
+  bool addresses({
+    required int vendorId,
+    required String modelName,
+    required String serialNumber,
+  }) =>
+      this.vendorId == vendorId &&
+      this.modelName == modelName &&
+      this.serialNumber == serialNumber;
+
+  @override
+  String toString() =>
+      'YouAreEvent(device $deviceId for vendor $vendorId, $modelName, '
+      'serial $serialNumber)';
+}
+
+/// A WriteGroup received by the server: values for the Channel objects
+/// whose Control_Groups contain [groupNumber].
+class WriteGroupEvent extends BacnetEvent {
+  /// Creates the event.
+  const WriteGroupEvent({
+    required this.groupNumber,
+    required this.writePriority,
+    required this.changes,
+    this.inhibitDelay,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// The control group.
+  final int groupNumber;
+
+  /// Priority of the writes (1..16).
+  final int writePriority;
+
+  /// The values per channel number.
+  final List<BacnetGroupChannelValue> changes;
+
+  /// Whether the channels skip their write delay, if given.
+  final bool? inhibitDelay;
+
+  /// Source MAC address of the client.
+  final List<int> mac;
+
+  /// Source network number of the client.
+  final int net;
+
+  @override
+  String toString() =>
+      'WriteGroupEvent(group $groupNumber @ $writePriority: $changes)';
+}
+
+/// A remote client wrote to a File object of the server (AtomicWriteFile,
+/// see `BacnetServer.addFile`).
+class FileWriteEvent extends BacnetEvent {
+  /// Creates a file write event.
+  const FileWriteEvent({
+    required this.instance,
+    required this.start,
+    required this.data,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// Instance of the File object.
+  final int instance;
+
+  /// Position of the first written octet (also for appends).
+  final int start;
+
+  /// The written octets.
+  final Uint8List data;
+
+  /// Source MAC address of the client.
+  final List<int> mac;
+
+  /// Source network number of the client.
+  final int net;
+
+  @override
+  String toString() =>
+      'FileWriteEvent(file $instance, ${data.length} octets at $start)';
+}
+
+/// A network layer message (clause 6.4) received from a router or another
+/// device: I-Am-Router-To-Network, Network-Number-Is,
+/// Reject-Message-To-Network, ...
+class NetworkMessageEvent extends BacnetEvent {
+  /// Creates a network message event.
+  const NetworkMessageEvent({
+    required this.message,
+    this.mac = const [],
+    this.net = 0,
+    this.adr = const [],
+    this.destinationNetwork = 0,
+  });
+
+  /// The message.
+  final BacnetNetworkMessage message;
+
+  /// Source MAC address (BACnet/IP: 4 bytes IPv4 + 2 bytes port).
+  final List<int> mac;
+
+  /// Source network number (0 = local network).
+  final int net;
+
+  /// MAC address of the source behind a router (empty for local sources).
+  final List<int> adr;
+
+  /// Destination network of the message: 0 for the local network, 0xFFFF
+  /// for a global broadcast.
+  final int destinationNetwork;
+
+  /// IPv4 address of the source (or of its router), if BACnet/IP.
+  String? get ipAddress =>
+      mac.length >= 4 ? '${mac[0]}.${mac[1]}.${mac[2]}.${mac[3]}' : null;
+
+  /// UDP port of the source (or of its router), if BACnet/IP.
+  int? get port => mac.length >= 6 ? (mac[4] << 8) | mac[5] : null;
+
+  @override
+  String toString() =>
+      'NetworkMessageEvent($message from '
+      '${ipAddress != null ? '$ipAddress:$port' : mac}'
+      '${net == 0 ? '' : ' on network $net'})';
 }
 
 /// Any other unconfirmed service request, and requests that could not be

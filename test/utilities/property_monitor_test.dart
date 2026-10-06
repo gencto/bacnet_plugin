@@ -40,6 +40,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(Duration.zero);
     registerFallbackValue(BacnetLogLevel.info);
+    registerFallbackValue(object);
   });
 
   setUp(() {
@@ -65,6 +66,14 @@ void main() {
       ),
     ).thenAnswer((_) async {});
     when(() => client.log(any(), any(), any(), any())).thenReturn(null);
+    // a device without SubscribeCOVPropertyMultiple
+    when(
+      () => client.read(
+        deviceId,
+        any(),
+        BacnetProperties.protocolServicesSupported,
+      ),
+    ).thenAnswer((_) async => {BacnetServiceSupported.subscribeCov});
   });
 
   tearDown(() => covController.close());

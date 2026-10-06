@@ -78,6 +78,10 @@ enum AckDecoding {
   readRange,
   getEventInformation,
   getAlarmSummary,
+  createObject,
+  atomicReadFile,
+  atomicWriteFile,
+  privateTransfer,
 }
 
 /// A confirmed request with pre-encoded service data.
@@ -122,12 +126,39 @@ class UnconfirmedRequestCommand extends WorkerCommand {
     required this.payload,
     this.deviceId,
     this.network = 0xFFFF,
+    this.mac,
+    this.adr = const [],
   });
 
   final int service;
   final Uint8List payload;
   final int? deviceId;
   final int network;
+
+  /// Sends to this MAC address (empty: a local broadcast that routers
+  /// forward to [network] and [adr]) instead of [deviceId].
+  final List<int>? mac;
+  final List<int> adr;
+}
+
+/// Sends a network layer message (a local broadcast when [mac] is empty).
+class NetworkMessageCommand extends WorkerCommand {
+  const NetworkMessageCommand(
+    super.id, {
+    required this.messageType,
+    required this.payload,
+    this.mac = const [],
+    this.network = 0,
+    this.adr = const [],
+    this.vendorId = 0,
+  });
+
+  final int messageType;
+  final Uint8List payload;
+  final List<int> mac;
+  final int network;
+  final List<int> adr;
+  final int vendorId;
 }
 
 /// Adds a static address binding.
@@ -156,12 +187,12 @@ class UnbindDeviceCommand extends WorkerCommand {
   final int deviceId;
 }
 
-/// Queries the address binding of a device.
 /// Returns the own BACnet/IP address as a list of 6 bytes.
 class LocalAddressCommand extends WorkerCommand {
   const LocalAddressCommand(super.id);
 }
 
+/// Queries the address binding of a device.
 class DeviceBindingCommand extends WorkerCommand {
   const DeviceBindingCommand(super.id, this.deviceId);
   final int deviceId;
@@ -189,6 +220,7 @@ class ServerEnableCommand extends WorkerCommand {
     required this.deviceName,
     this.strings = const {},
     this.vendorId,
+    this.password,
   });
 
   final int deviceId;
@@ -197,6 +229,23 @@ class ServerEnableCommand extends WorkerCommand {
   /// Device string properties (property id -> value).
   final Map<int, String> strings;
   final int? vendorId;
+
+  /// Password of DeviceCommunicationControl and ReinitializeDevice; null
+  /// refuses both (a random password).
+  final String? password;
+}
+
+/// Sets the password of DeviceCommunicationControl and ReinitializeDevice
+/// (null refuses both).
+class SetPasswordCommand extends WorkerCommand {
+  const SetPasswordCommand(super.id, this.password);
+  final String? password;
+}
+
+/// Changes the instance of the local Device object.
+class SetDeviceInstanceCommand extends WorkerCommand {
+  const SetDeviceInstanceCommand(super.id, this.deviceId);
+  final int deviceId;
 }
 
 /// Broadcasts an I-Am of the local device.
@@ -228,6 +277,73 @@ class CreateObjectCommand extends WorkerCommand {
   final List<String>? stateTexts;
   final double? presentValue;
   final String? presentValueString;
+}
+
+/// Appends a record to a Trend Log of the server; returns true when
+/// recorded (false while the log is disabled).
+class TrendLogAppendCommand extends WorkerCommand {
+  const TrendLogAppendCommand(
+    super.id,
+    this.instance,
+    this.payload, {
+    this.statusFlags = -1,
+  });
+  final int instance;
+
+  /// Application encoded value.
+  final Uint8List payload;
+
+  /// Status flags bits, -1 to leave them out.
+  final int statusFlags;
+}
+
+/// Lets clients back up and restore the server.
+class BackupConfigureCommand extends WorkerCommand {
+  const BackupConfigureCommand(
+    super.id, {
+    required this.files,
+    required this.prepare,
+    required this.apply,
+    required this.failureTimeoutSeconds,
+  });
+  final List<int> files;
+  final bool prepare;
+  final bool apply;
+  final int failureTimeoutSeconds;
+}
+
+/// Sets Backup_And_Restore_State of the server.
+class BackupStateCommand extends WorkerCommand {
+  const BackupStateCommand(super.id, this.state);
+  final int state;
+}
+
+/// Replaces the content of a File object of the server.
+class SetFileContentCommand extends WorkerCommand {
+  const SetFileContentCommand(super.id, this.instance, this.content);
+  final int instance;
+  final Uint8List content;
+}
+
+/// Returns the content of a File object of the server as Uint8List.
+class FileContentCommand extends WorkerCommand {
+  const FileContentCommand(super.id, this.instance);
+  final int instance;
+}
+
+/// Sets File_Type and Read_Only of a File object (null keeps them).
+class ConfigureFileCommand extends WorkerCommand {
+  const ConfigureFileCommand(
+    super.id,
+    this.instance, {
+    this.fileType,
+    this.readOnly,
+    this.maxSize,
+  });
+  final int instance;
+  final String? fileType;
+  final bool? readOnly;
+  final int? maxSize;
 }
 
 /// Deletes a server object.

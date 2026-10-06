@@ -13,7 +13,6 @@
 #include "bacnet/basic/bbmd/h_bbmd.h"
 #include "bacnet/basic/npdu/h_npdu.h"
 #include "bacnet/basic/object/device.h"
-#include "bacnet/basic/object/trendlog.h"
 #include "bacnet/basic/services.h"
 #include "bacnet/basic/sys/mstimer.h"
 #include "bacnet/basic/tsm/tsm.h"
@@ -53,8 +52,8 @@ static void bp_timers(void)
             dcc_timer_seconds(seconds);
             if (bp_state.server_enabled) {
                 handler_cov_timer_seconds(seconds);
-                trend_log_timer((uint16_t)seconds);
                 bp_event_reporting(seconds);
+                bp_backup_timer(seconds);
             }
             if (bp_state.fdr_ttl > 0) {
                 uint32_t renew =
@@ -99,7 +98,15 @@ static bool bp_accept_reply(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
     memset(&dest, 0, sizeof(dest));
     memset(&npdu_data, 0, sizeof(npdu_data));
     offset = bacnet_npdu_decode(pdu, len, &dest, &full_src, &npdu_data);
-    if (offset <= 0 || offset + 2 > len || npdu_data.network_layer_message) {
+    if (offset > 0 && offset <= len && npdu_data.network_layer_message) {
+        /* reported, then handled by the stack too (Network-Number-Is,
+           I-Am-Router-To-Network of Notification Class recipients) */
+        bp_network_received(
+            &full_src, &dest, &npdu_data, &pdu[offset],
+            (uint16_t)(len - offset));
+        return true;
+    }
+    if (offset <= 0 || offset + 2 > len) {
         return true;
     }
     type = pdu[offset] & 0xF0;
@@ -176,13 +183,18 @@ BP_API int32_t bacnet_plugin_poll(uint32_t timeout_ms, uint32_t max_packets)
             break;
         }
         processed++;
-        bp_state.stats.packets_received++;
-        if (bp_accept_reply(&src, bp_state.rx_buf, len)) {
-            npdu_handler(&src, bp_state.rx_buf, len);
-        }
+        bp_receive_packet(&src, bp_state.rx_buf, len);
     }
     bp_timers();
     return processed;
+}
+
+void bp_receive_packet(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
+{
+    bp_state.stats.packets_received++;
+    if (bp_accept_reply(src, pdu, len)) {
+        npdu_handler(src, pdu, len);
+    }
 }
 
 /* ---- lifecycle --------------------------------------------------------- */
@@ -229,6 +241,10 @@ BP_API int32_t bacnet_plugin_init(
     datetime_init();
     /* application objects only: no demo instances of the default table */
     Device_Init(BP_Object_Table);
+    /* after Device_Init(), which links the objects to Device_Write_Property */
+    bp_internal_writes_init();
+    bp_state.internal_write = false;
+    bp_backup_reset();
     if (device_instance <= BACNET_MAX_INSTANCE) {
         (void)Device_Set_Object_Instance_Number(device_instance);
     }

@@ -5,10 +5,13 @@ import 'package:meta/meta.dart';
 import '../constants/enumerations.dart';
 import '../constants/object_types.dart';
 import '../models/bacnet_value.dart';
+import '../models/channels.dart';
 import '../models/complex_values.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/wpm_models.dart';
+import 'responses.dart' show CovObjectNotification;
 import 'value_encoding.dart';
 import 'writer.dart';
 
@@ -142,6 +145,92 @@ Uint8List encodeSubscribeCovProperty({
   if (arrayIndex >= 0) w.ctxUnsigned(1, arrayIndex);
   w.closing(4);
   if (covIncrement != null && !cancel) w.ctxReal(5, covIncrement);
+  return w.toBytes();
+}
+
+/// Encodes a SubscribeCOVPropertyMultiple request (ASHRAE 135 clause
+/// 13.16); without [confirmed] and [lifetime] it cancels the
+/// subscriptions of [specifications].
+Uint8List encodeSubscribeCovPropertyMultiple({
+  required int subscriberProcessId,
+  required List<BacnetCovSubscriptionSpecification> specifications,
+  bool? confirmed,
+  int? lifetime,
+  int? maxNotificationDelay,
+}) {
+  if (specifications.isEmpty) {
+    throw ArgumentError.value(specifications, 'specifications', 'is empty');
+  }
+  final w = BacnetWriter(32 + specifications.length * 24)
+    ..ctxUnsigned(0, subscriberProcessId);
+  if (confirmed != null) w.ctxBoolean(1, confirmed);
+  if (lifetime != null) w.ctxUnsigned(2, lifetime);
+  if (maxNotificationDelay != null) w.ctxUnsigned(3, maxNotificationDelay);
+  w.opening(4);
+  for (final specification in specifications) {
+    w
+      ..ctxObjectId(0, specification.object.type, specification.object.instance)
+      ..opening(1);
+    for (final reference in specification.references) {
+      w
+        ..opening(0)
+        ..ctxUnsigned(0, reference.property);
+      if (reference.arrayIndex case final index?) w.ctxUnsigned(1, index);
+      w.closing(0);
+      if (reference.covIncrement case final increment?) {
+        w.ctxReal(1, increment);
+      }
+      w.ctxBoolean(2, reference.timestamped);
+    }
+    w.closing(1);
+  }
+  w.closing(4);
+  return w.toBytes();
+}
+
+/// Encodes a (Confirmed or Unconfirmed)COVNotificationMultiple request
+/// (ASHRAE 135 clause 13.17).
+Uint8List encodeCovNotificationMultiple({
+  required int subscriberProcessId,
+  required int initiatingDeviceId,
+  required int timeRemaining,
+  required List<CovObjectNotification> notifications,
+  BacnetDateTime? timestamp,
+}) {
+  final w = BacnetWriter()
+    ..ctxUnsigned(0, subscriberProcessId)
+    ..ctxObjectId(1, BacnetObjectType.device, initiatingDeviceId)
+    ..ctxUnsigned(2, timeRemaining);
+  if (timestamp != null) {
+    w
+      ..opening(3)
+      ..appDate(timestamp.date)
+      ..appTime(timestamp.time)
+      ..closing(3);
+  }
+  w.opening(4);
+  for (final notification in notifications) {
+    w
+      ..ctxObjectId(0, notification.object.type, notification.object.instance)
+      ..opening(1);
+    for (final value in notification.values) {
+      w.ctxUnsigned(0, value.propertyId);
+      if (value.arrayIndex >= 0) w.ctxUnsigned(1, value.arrayIndex);
+      w.opening(2);
+      encodeApplicationValue(w, value.value);
+      w.closing(2);
+      if (notification.changeTimes[value.propertyId] case final time?) {
+        w.ctxRaw(3, [
+          time.hour ?? 0xFF,
+          time.minute ?? 0xFF,
+          time.second ?? 0xFF,
+          time.hundredths ?? 0xFF,
+        ]);
+      }
+    }
+    w.closing(1);
+  }
+  w.closing(4);
   return w.toBytes();
 }
 
@@ -389,4 +478,259 @@ Uint8List encodeListElements(
   encodeApplicationValue(w, elements);
   w.closing(3);
   return w.toBytes();
+}
+
+// ---- device management -------------------------------------------------------
+
+/// Encodes a DeviceCommunicationControl request (ASHRAE 135 clause 16.1);
+/// [duration] in whole minutes (1..65535), null for indefinitely.
+Uint8List encodeDeviceCommunicationControl(
+  BacnetCommunicationState state, {
+  Duration? duration,
+  String? password,
+}) {
+  final w = BacnetWriter(32);
+  if (duration != null) {
+    final minutes = duration.inMinutes;
+    if (minutes < 1 || minutes > 0xFFFF) {
+      throw ArgumentError.value(
+        duration,
+        'duration',
+        'must be 1 to 65535 minutes',
+      );
+    }
+    w.ctxUnsigned(0, minutes);
+  }
+  w.ctxUnsigned(1, state);
+  if (password != null) w.ctxCharacterString(2, _password(password));
+  return w.toBytes();
+}
+
+/// Encodes a ReinitializeDevice request (ASHRAE 135 clause 16.4).
+Uint8List encodeReinitializeDevice(
+  BacnetReinitializedState state, {
+  String? password,
+}) {
+  final w = BacnetWriter(32)..ctxUnsigned(0, state);
+  if (password != null) w.ctxCharacterString(1, _password(password));
+  return w.toBytes();
+}
+
+String _password(String password) {
+  if (password.isEmpty || password.runes.length > 20) {
+    throw ArgumentError.value(
+      password,
+      'password',
+      'must have 1 to 20 characters',
+    );
+  }
+  return password;
+}
+
+/// Encodes a CreateObject request (ASHRAE 135 clause 15.3) for an object
+/// of [type] whose instance the device chooses, or for [object].
+Uint8List encodeCreateObject({
+  BacnetObjectType? type,
+  BacnetObject? object,
+  List<BacnetPropertyValue> initialValues = const [],
+}) {
+  if ((type == null) == (object == null)) {
+    throw ArgumentError('give either type or object');
+  }
+  final w = BacnetWriter()..opening(0);
+  if (object != null) {
+    w.ctxObjectId(1, object.type, object.instance);
+  } else {
+    w.ctxUnsigned(0, type!);
+  }
+  w.closing(0);
+  if (initialValues.isNotEmpty) {
+    w.opening(1);
+    for (final value in initialValues) {
+      w.ctxUnsigned(0, value.propertyIdentifier);
+      if (value.propertyArrayIndex >= 0) {
+        w.ctxUnsigned(1, value.propertyArrayIndex);
+      }
+      w.opening(2);
+      encodeApplicationValue(w, value.value);
+      w.closing(2);
+      if (value.priority >= 1 && value.priority < 16) {
+        w.ctxUnsigned(3, value.priority);
+      }
+    }
+    w.closing(1);
+  }
+  return w.toBytes();
+}
+
+/// Encodes a DeleteObject request (ASHRAE 135 clause 15.4).
+Uint8List encodeDeleteObject(BacnetObject object) =>
+    (BacnetWriter(8)..appObjectId(object.type, object.instance)).toBytes();
+
+/// Encodes an AtomicReadFile request with stream access ([records] false)
+/// or record access (ASHRAE 135 clause 14.1).
+Uint8List encodeAtomicReadFile(
+  int fileInstance, {
+  required int start,
+  required int count,
+  bool records = false,
+}) {
+  if (count < 0) throw ArgumentError.value(count, 'count', 'is negative');
+  final tag = records ? 1 : 0;
+  return (BacnetWriter(24)
+        ..appObjectId(BacnetObjectType.file, fileInstance)
+        ..opening(tag)
+        ..appSigned(start)
+        ..appUnsigned(count)
+        ..closing(tag))
+      .toBytes();
+}
+
+/// Encodes an AtomicWriteFile request with stream access (ASHRAE 135
+/// clause 14.2); a [start] of -1 appends to the file.
+Uint8List encodeAtomicWriteFileStream(
+  int fileInstance,
+  List<int> data, {
+  int start = 0,
+}) =>
+    (BacnetWriter(data.length + 24)
+          ..appObjectId(BacnetObjectType.file, fileInstance)
+          ..opening(0)
+          ..appSigned(start)
+          ..appOctetString(data)
+          ..closing(0))
+        .toBytes();
+
+/// Encodes an AtomicWriteFile request with record access; a [start] of -1
+/// appends the records.
+Uint8List encodeAtomicWriteFileRecords(
+  int fileInstance,
+  List<List<int>> records, {
+  int start = 0,
+}) {
+  final w = BacnetWriter()
+    ..appObjectId(BacnetObjectType.file, fileInstance)
+    ..opening(1)
+    ..appSigned(start)
+    ..appUnsigned(records.length);
+  for (final record in records) {
+    w.appOctetString(record);
+  }
+  return (w..closing(1)).toBytes();
+}
+
+/// Encodes a (Confirmed or Unconfirmed)PrivateTransfer request (ASHRAE
+/// 135 clause 16.2).
+Uint8List encodePrivateTransfer(
+  int vendorId,
+  int serviceNumber, {
+  BacnetValue? parameters,
+}) {
+  final w = BacnetWriter(32)
+    ..ctxUnsigned(0, vendorId)
+    ..ctxUnsigned(1, serviceNumber);
+  if (parameters != null) {
+    w.opening(2);
+    encodeApplicationValue(w, parameters);
+    w.closing(2);
+  }
+  return w.toBytes();
+}
+
+/// Encodes a Who-Am-I request: a device without a configured device
+/// instance asks a supervisor for one (ASHRAE 135 clause 16.11).
+Uint8List encodeWhoAmI({
+  required int vendorId,
+  required String modelName,
+  required String serialNumber,
+}) {
+  RangeError.checkValueInInterval(vendorId, 0, 0xFFFF, 'vendorId');
+  return (BacnetWriter(modelName.length + serialNumber.length + 16)
+        ..appUnsigned(vendorId)
+        ..appCharacterString(modelName)
+        ..appCharacterString(serialNumber))
+      .toBytes();
+}
+
+/// Encodes a You-Are request: assigns [deviceId] and [macAddress] to the
+/// device with [vendorId], [modelName] and [serialNumber] (ASHRAE 135
+/// clause 16.12).
+Uint8List encodeYouAre({
+  required int vendorId,
+  required String modelName,
+  required String serialNumber,
+  int? deviceId,
+  List<int>? macAddress,
+}) {
+  RangeError.checkValueInInterval(vendorId, 0, 0xFFFF, 'vendorId');
+  if (deviceId == null && macAddress == null) {
+    throw ArgumentError('give a deviceId, a macAddress or both');
+  }
+  final w = BacnetWriter(modelName.length + serialNumber.length + 32)
+    ..appUnsigned(vendorId)
+    ..appCharacterString(modelName)
+    ..appCharacterString(serialNumber);
+  if (deviceId != null) {
+    RangeError.checkValueInInterval(deviceId, 0, 0x3FFFFE, 'deviceId');
+    w.appObjectId(BacnetObjectType.device, deviceId);
+  }
+  if (macAddress != null) w.appOctetString(macAddress);
+  return w.toBytes();
+}
+
+/// Encodes a WriteGroup request (ASHRAE 135 clause 15.11): [changes] for
+/// the Channel objects whose Control_Groups contain [groupNumber].
+Uint8List encodeWriteGroup(
+  int groupNumber,
+  List<BacnetGroupChannelValue> changes, {
+  int writePriority = 16,
+  bool? inhibitDelay,
+}) {
+  RangeError.checkValueInInterval(groupNumber, 1, 0xFFFFFFFF, 'groupNumber');
+  RangeError.checkValueInInterval(writePriority, 1, 16, 'writePriority');
+  final w = BacnetWriter(32 + changes.length * 16)
+    ..ctxUnsigned(0, groupNumber)
+    ..ctxUnsigned(1, writePriority)
+    ..opening(2);
+  for (final change in changes) {
+    w.ctxUnsigned(0, change.channel);
+    if (change.overridingPriority case final priority?) {
+      w.ctxUnsigned(1, priority);
+    }
+    w.opening(2);
+    encodeApplicationValue(w, change.value);
+    w.closing(2);
+  }
+  w.closing(2);
+  if (inhibitDelay != null) w.ctxBoolean(3, inhibitDelay);
+  return w.toBytes();
+}
+
+/// Encodes a (Confirmed or Unconfirmed)TextMessage request from device
+/// [sourceDevice] (ASHRAE 135 clause 16.5).
+Uint8List encodeTextMessage(
+  int sourceDevice,
+  String message, {
+  bool urgent = false,
+  int? classNumber,
+  String? classText,
+}) {
+  if (classNumber != null && classText != null) {
+    throw ArgumentError('give at most one of classNumber and classText');
+  }
+  final w = BacnetWriter(message.length + 24)
+    ..ctxObjectId(0, BacnetObjectType.device, sourceDevice);
+  if (classNumber != null || classText != null) {
+    w.opening(1);
+    if (classNumber != null) {
+      w.ctxUnsigned(0, classNumber);
+    } else {
+      w.ctxCharacterString(1, classText!);
+    }
+    w.closing(1);
+  }
+  return (w
+        ..ctxUnsigned(2, urgent ? 1 : 0)
+        ..ctxCharacterString(3, message))
+      .toBytes();
 }

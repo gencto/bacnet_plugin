@@ -8,12 +8,17 @@
 #include <string.h>
 
 #include "bacnet/apdu.h"
+#include "bacnet/npdu.h"
+#include "bacnet/dcc.h"
 #include "bacnet/list_element.h"
+#include "bacnet/bacstr.h"
+#include "bacnet/rd.h"
 #include "bacnet/alarm_ack.h"
 #include "bacnet/basic/object/bv.h"
 #include "bacnet/basic/object/device.h"
 #include "bacnet/basic/object/ai.h"
 #include "bacnet/basic/object/av.h"
+#include "bacnet/basic/object/channel.h"
 #include "bacnet/basic/object/bi.h"
 #include "bacnet/basic/object/msv.h"
 #include "bacnet/basic/object/nc.h"
@@ -34,6 +39,9 @@ static bool bp_on_write_store(BACNET_WRITE_PROPERTY_DATA *wp_data)
         return true;
     }
     bp_event_init(&hdr, BP_EVENT_WRITE);
+    if (bp_state.internal_write) {
+        hdr.flags = BP_FLAG_INTERNAL;
+    }
     hdr.a = (uint32_t)wp_data->object_type;
     hdr.b = wp_data->object_instance;
     hdr.c = (uint32_t)wp_data->object_property;
@@ -69,6 +77,20 @@ static void bp_service_event(
     bp_event_push(&hdr, request, (uint32_t)request_len);
 }
 
+void bp_service_reported(
+    uint8_t service,
+    const uint8_t *request,
+    int request_len,
+    const BACNET_ADDRESS *src)
+{
+    if (src) {
+        bp_service_src = *src;
+        bp_service_src_valid = true;
+    }
+    bp_service_event(service, request, request_len);
+    bp_service_src_valid = false;
+}
+
 void bp_list_element_changed(
     uint8_t service, const BACNET_LIST_ELEMENT_DATA *list_element)
 {
@@ -100,6 +122,128 @@ void bp_list_element_changed(
         handler(request, len, src, service_data);                       \
         bp_service_src_valid = false;                                   \
     }
+
+uint8_t bp_reply_pdu_type(void)
+{
+    BACNET_ADDRESS dest;
+    BACNET_ADDRESS src;
+    BACNET_NPDU_DATA npdu_data;
+    int len;
+
+    len = bacnet_npdu_decode(
+        &Handler_Transmit_Buffer[0], sizeof(Handler_Transmit_Buffer), &dest,
+        &src, &npdu_data);
+    if (len <= 0 || len >= (int)sizeof(Handler_Transmit_Buffer) ||
+        npdu_data.network_layer_message) {
+        return 0xFF;
+    }
+    return Handler_Transmit_Buffer[len] & 0xF0;
+}
+
+/* True when the handler that just ran answered with a Simple-ACK. */
+static bool bp_reply_is_simple_ack(void)
+{
+    return bp_reply_pdu_type() == PDU_TYPE_SIMPLE_ACK;
+}
+
+static void bp_on_dcc(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data)
+{
+    uint16_t minutes = 0;
+    BACNET_COMMUNICATION_ENABLE_DISABLE state = COMMUNICATION_ENABLE;
+    BACNET_CHARACTER_STRING password;
+    uint8_t copy[16];
+    size_t copy_len;
+
+    memset(Handler_Transmit_Buffer, 0, 8);
+    handler_device_communication_control(request, len, src, service_data);
+    if (!bp_reply_is_simple_ack() ||
+        dcc_decode_service_request(request, len, &minutes, &state, &password) <
+            0) {
+        return;
+    }
+    if (src) {
+        bp_service_src = *src;
+        bp_service_src_valid = true;
+    }
+    copy_len = dcc_service_request_encode(
+        copy, sizeof(copy), minutes, state, NULL);
+    bp_service_event(
+        SERVICE_CONFIRMED_DEVICE_COMMUNICATION_CONTROL, copy, (int)copy_len);
+    bp_service_src_valid = false;
+}
+
+static void bp_on_reinitialize(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data)
+{
+    BACNET_REINITIALIZE_DEVICE_DATA data;
+    uint8_t copy[8];
+    size_t copy_len;
+
+    if (bp_backup_reinitialize(request, len, src, service_data)) {
+        return;
+    }
+    memset(Handler_Transmit_Buffer, 0, 8);
+    handler_reinitialize_device(request, len, src, service_data);
+    memset(&data, 0, sizeof(data));
+    if (!bp_reply_is_simple_ack() ||
+        rd_decode_service_request(request, len, &data.state, &data.password) <
+            0) {
+        return;
+    }
+    if (src) {
+        bp_service_src = *src;
+        bp_service_src_valid = true;
+    }
+    copy_len = reinitialize_device_request_encode(
+        copy, sizeof(copy), data.state, NULL);
+    bp_service_event(
+        SERVICE_CONFIRMED_REINITIALIZE_DEVICE, copy, (int)copy_len);
+    bp_service_src_valid = false;
+}
+
+/* WriteGroup: the Channel objects write their members, the application
+   gets the request */
+static BACNET_WRITE_GROUP_NOTIFICATION bp_write_group_channels = {
+    NULL, Channel_Write_Group
+};
+
+static void
+bp_on_write_group(uint8_t *request, uint16_t len, BACNET_ADDRESS *src)
+{
+    handler_write_group(request, len, src);
+    bp_forward_unconfirmed(SERVICE_UNCONFIRMED_WRITE_GROUP, request, len, src);
+}
+
+BP_API int32_t bacnet_plugin_device_set_password(const char *password)
+{
+    char *previous = NULL;
+    char *stored;
+
+    if (!bp_state.initialized) {
+        return BP_ERR_NOT_INITIALIZED;
+    }
+    if (password && strlen(password) > 20) {
+        return BP_ERR_INVALID_ARGUMENT;
+    }
+    /* Device_Reinitialize_Password_Set() keeps the pointer */
+    stored = bp_string_store(
+        bp_string_key(OBJECT_DEVICE, 0, BP_STRING_PASSWORD),
+        password ? password : "", &previous);
+    if (!stored) {
+        return BP_ERR_NO_MEMORY;
+    }
+    (void)Device_Reinitialize_Password_Set(stored);
+    handler_dcc_password_set(stored);
+    free(previous);
+    return BP_OK;
+}
 
 BP_SERVICE_HANDLER(bp_on_add_list_element, handler_add_list_element)
 BP_SERVICE_HANDLER(bp_on_remove_list_element, handler_remove_list_element)
@@ -239,13 +383,30 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
             SERVICE_CONFIRMED_SUBSCRIBE_COV_PROPERTY, handler_cov_subscribe);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_DEVICE_COMMUNICATION_CONTROL,
-            handler_device_communication_control);
+            bp_on_dcc);
         apdu_set_confirmed_handler(
-            SERVICE_CONFIRMED_REINITIALIZE_DEVICE, handler_reinitialize_device);
+            SERVICE_CONFIRMED_REINITIALIZE_DEVICE, bp_on_reinitialize);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_ADD_LIST_ELEMENT, bp_on_add_list_element);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_REMOVE_LIST_ELEMENT, bp_on_remove_list_element);
+        apdu_set_unconfirmed_handler(
+            SERVICE_UNCONFIRMED_WRITE_GROUP, bp_on_write_group);
+        {
+            /* the notification list of bacnet-stack lives as long as the
+               process: add the channels once */
+            static bool channels_added;
+            if (!channels_added) {
+                handler_write_group_notification_add(
+                    &bp_write_group_channels);
+                channels_added = true;
+            }
+        }
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_ATOMIC_READ_FILE, handler_atomic_read_file);
+        apdu_set_confirmed_handler(
+            SERVICE_CONFIRMED_ATOMIC_WRITE_FILE, bp_on_atomic_write_file);
+        bp_files_init();
 #if defined(INTRINSIC_REPORTING)
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_ACKNOWLEDGE_ALARM, bp_on_alarm_ack);
@@ -310,6 +471,9 @@ bacnet_plugin_device_set_string(uint32_t property, const char *value)
         case PROP_APPLICATION_SOFTWARE_VERSION:
             ok = Device_Set_Application_Software_Version(stored, len);
             break;
+        case PROP_SERIAL_NUMBER:
+            ok = Device_Serial_Number_Set(stored, len);
+            break;
         default:
             free(previous);
             return BP_ERR_UNSUPPORTED;
@@ -325,6 +489,24 @@ bacnet_plugin_device_set_string(uint32_t property, const char *value)
         return BP_ERR_INVALID_ARGUMENT;
     }
     free(previous);
+    return BP_OK;
+}
+
+BP_API int32_t bacnet_plugin_device_set_instance(uint32_t device_instance)
+{
+    if (!bp_state.initialized) {
+        return BP_ERR_NOT_INITIALIZED;
+    }
+    if (!bp_state.server_enabled) {
+        return BP_ERR_SERVER_DISABLED;
+    }
+    if (device_instance > BACNET_MAX_INSTANCE - 1 ||
+        !Device_Set_Object_Instance_Number(device_instance)) {
+        return BP_ERR_INVALID_ARGUMENT;
+    }
+    address_own_device_id_set(device_instance);
+    bp_device_remove(device_instance);
+    Send_I_Am(&Handler_Transmit_Buffer[0]);
     return BP_OK;
 }
 

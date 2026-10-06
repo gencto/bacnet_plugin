@@ -4,12 +4,17 @@ import 'package:meta/meta.dart';
 
 import '../constants/enumerations.dart';
 import '../constants/errors.dart';
+import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
+import '../constants/services.dart';
 import '../core/exceptions.dart';
 import '../models/alarms.dart';
 import '../models/bacnet_value.dart';
+import '../models/channels.dart';
 import '../models/complex_values.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
+import '../models/files.dart';
 import 'reader.dart';
 import 'value_encoding.dart';
 
@@ -173,6 +178,14 @@ class CovPropertyValue {
   final int? priority;
 }
 
+/// A notification of one object in a COVNotificationMultiple: `values`
+/// and, for timestamped references, when they changed.
+typedef CovObjectNotification = ({
+  BacnetObject object,
+  List<CovPropertyValue> values,
+  Map<BacnetPropertyId, BacnetTime> changeTimes,
+});
+
 /// Decoded COV notification.
 @immutable
 class CovNotificationData {
@@ -235,12 +248,206 @@ CovNotificationData decodeCovNotification(Uint8List data) {
   );
 }
 
-/// Extracts error class and code from a complex Error PDU payload
-/// (e.g. WritePropertyMultiple-Error, CreateObject-Error).
-BacnetError decodeComplexError(Uint8List data) {
+/// A decoded complex Error PDU: the error and, for CreateObject,
+/// AddListElement and RemoveListElement, the position (1 based) of the
+/// element that failed (0 when the request failed for another reason), for
+/// SubscribeCOVPropertyMultiple the subscription that failed.
+typedef ComplexError = ({
+  BacnetError error,
+  int? firstFailedElement,
+  BacnetFailedCovSubscription? firstFailedSubscription,
+});
+
+/// Extracts the error of a complex Error PDU payload of [service] (e.g.
+/// WritePropertyMultiple-Error, CreateObject-Error).
+ComplexError decodeComplexError(Uint8List data, {int? service}) {
   final r = BacnetReader(data);
-  if (r.nextIsOpening(0)) r.expectOpening(0);
-  return _readError(r);
+  if (!r.nextIsOpening(0)) {
+    return (
+      error: _readError(r),
+      firstFailedElement: null,
+      firstFailedSubscription: null,
+    );
+  }
+  r.expectOpening(0);
+  final error = _readError(r);
+  r.expectClosing(0);
+  if (service == BacnetConfirmedService.subscribeCovPropertyMultiple) {
+    return (
+      error: error,
+      firstFailedElement: null,
+      firstFailedSubscription: r.nextIsOpening(1)
+          ? _failedCovSubscription(r)
+          : null,
+    );
+  }
+  final changeList = switch (service) {
+    BacnetConfirmedService.createObject ||
+    BacnetConfirmedService.addListElement ||
+    BacnetConfirmedService.removeListElement => true,
+    _ => false,
+  };
+  return (
+    error: error,
+    firstFailedElement: changeList ? r.readOptionalContextUnsigned(1) : null,
+    firstFailedSubscription: null,
+  );
+}
+
+BacnetFailedCovSubscription _failedCovSubscription(BacnetReader r) {
+  r.expectOpening(1);
+  final object = r.readContextObjectId(0);
+  r.expectOpening(1);
+  final property = BacnetPropertyId(r.readContextUnsigned(0));
+  final arrayIndex = r.readOptionalContextUnsigned(1);
+  r
+    ..expectClosing(1)
+    ..expectOpening(2);
+  final error = _readError(r);
+  r
+    ..expectClosing(2)
+    ..expectClosing(1);
+  return BacnetFailedCovSubscription(
+    object: object,
+    property: property,
+    arrayIndex: arrayIndex,
+    errorClass: error.errorClass,
+    errorCode: error.errorCode,
+  );
+}
+
+/// Decoded SubscribeCOVPropertyMultiple request.
+typedef SubscribeCovPropertyMultipleData = ({
+  int subscriberProcessId,
+  bool? confirmed,
+  int? lifetime,
+  int? maxNotificationDelay,
+  List<BacnetCovSubscriptionSpecification> specifications,
+});
+
+/// Decodes a SubscribeCOVPropertyMultiple request (ASHRAE 135 clause
+/// 13.16).
+SubscribeCovPropertyMultipleData decodeSubscribeCovPropertyMultiple(
+  Uint8List data,
+) {
+  final r = BacnetReader(data);
+  final pid = r.readContextUnsigned(0);
+  final confirmed = r.nextIsContext(1) ? r.readContextBoolean(1) : null;
+  final lifetime = r.readOptionalContextUnsigned(2);
+  final delay = r.readOptionalContextUnsigned(3);
+  r.expectOpening(4);
+  final specifications = <BacnetCovSubscriptionSpecification>[];
+  while (!r.nextIsClosing(4)) {
+    final object = r.readContextObjectId(0);
+    r.expectOpening(1);
+    final references = <BacnetCovReference>[];
+    while (!r.nextIsClosing(1)) {
+      r.expectOpening(0);
+      final property = BacnetPropertyId(r.readContextUnsigned(0));
+      final arrayIndex = r.readOptionalContextUnsigned(1);
+      r.expectClosing(0);
+      final increment = r.nextIsContext(1) ? r.readContextReal(1) : null;
+      references.add(
+        BacnetCovReference(
+          property,
+          arrayIndex: arrayIndex,
+          covIncrement: increment,
+          timestamped: r.readContextBoolean(2),
+        ),
+      );
+    }
+    r.expectClosing(1);
+    if (references.isEmpty) {
+      throw const BacnetDecodeException('COV subscription without references');
+    }
+    specifications.add(BacnetCovSubscriptionSpecification(object, references));
+  }
+  r.expectClosing(4);
+  return (
+    subscriberProcessId: pid,
+    confirmed: confirmed,
+    lifetime: lifetime,
+    maxNotificationDelay: delay,
+    specifications: List.unmodifiable(specifications),
+  );
+}
+
+/// Decoded COVNotificationMultiple request.
+typedef CovNotificationMultipleData = ({
+  int subscriberProcessId,
+  int initiatingDeviceId,
+  int timeRemaining,
+  BacnetDateTime? timestamp,
+  List<CovObjectNotification> notifications,
+});
+
+/// Decodes a (Confirmed or Unconfirmed)COVNotificationMultiple request
+/// (ASHRAE 135 clause 13.17).
+CovNotificationMultipleData decodeCovNotificationMultiple(Uint8List data) {
+  final r = BacnetReader(data);
+  final pid = r.readContextUnsigned(0);
+  final device = r.readContextObjectId(1);
+  final timeRemaining = r.readContextUnsigned(2);
+  BacnetDateTime? timestamp;
+  if (r.nextIsOpening(3)) {
+    r.expectOpening(3);
+    timestamp = switch ((r.readApplicationValue(), r.readApplicationValue())) {
+      (final BacnetDate date, final BacnetTime time) => BacnetDateTime(
+        date,
+        time,
+      ),
+      final other => throw BacnetDecodeException('malformed timestamp $other'),
+    };
+    r.expectClosing(3);
+  }
+  r.expectOpening(4);
+  final notifications = <CovObjectNotification>[];
+  while (!r.nextIsClosing(4)) {
+    final object = r.readContextObjectId(0);
+    r.expectOpening(1);
+    final values = <CovPropertyValue>[];
+    final changeTimes = <BacnetPropertyId, BacnetTime>{};
+    while (!r.nextIsClosing(1)) {
+      final propertyId = BacnetPropertyId(r.readContextUnsigned(0));
+      final arrayIndex = r.readOptionalContextUnsigned(1) ?? -1;
+      r.expectOpening(2);
+      values.add(
+        CovPropertyValue(
+          propertyId: propertyId,
+          arrayIndex: arrayIndex,
+          value: collapseValues(r.readValuesUntilClosing(2)),
+        ),
+      );
+      if (r.nextIsContext(3)) {
+        final tag = r.readTag();
+        if (tag.length != 4) {
+          throw const BacnetDecodeException('time of change needs 4 octets');
+        }
+        int? field(int octet) => octet == 0xFF ? null : octet;
+        final octets = r.readBytes(4);
+        changeTimes[propertyId] = BacnetTime(
+          hour: field(octets[0]),
+          minute: field(octets[1]),
+          second: field(octets[2]),
+          hundredths: field(octets[3]),
+        );
+      }
+    }
+    r.expectClosing(1);
+    notifications.add((
+      object: object,
+      values: List.unmodifiable(values),
+      changeTimes: Map.unmodifiable(changeTimes),
+    ));
+  }
+  r.expectClosing(4);
+  return (
+    subscriberProcessId: pid,
+    initiatingDeviceId: device.instance,
+    timeRemaining: timeRemaining,
+    timestamp: timestamp,
+    notifications: List.unmodifiable(notifications),
+  );
 }
 
 /// Decoded I-Have.
@@ -518,4 +725,272 @@ ListElementsData decodeListElements(Uint8List data) {
     arrayIndex: arrayIndex,
     elements: BacnetList(List.unmodifiable(elements)),
   );
+}
+
+/// Decodes a CreateObject-ACK: the created object.
+BacnetObject decodeCreateObjectAck(Uint8List data) {
+  final r = BacnetReader(data);
+  if (r.readApplicationValue() case final BacnetObject object when r.isAtEnd) {
+    return object;
+  }
+  throw const BacnetDecodeException('malformed CreateObject-ACK');
+}
+
+/// Decoded AtomicReadFile-ACK: a chunk (stream access) or records.
+typedef AtomicReadFileData = ({
+  BacnetFileChunk? chunk,
+  BacnetFileRecords? records,
+});
+
+/// Decodes an AtomicReadFile-ACK (ASHRAE 135 clause 14.1).
+AtomicReadFileData decodeAtomicReadFileAck(Uint8List data) {
+  final r = BacnetReader(data);
+  final endOfFile = switch (r.readApplicationValue()) {
+    BacnetBoolean(:final value) => value,
+    final other => throw BacnetDecodeException('malformed end of file: $other'),
+  };
+  int signed() => switch (r.readApplicationValue()) {
+    BacnetSigned(:final value) => value,
+    BacnetUnsigned(:final value) => value,
+    final other => throw BacnetDecodeException('malformed position: $other'),
+  };
+  Uint8List octets() => switch (r.readApplicationValue()) {
+    BacnetOctetString(:final value) => value,
+    final other => throw BacnetDecodeException('malformed file data: $other'),
+  };
+  if (r.nextIsOpening(0)) {
+    r.expectOpening(0);
+    final start = signed();
+    final data = octets();
+    r.expectClosing(0);
+    return (
+      chunk: BacnetFileChunk(start: start, data: data, endOfFile: endOfFile),
+      records: null,
+    );
+  }
+  r.expectOpening(1);
+  final start = signed();
+  final count = switch (r.readApplicationValue()) {
+    BacnetUnsigned(:final value) => value,
+    final other => throw BacnetDecodeException(
+      'malformed record count: $other',
+    ),
+  };
+  final records = [for (var i = 0; i < count; i++) octets()];
+  r.expectClosing(1);
+  return (
+    chunk: null,
+    records: BacnetFileRecords(
+      start: start,
+      records: records,
+      endOfFile: endOfFile,
+    ),
+  );
+}
+
+/// Decodes an AtomicWriteFile-ACK: the position (stream access) or record
+/// where the data was written.
+int decodeAtomicWriteFileAck(Uint8List data) {
+  final r = BacnetReader(data);
+  final start = r.nextIsContext(0)
+      ? r.readContextSigned(0)
+      : r.readContextSigned(1);
+  return start;
+}
+
+/// Decoded AtomicWriteFile request: `data` for stream access, `records`
+/// for record access.
+typedef AtomicWriteFileRequest = ({
+  BacnetObject file,
+  int start,
+  Uint8List? data,
+  List<Uint8List>? records,
+});
+
+/// Decodes an AtomicWriteFile request (ASHRAE 135 clause 14.2).
+AtomicWriteFileRequest decodeAtomicWriteFile(Uint8List data) {
+  final r = BacnetReader(data);
+  final file = switch (r.readApplicationValue()) {
+    final BacnetObject object => object,
+    final other => throw BacnetDecodeException('malformed file: $other'),
+  };
+  int signed() => switch (r.readApplicationValue()) {
+    BacnetSigned(:final value) => value,
+    BacnetUnsigned(:final value) => value,
+    final other => throw BacnetDecodeException('malformed position: $other'),
+  };
+  Uint8List octets() => switch (r.readApplicationValue()) {
+    BacnetOctetString(:final value) => value,
+    final other => throw BacnetDecodeException('malformed file data: $other'),
+  };
+  if (r.nextIsOpening(0)) {
+    r.expectOpening(0);
+    final start = signed();
+    final octetString = octets();
+    r.expectClosing(0);
+    return (file: file, start: start, data: octetString, records: null);
+  }
+  r.expectOpening(1);
+  final start = signed();
+  final count = switch (r.readApplicationValue()) {
+    BacnetUnsigned(:final value) => value,
+    final other => throw BacnetDecodeException(
+      'malformed record count: $other',
+    ),
+  };
+  final records = [for (var i = 0; i < count; i++) octets()];
+  r.expectClosing(1);
+  return (file: file, start: start, data: null, records: records);
+}
+
+/// Decoded Who-Am-I request.
+typedef WhoAmIData = ({int vendorId, String modelName, String serialNumber});
+
+/// Decodes a Who-Am-I request (ASHRAE 135 clause 16.11).
+WhoAmIData decodeWhoAmI(Uint8List data) {
+  final r = BacnetReader(data);
+  return (
+    vendorId: _identityUnsigned(r),
+    modelName: _identityString(r, 'model name'),
+    serialNumber: _identityString(r, 'serial number'),
+  );
+}
+
+/// Decoded You-Are request.
+typedef YouAreData = ({
+  int vendorId,
+  String modelName,
+  String serialNumber,
+  int? deviceId,
+  Uint8List? macAddress,
+});
+
+/// Decodes a You-Are request (ASHRAE 135 clause 16.12).
+YouAreData decodeYouAre(Uint8List data) {
+  final r = BacnetReader(data);
+  final vendorId = _identityUnsigned(r);
+  final modelName = _identityString(r, 'model name');
+  final serialNumber = _identityString(r, 'serial number');
+  int? deviceId;
+  Uint8List? macAddress;
+  if (!r.isAtEnd) {
+    switch (r.readApplicationValue()) {
+      case BacnetObject(:final type, :final instance)
+          when type == BacnetObjectType.device:
+        deviceId = instance;
+      case BacnetOctetString(:final value):
+        macAddress = value;
+      case final other:
+        throw BacnetDecodeException('malformed You-Are: $other');
+    }
+  }
+  if (macAddress == null && !r.isAtEnd) {
+    macAddress = switch (r.readApplicationValue()) {
+      BacnetOctetString(:final value) => value,
+      final other => throw BacnetDecodeException('malformed MAC: $other'),
+    };
+  }
+  if (deviceId == null && macAddress == null) {
+    throw const BacnetDecodeException('You-Are without device or MAC');
+  }
+  return (
+    vendorId: vendorId,
+    modelName: modelName,
+    serialNumber: serialNumber,
+    deviceId: deviceId,
+    macAddress: macAddress,
+  );
+}
+
+int _identityUnsigned(BacnetReader r) => switch (r.readApplicationValue()) {
+  BacnetUnsigned(:final value) when value <= 0xFFFF => value,
+  final other => throw BacnetDecodeException('malformed vendor id: $other'),
+};
+
+String _identityString(BacnetReader r, String what) =>
+    switch (r.readApplicationValue()) {
+      BacnetCharacterString(:final value) => value,
+      final other => throw BacnetDecodeException('malformed $what: $other'),
+    };
+
+/// Decoded WriteGroup request.
+typedef WriteGroupData = ({
+  int groupNumber,
+  int writePriority,
+  List<BacnetGroupChannelValue> changes,
+  bool? inhibitDelay,
+});
+
+/// Decodes a WriteGroup request (ASHRAE 135 clause 15.11).
+WriteGroupData decodeWriteGroup(Uint8List data) {
+  final r = BacnetReader(data);
+  final groupNumber = r.readContextUnsigned(0);
+  final writePriority = r.readContextUnsigned(1);
+  if (writePriority < 1 || writePriority > 16) {
+    throw BacnetDecodeException('write priority $writePriority');
+  }
+  r.expectOpening(2);
+  final changes = <BacnetGroupChannelValue>[];
+  while (!r.nextIsClosing(2)) {
+    final channel = r.readContextUnsigned(0);
+    final priority = r.readOptionalContextUnsigned(1);
+    r.expectOpening(2);
+    final values = r.readValuesUntilClosing(2);
+    if (values.length != 1 ||
+        channel > 0xFFFF ||
+        (priority != null && (priority < 1 || priority > 16))) {
+      throw const BacnetDecodeException('malformed BACnetGroupChannelValue');
+    }
+    changes.add(
+      BacnetGroupChannelValue(
+        channel,
+        values.single,
+        overridingPriority: priority,
+      ),
+    );
+  }
+  r.expectClosing(2);
+  final inhibitDelay = r.nextIsContext(3) ? r.readContextBoolean(3) : null;
+  return (
+    groupNumber: groupNumber,
+    writePriority: writePriority,
+    changes: List.unmodifiable(changes),
+    inhibitDelay: inhibitDelay,
+  );
+}
+
+/// Decoded DeviceCommunicationControl request.
+typedef DeviceCommunicationControlData = ({
+  BacnetCommunicationState state,
+  Duration? duration,
+  String? password,
+});
+
+/// Decodes a DeviceCommunicationControl request (ASHRAE 135 clause 16.1).
+DeviceCommunicationControlData decodeDeviceCommunicationControl(
+  Uint8List data,
+) {
+  final r = BacnetReader(data);
+  final minutes = r.readOptionalContextUnsigned(0);
+  final state = BacnetCommunicationState(r.readContextUnsigned(1));
+  final password = r.nextIsContext(2) ? r.readContextCharacterString(2) : null;
+  return (
+    state: state,
+    duration: minutes == null ? null : Duration(minutes: minutes),
+    password: password,
+  );
+}
+
+/// Decoded ReinitializeDevice request.
+typedef ReinitializeDeviceData = ({
+  BacnetReinitializedState state,
+  String? password,
+});
+
+/// Decodes a ReinitializeDevice request (ASHRAE 135 clause 16.4).
+ReinitializeDeviceData decodeReinitializeDevice(Uint8List data) {
+  final r = BacnetReader(data);
+  final state = BacnetReinitializedState(r.readContextUnsigned(0));
+  final password = r.nextIsContext(1) ? r.readContextCharacterString(1) : null;
+  return (state: state, password: password);
 }

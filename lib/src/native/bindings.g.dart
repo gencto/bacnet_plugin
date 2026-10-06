@@ -9,6 +9,30 @@ library;
 
 import 'dart:ffi' as ffi;
 
+/// Lets clients back up and restore the server (clause 19.1): `files` are
+/// the instances of the File objects (bacnet_plugin_object_create()) of
+/// Configuration_Files, at most 16; `flags` are BP_BACKUP_*. The procedure
+/// fails after `failure_timeout` seconds without requests (0: never).
+/// The requests are reported as BP_EVENT_SERVICE (ReinitializeDevice).
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Pointer<ffi.Uint32>,
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Uint16,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_backup_configure(
+  ffi.Pointer<ffi.Uint32> files,
+  int count,
+  int flags,
+  int failure_timeout,
+);
+
+/// Sets Backup_And_Restore_State (BACnetBackupState).
+@ffi.Native<ffi.Int32 Function(ffi.Uint8)>(isLeaf: true)
+external int bacnet_plugin_backup_set_state(int state);
+
 /// Adds or replaces a static device address binding.
 /// @param host IPv4 address or host name of the device (or of the router).
 /// @param net remote network number (0 for local devices).
@@ -53,8 +77,20 @@ external int bacnet_plugin_device_binding(
   ffi.Pointer<ffi.Uint16> max_apdu,
 );
 
+/// Changes the instance of the local Device object (e.g. as told by a
+/// You-Are) and broadcasts an I-Am.
+@ffi.Native<ffi.Int32 Function(ffi.Uint32)>()
+external int bacnet_plugin_device_set_instance(int device_instance);
+
+/// Sets the password DeviceCommunicationControl and ReinitializeDevice
+/// requests must carry (up to 20 characters). NULL or "" accepts requests
+/// without a password.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Char>)>()
+external int bacnet_plugin_device_set_password(ffi.Pointer<ffi.Char> password);
+
 /// Sets a string property of the local Device object
-/// (vendor name, model name, description, location, firmware, version).
+/// (name, vendor name, model name, description, location, firmware,
+/// application software version, serial number).
 @ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Char>)>()
 external int bacnet_plugin_device_set_string(
   int property,
@@ -76,6 +112,46 @@ external ffi.Pointer<ffi.Uint8> bacnet_plugin_events_data();
 /// Number of bytes in the event buffer.
 @ffi.Native<ffi.Uint32 Function()>(isLeaf: true)
 external int bacnet_plugin_events_length();
+
+/// Sets the File_Type (a media type, copied; NULL keeps it), Read_Only (0 or
+/// 1; negative keeps it) and the size up to which remote clients may grow
+/// the file (AtomicWriteFile, File_Size; negative keeps it, 16 MiB by
+/// default) of File object `instance`. Remote writes also stop when all
+/// files together take 256 MiB; the content set by
+/// bacnet_plugin_file_set_content() is not limited.
+@ffi.Native<
+  ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Char>, ffi.Int32, ffi.Int64)
+>(isLeaf: true)
+external int bacnet_plugin_file_configure(
+  int instance,
+  ffi.Pointer<ffi.Char> file_type,
+  int read_only,
+  int max_size,
+);
+
+/// Copies up to `capacity` octets of the content of File object `instance`
+/// from `offset` to `buffer`.
+/// @return the size of the file or a negative BP_ERR_* code.
+@ffi.Native<
+  ffi.Int64 Function(ffi.Uint32, ffi.Uint32, ffi.Pointer<ffi.Uint8>, ffi.Uint32)
+>(isLeaf: true)
+external int bacnet_plugin_file_get_content(
+  int instance,
+  int offset,
+  ffi.Pointer<ffi.Uint8> buffer,
+  int capacity,
+);
+
+/// Replaces the content of File object `instance` of the server (created
+/// with bacnet_plugin_object_create(); kept in memory, stream access).
+@ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Uint8>, ffi.Uint32)>(
+  isLeaf: true,
+)
+external int bacnet_plugin_file_set_content(
+  int instance,
+  ffi.Pointer<ffi.Uint8> data,
+  int length,
+);
 
 /// Initializes the BACnet/IP datalink and the stack.
 ///
@@ -168,7 +244,8 @@ external int bacnet_plugin_object_set_name(
 );
 
 /// Sets a numeric property locally (no network write semantics):
-/// present-value (85), out-of-service (81), units (117), cov-increment (22).
+/// present-value (85), out-of-service (81), units (117), cov-increment (22),
+/// priority-for-writing (88) of schedules.
 /// A NaN present value relinquishes the given priority of commandable objects.
 @ffi.Native<
   ffi.Int32 Function(ffi.Uint16, ffi.Uint32, ffi.Uint32, ffi.Double, ffi.Uint8)
@@ -278,6 +355,40 @@ external int bacnet_plugin_send_confirmed(
 @ffi.Native<ffi.Int32 Function()>()
 external int bacnet_plugin_send_i_am();
 
+/// Sends a network layer message (clause 6.4) without an APDU.
+/// @param mac BACnet/IP address (IPv4 address and UDP port, 6 bytes) of the
+/// next hop, NULL or mac_len 0 for a local broadcast.
+/// @param net destination network (DNET): 0 for the local network, 0xFFFF
+/// for a global broadcast.
+/// @param adr address on the destination network (DADR), adr_len 0 for a
+/// broadcast on it.
+/// @param message_type network message type (0x80 and above with vendor_id).
+/// @param data the message after the message type.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint16,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_send_network(
+  ffi.Pointer<ffi.Uint8> mac,
+  int mac_len,
+  int net,
+  ffi.Pointer<ffi.Uint8> adr,
+  int adr_len,
+  int message_type,
+  int vendor_id,
+  ffi.Pointer<ffi.Uint8> data,
+  int data_len,
+);
+
 /// Sends an unconfirmed request.
 /// @param device_id target device or BP_DEVICE_UNKNOWN for a broadcast.
 /// @param network broadcast network: 0 = local, 0xFFFF = global, else remote.
@@ -293,6 +404,37 @@ external int bacnet_plugin_send_i_am();
 external int bacnet_plugin_send_unconfirmed(
   int device_id,
   int network,
+  int service,
+  ffi.Pointer<ffi.Uint8> data,
+  int data_len,
+);
+
+/// Sends an unconfirmed request to an address, e.g. the answer to a device
+/// without a device instance (You-Are to the sender of a Who-Am-I).
+/// @param mac BACnet/IP address (IPv4 address and UDP port, 6 bytes) of the
+/// device or of the router, NULL or mac_len 0 for a local broadcast.
+/// @param net destination network (DNET): 0 for the local network, 0xFFFF
+/// for a global broadcast.
+/// @param adr address on the destination network (DADR), adr_len 0 for a
+/// broadcast on it.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint8,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint16,
+  )
+>()
+external int bacnet_plugin_send_unconfirmed_to(
+  ffi.Pointer<ffi.Uint8> mac,
+  int mac_len,
+  int net,
+  ffi.Pointer<ffi.Uint8> adr,
+  int adr_len,
   int service,
   ffi.Pointer<ffi.Uint8> data,
   int data_len,
@@ -319,6 +461,25 @@ external void bacnet_plugin_shutdown();
 @ffi.Native<ffi.Void Function(ffi.Pointer<bp_stats_t>)>(isLeaf: true)
 external void bacnet_plugin_stats(ffi.Pointer<bp_stats_t> out);
 
+/// Appends a record to Trend Log `instance` of the server (created with
+/// bacnet_plugin_object_create()) while it is enabled.
+/// @param data application encoded value (NULL, BOOLEAN, REAL, DOUBLE,
+/// ENUMERATED, Unsigned, INTEGER or a BIT STRING of up to 32 bits;
+/// others are logged as failures).
+/// @param status_flags Status_Flags (in-alarm 1, fault 2, overridden 4,
+/// out-of-service 8) or -1 to leave them out.
+/// @return 1 when appended, 0 while the log is disabled, or a negative
+/// BP_ERR_* code.
+@ffi.Native<
+  ffi.Int32 Function(ffi.Uint32, ffi.Pointer<ffi.Uint8>, ffi.Uint16, ffi.Int32)
+>(isLeaf: true)
+external int bacnet_plugin_trend_log_append(
+  int instance,
+  ffi.Pointer<ffi.Uint8> data,
+  int length,
+  int status_flags,
+);
+
 /// Removes the address binding of a device.
 @ffi.Native<ffi.Void Function(ffi.Uint32)>(isLeaf: true)
 external void bacnet_plugin_unbind_device(int device_id);
@@ -330,6 +491,10 @@ external ffi.Pointer<ffi.Char> bacnet_plugin_version();
 /// Interrupts a blocking bacnet_plugin_poll(). Safe from any thread.
 @ffi.Native<ffi.Void Function()>(isLeaf: true)
 external void bacnet_plugin_wakeup();
+
+const int BP_BACKUP_APPLY = 2;
+
+const int BP_BACKUP_PREPARE = 1;
 
 const int BP_DEVICE_UNKNOWN = 4294967295;
 
@@ -369,6 +534,8 @@ const int BP_EVENT_ERROR = 3;
 
 const int BP_EVENT_LOG = 10;
 
+const int BP_EVENT_NETWORK = 12;
+
 const int BP_EVENT_REJECT = 4;
 
 const int BP_EVENT_SERVICE = 11;
@@ -384,6 +551,8 @@ const int BP_EVENT_WRITE = 9;
 const int BP_FLAG_ABORT_FROM_SERVER = 1;
 
 const int BP_FLAG_COMPLEX = 2;
+
+const int BP_FLAG_INTERNAL = 16;
 
 const int BP_FLAG_LOCAL = 4;
 

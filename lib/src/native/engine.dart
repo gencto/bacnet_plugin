@@ -116,14 +116,40 @@ class NativeEngine {
         bacnet_plugin_send_confirmed(deviceId, service, data, length, priority),
   );
 
-  /// Sends an unconfirmed request to [deviceId] or as broadcast on
-  /// [network] (0xFFFF global, 0 local).
+  /// Sends an unconfirmed request to [deviceId], to [mac] (and [adr] on
+  /// [network] behind a router) or as broadcast on [network] (0xFFFF
+  /// global, 0 local).
   void sendUnconfirmed(
     int service,
     Uint8List payload, {
     int? deviceId,
     int network = 0xFFFF,
+    List<int>? mac,
+    List<int> adr = const [],
   }) {
+    if (mac != null) {
+      // one buffer: _withBytes reuses the same scratch memory
+      final bytes = Uint8List(mac.length + adr.length + payload.length)
+        ..setAll(0, mac)
+        ..setAll(mac.length, adr)
+        ..setAll(mac.length + adr.length, payload);
+      checkNative(
+        _withBytes(
+          bytes,
+          (data, _) => bacnet_plugin_send_unconfirmed_to(
+            mac.isEmpty ? ffi.nullptr : data,
+            mac.length,
+            network,
+            adr.isEmpty ? ffi.nullptr : data + mac.length,
+            adr.length,
+            service,
+            payload.isEmpty ? ffi.nullptr : data + mac.length + adr.length,
+            payload.length,
+          ),
+        ),
+      );
+      return;
+    }
     checkNative(
       _withBytes(
         payload,
@@ -133,6 +159,135 @@ class NativeEngine {
           service,
           data,
           length,
+        ),
+      ),
+    );
+  }
+
+  /// Sends a network layer message to [mac] (a local broadcast when
+  /// empty), on [network] to [adr] behind a router.
+  void sendNetworkMessage({
+    required int messageType,
+    required Uint8List payload,
+    List<int> mac = const [],
+    int network = 0,
+    List<int> adr = const [],
+    int vendorId = 0,
+  }) {
+    // one buffer: _withBytes reuses the same scratch memory
+    final bytes = Uint8List(mac.length + adr.length + payload.length)
+      ..setAll(0, mac)
+      ..setAll(mac.length, adr)
+      ..setAll(mac.length + adr.length, payload);
+    checkNative(
+      _withBytes(
+        bytes,
+        (data, _) => bacnet_plugin_send_network(
+          mac.isEmpty ? ffi.nullptr : data,
+          mac.length,
+          network,
+          adr.isEmpty ? ffi.nullptr : data + mac.length,
+          adr.length,
+          messageType,
+          vendorId,
+          payload.isEmpty ? ffi.nullptr : data + mac.length + adr.length,
+          payload.length,
+        ),
+      ),
+    );
+  }
+
+  /// Appends a record with the application encoded [payload] to Trend Log
+  /// [instance] of the server; false while the log is disabled.
+  bool appendTrendLog(int instance, Uint8List payload, int statusFlags) =>
+      checkNative(
+        _withBytes(
+          payload,
+          (data, length) => bacnet_plugin_trend_log_append(
+            instance,
+            data,
+            length,
+            statusFlags,
+          ),
+        ),
+      ) ==
+      1;
+
+  /// Lets clients back up and restore the server.
+  void configureBackup(
+    List<int> files, {
+    required bool prepare,
+    required bool apply,
+    required int failureTimeoutSeconds,
+  }) {
+    final array = calloc<ffi.Uint32>(files.isEmpty ? 1 : files.length);
+    try {
+      array.asTypedList(files.length).setAll(0, files);
+      checkNative(
+        bacnet_plugin_backup_configure(
+          array,
+          files.length,
+          (prepare ? BP_BACKUP_PREPARE : 0) | (apply ? BP_BACKUP_APPLY : 0),
+          failureTimeoutSeconds,
+        ),
+      );
+    } finally {
+      calloc.free(array);
+    }
+  }
+
+  /// Sets Backup_And_Restore_State of the server.
+  void setBackupState(int state) =>
+      checkNative(bacnet_plugin_backup_set_state(state));
+
+  /// Changes the instance of the local Device object and sends an I-Am.
+  void setDeviceInstance(int deviceId) =>
+      checkNative(bacnet_plugin_device_set_instance(deviceId));
+
+  /// Replaces the content of File object [instance] of the server.
+  void setFileContent(int instance, Uint8List content) {
+    checkNative(
+      _withBytes(
+        content,
+        (data, length) =>
+            bacnet_plugin_file_set_content(instance, data, length),
+      ),
+    );
+  }
+
+  /// The content of File object [instance] of the server.
+  Uint8List fileContent(int instance) {
+    final size = checkNative(
+      bacnet_plugin_file_get_content(instance, 0, ffi.nullptr, 0),
+    );
+    if (size == 0) return Uint8List(0);
+    final buffer = calloc<ffi.Uint8>(size);
+    try {
+      final now = checkNative(
+        bacnet_plugin_file_get_content(instance, 0, buffer, size),
+      );
+      return Uint8List.fromList(buffer.asTypedList(now < size ? now : size));
+    } finally {
+      calloc.free(buffer);
+    }
+  }
+
+  /// Sets File_Type, Read_Only and the size limit of remote writes of
+  /// File object [instance] (null keeps them).
+  void configureFile(
+    int instance, {
+    String? fileType,
+    bool? readOnly,
+    int? maxSize,
+  }) {
+    checkNative(
+      _withOptionalString(
+        fileType,
+        (type) => bacnet_plugin_file_configure(
+          instance,
+          type,
+          readOnly == null ? -1 : (readOnly ? 1 : 0),
+          maxSize ?? -1,
         ),
       ),
     );
@@ -242,6 +397,11 @@ class NativeEngine {
   /// Sets the vendor identifier of the local Device object.
   void setVendorId(int vendorId) =>
       checkNative(bacnet_plugin_device_set_vendor_id(vendorId));
+
+  /// Sets the password of DeviceCommunicationControl and
+  /// ReinitializeDevice ("" accepts requests without one).
+  void setPassword(String password) =>
+      checkNative(_withString(password, bacnet_plugin_device_set_password));
 
   /// Broadcasts an I-Am of the local device.
   void sendIAm() => checkNative(bacnet_plugin_send_i_am());

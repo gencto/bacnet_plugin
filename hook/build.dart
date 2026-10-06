@@ -13,7 +13,7 @@ import 'package:native_toolchain_c/native_toolchain_c.dart';
 const bacnetStackDir = 'native/bacnet-stack/';
 
 /// bacnet-stack source directories compiled into the library.
-const _stackDirectories = <String>[
+const stackDirectories = <String>[
   'src/bacnet/',
   'src/bacnet/basic/binding/',
   'src/bacnet/basic/bbmd/',
@@ -24,7 +24,7 @@ const _stackDirectories = <String>[
 ];
 
 /// Individual bacnet-stack files compiled into the library.
-const _stackFiles = <String>[
+const stackFiles = <String>[
   'src/bacnet/basic/npdu/h_npdu.c',
   'src/bacnet/basic/npdu/s_router.c',
   'src/bacnet/datalink/bvlc.c',
@@ -34,10 +34,10 @@ const _stackFiles = <String>[
 ];
 
 /// Files excluded from the directories above (BACnet/SC needs OpenSSL).
-const _excluded = <String>{'sc_netport.c'};
+const excludedStackFiles = <String>{'sc_netport.c'};
 
 /// BACnet/IP port of the engine for POSIX systems.
-const _posixPort = 'bp_port_posix.c';
+const posixPort = 'bp_port_posix.c';
 
 /// Platform files of the bacnet-stack Windows port.
 const _win32PortFiles = <String>[
@@ -47,7 +47,7 @@ const _win32PortFiles = <String>[
 ];
 
 /// Compile time limits of the stack, sized for large installations.
-const _stackDefines = <String, String?>{
+const stackDefines = <String, String?>{
   'BACDL_BIP': null,
   'BACNET_STACK_STATIC_DEFINE': null,
   'PRINT_ENABLED': '0',
@@ -60,6 +60,12 @@ const _stackDefines = <String, String?>{
   'BINARY_INPUT_INTRINSIC_REPORTING': '1',
   'BINARY_VALUE_INTRINSIC_REPORTING': '1',
   'MAX_NOTIFICATION_CLASSES': '64',
+  // schedules of the server: members written and exceptions
+  'BACNET_SCHEDULE_OBJ_PROP_REF_SIZE': '32',
+  'BACNET_EXCEPTION_SCHEDULE_SIZE': '16',
+  // channels of the server: members and control groups
+  'CHANNEL_MEMBERS_MAX': '32',
+  'CONTROL_GROUPS_MAX': '16',
 };
 
 void main(List<String> args) async {
@@ -84,15 +90,15 @@ void main(List<String> args) async {
     final isApple = targetOS == OS.macOS || targetOS == OS.iOS;
 
     final sources = <String>[
-      for (final dir in _stackDirectories)
+      for (final dir in stackDirectories)
         ..._cFiles(Directory.fromUri(stackRoot.resolve(dir))),
-      for (final file in _stackFiles) stackRoot.resolve(file).toFilePath(),
+      for (final file in stackFiles) stackRoot.resolve(file).toFilePath(),
       if (isWindows)
         for (final file in _win32PortFiles)
           stackRoot.resolve(file).toFilePath(),
       // the engine; bp_port_posix.c replaces the stack port on POSIX systems
       for (final file in _cFiles(engineDir))
-        if (!isWindows || !file.endsWith(_posixPort)) file,
+        if (!isWindows || !file.endsWith(posixPort)) file,
     ];
 
     final builder = CBuilder.library(
@@ -105,7 +111,7 @@ void main(List<String> args) async {
         if (isWindows) stackRoot.resolve('ports/win32/').toFilePath(),
       ],
       defines: {
-        ..._stackDefines,
+        ...stackDefines,
         'BP_ENGINE_VERSION': _packageVersion(pubspec),
         if (isWindows) ...{
           'BACNET_IP_BROADCAST_USE_INADDR_ANY': null,
@@ -156,7 +162,9 @@ List<String> _cFiles(Directory directory) {
           .listSync(followLinks: false)
           .whereType<File>()
           .where((file) => file.path.endsWith('.c'))
-          .where((file) => !_excluded.contains(file.uri.pathSegments.last))
+          .where(
+            (file) => !excludedStackFiles.contains(file.uri.pathSegments.last),
+          )
           .map((file) => file.path)
           .toList()
         ..sort();

@@ -1,5 +1,7 @@
 // Exercises the client against bacnet-stack's reference server (bacserv).
-// Usage: dart run tool/interop_client.dart <port> <device>
+// Usage: dart run tool/interop_client.dart <port> <device> [backup|describe]
+//        dart run tool/interop_client.dart 0 <device> supervisor
+//          (answers the Who-Am-I of bacwhoami with You-Are <device>)
 // ignore_for_file: avoid_print
 import 'dart:io';
 
@@ -18,7 +20,38 @@ Future<void> main(List<String> args) async {
     ),
   );
   await client.start();
+  if (args.contains('supervisor')) {
+    print('READY supervisor');
+    await client.whoAmIRequests
+        .asyncMap((request) async {
+          print('WHO-AM-I $request from ${request.source}');
+          await client.sendYouAre(
+            vendorId: request.vendorId,
+            modelName: request.modelName,
+            serialNumber: request.serialNumber,
+            deviceId: device,
+            destination: request.source,
+          );
+        })
+        .first
+        .timeout(const Duration(seconds: 30));
+    await client.close();
+    exit(0);
+  }
   await client.addDeviceBinding(device, '127.0.0.1', port: port);
+  if (args.contains('describe')) {
+    final description = await client.describeDevice(device);
+    print(description);
+    print(description.toEpics());
+    await client.close();
+    exit(0);
+  }
+  if (args.contains('backup')) {
+    // bacserv built with BACNET_BACKUP_RESTORE
+    await backupAndRestore(client, device);
+    await client.close();
+    exit(0);
+  }
   final scanner = DeviceScanner(client);
   final details = await scanner.getDeviceDetails(device);
   print(
@@ -163,6 +196,8 @@ Future<void> main(List<String> args) async {
   await single.close();
   await typedProperties(client, device, objects);
   await alarms(client, device, objects);
+  await management(client, device, objects);
+  await bbmd(client, port);
   print(await client.stats());
   await client.close();
   exit(0);
@@ -420,4 +455,210 @@ Future<void> alarms(
     'recipients ${await client.read(device, nc, BacnetProperties.recipientList)}',
   );
   print('alarms: ok');
+}
+
+/// DeviceCommunicationControl, ReinitializeDevice, Create/DeleteObject and
+/// file transfers (bacserv's password is "filister").
+Future<void> management(
+  BacnetClient client,
+  int device,
+  List<BacnetObject> objects,
+) async {
+  Future<void> expectError(String what, Future<void> request) async {
+    try {
+      await request;
+      print('$what: FAIL (no error)');
+    } on BacnetException catch (e) {
+      print('$what: $e');
+    }
+  }
+
+  await expectError(
+    'DCC without password',
+    client.deviceCommunicationControl(
+      device,
+      BacnetCommunicationState.disableInitiation,
+    ),
+  );
+  await client.deviceCommunicationControl(
+    device,
+    BacnetCommunicationState.disableInitiation,
+    duration: const Duration(minutes: 1),
+    password: 'filister',
+  );
+  print(
+    'DCC disable initiation: name '
+    '${await client.read(device, BacnetObject(type: BacnetObjectType.device, instance: device), BacnetProperties.objectName)}',
+  );
+  await client.deviceCommunicationControl(
+    device,
+    BacnetCommunicationState.enable,
+    password: 'filister',
+  );
+  await expectError(
+    'reinitialize with wrong password',
+    client.reinitializeDevice(
+      device,
+      BacnetReinitializedState.warmStart,
+      password: 'wrong',
+    ),
+  );
+  await client.reinitializeDevice(
+    device,
+    BacnetReinitializedState.activateChanges,
+    password: 'filister',
+  );
+  print('reinitialize activate changes: ok');
+
+  // bacnet-stack does not accept Object_Name as initial value
+  await expectError(
+    'create with Object_Name',
+    client.createObject(
+      device,
+      type: BacnetObjectType.analogValue,
+      initialValues: const [
+        BacnetPropertyValue(
+          propertyIdentifier: BacnetPropertyId.objectName,
+          value: BacnetCharacterString('Created by interop'),
+        ),
+      ],
+    ),
+  );
+  final created = await client.createObject(
+    device,
+    type: BacnetObjectType.analogValue,
+    initialValues: const [
+      BacnetPropertyValue(
+        propertyIdentifier: BacnetPropertyId.presentValue,
+        value: BacnetReal(42),
+      ),
+    ],
+  );
+  print(
+    'created $created: '
+    '${await client.read(device, created, BacnetProperties.objectName)} = '
+    '${await client.read(device, created, BacnetProperties.analogPresentValue)}',
+  );
+  await expectError(
+    'create existing',
+    client.createObject(device, object: created),
+  );
+  await client.deleteObject(device, created);
+  await expectError(
+    'read deleted',
+    client.readProperty(
+      device,
+      created.type,
+      created.instance,
+      BacnetPropertyId.objectName,
+    ),
+  );
+
+  final file = objects.firstWhere((o) => o.type == BacnetObjectType.file);
+  final content = List.generate(4000, (i) => (i * 13) & 0xFF);
+  // bacnet-stack writes File_Size only with a callback bacserv lacks
+  await expectError(
+    'truncate',
+    client.writeProperty(
+      device,
+      BacnetObjectType.file,
+      file.instance,
+      BacnetPropertyId.fileSize,
+      const BacnetUnsigned(0),
+    ),
+  );
+  await client.writeFile(device, file.instance, content);
+  final read = await client.readFile(
+    device,
+    file.instance,
+    onProgress: (done, total) => print('read $done / $total'),
+  );
+  var same = read.length >= content.length;
+  for (var i = 0; same && i < content.length; i++) {
+    same = read[i] == content[i];
+  }
+  print('file round trip ${read.length} octets: ${same ? 'ok' : 'FAIL'}');
+  await expectError(
+    'record access',
+    client.readFileRecords(device, file.instance, start: 0, count: 1),
+  );
+  print('management: ok');
+}
+
+/// Reads and changes the tables of bacserv as BBMD (BBMD enabled by
+/// default in bacnet-stack builds; BACNET_BDT_ADDR_2 adds a peer).
+Future<void> bbmd(BacnetClient client, int port) async {
+  final bbmd = BacnetBbmdClient('127.0.0.1', port: port);
+  print('BDT: ${await bbmd.readBroadcastDistributionTable()}');
+  await client.registerForeignDevice('127.0.0.1', port: port, ttl: 60);
+  List<BacnetFdtEntry> fdt = const [];
+  for (var i = 0; i < 20 && fdt.isEmpty; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    fdt = await bbmd.readForeignDeviceTable();
+  }
+  print('FDT after registration: $fdt');
+  final me = await client.localAddress();
+  await bbmd.deleteForeignDeviceTableEntry(me.ipAddress!, port: me.port!);
+  print('FDT after delete: ${await bbmd.readForeignDeviceTable()}');
+  try {
+    await bbmd.deleteForeignDeviceTableEntry('127.0.0.1', port: 1);
+    print('delete of an unknown entry: accepted');
+  } on BacnetBbmdException catch (e) {
+    print('delete of an unknown entry: ${e.result.label}');
+  }
+  final table = await bbmd.readBroadcastDistributionTable();
+  try {
+    await bbmd.writeBroadcastDistributionTable([
+      ...table,
+      BacnetBdtEntry('127.0.0.1', port: 47899, mask: '255.255.255.0'),
+    ]);
+    print('BDT after write: ${await bbmd.readBroadcastDistributionTable()}');
+    await bbmd.writeBroadcastDistributionTable(table);
+  } on BacnetBbmdException catch (e) {
+    print('Write-BDT refused: ${e.result.label}');
+  }
+}
+
+/// Backs up bacserv (its objects as CreateObject requests in a file), changes
+/// an object and restores the backup.
+Future<void> backupAndRestore(BacnetClient client, int device) async {
+  final files = await client.read(
+    device,
+    BacnetObject(type: BacnetObjectType.device, instance: device),
+    BacnetProperties.configurationFiles,
+  );
+  print('configuration files: $files');
+  final backup = await client.backupDevice(
+    device,
+    password: 'filister',
+    onProgress: (done, total) => print('backup $done / $total'),
+  );
+  print('backup: $backup');
+  const av = BacnetObject(type: BacnetObjectType.analogValue, instance: 1);
+  final value = await client.read(
+    device,
+    av,
+    BacnetProperties.analogPresentValue,
+  );
+  await client.write(device, av, BacnetProperties.analogPresentValue, 55.5);
+  print(
+    'changed $value to '
+    '${await client.read(device, av, BacnetProperties.analogPresentValue)}',
+  );
+  await client.restoreDevice(device, backup, password: 'filister');
+  final state = await client.read(
+    device,
+    BacnetObject(type: BacnetObjectType.device, instance: device),
+    BacnetProperties.backupAndRestoreState,
+  );
+  print(
+    'after restore: '
+    '${await client.read(device, av, BacnetProperties.analogPresentValue)}, '
+    'state ${state.label}',
+  );
+  try {
+    await client.backupDevice(device, password: 'wrong');
+  } on BacnetProtocolException catch (e) {
+    print('wrong password: ${e.errorCode.label}');
+  }
 }

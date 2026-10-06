@@ -207,6 +207,115 @@ const List<_File> _files = [
       maxValue: 63,
     ),
     _Enum(
+      'BacnetCommunicationState',
+      cEnum: 'BACNET_COMMUNICATION_ENABLE_DISABLE',
+      prefix: 'COMMUNICATION_',
+      doc:
+          'Communication states of DeviceCommunicationControl '
+          '(BACnetEnableDisable).',
+      unknown: r'Communication State $value',
+    ),
+    _Enum(
+      'BacnetReinitializedState',
+      cEnum: 'BACNET_REINITIALIZED_STATE',
+      prefix: 'BACNET_REINIT_',
+      doc:
+          'States a device is reinitialized to by ReinitializeDevice '
+          '(BACnetReinitializedStateOfDevice).',
+      unknown: r'Reinitialized State $value',
+      names: {
+        'COLDSTART': 'coldStart',
+        'WARMSTART': 'warmStart',
+        'STARTBACKUP': 'startBackup',
+        'ENDBACKUP': 'endBackup',
+        'STARTRESTORE': 'startRestore',
+        'ENDRESTORE': 'endRestore',
+        'ABORTRESTORE': 'abortRestore',
+      },
+      labels: {
+        'COLDSTART': 'Cold Start',
+        'WARMSTART': 'Warm Start',
+        'STARTBACKUP': 'Start Backup',
+        'ENDBACKUP': 'End Backup',
+        'STARTRESTORE': 'Start Restore',
+        'ENDRESTORE': 'End Restore',
+        'ABORTRESTORE': 'Abort Restore',
+      },
+      skip: {'IDLE', 'MAX'},
+      maxValue: 7,
+    ),
+    _Enum(
+      'BacnetBackupState',
+      cEnum: 'BACNET_BACKUP_STATE',
+      prefix: 'BACKUP_STATE_',
+      doc:
+          'Backup and restore state of a device '
+          '(Backup_And_Restore_State, BACnetBackupState).',
+      unknown: r'Backup State $value',
+      skip: {'MAX'},
+    ),
+    _Enum(
+      'BacnetServiceSupported',
+      cEnum: 'BACNET_SERVICES_SUPPORTED',
+      prefix: 'SERVICE_SUPPORTED_',
+      doc:
+          'Bits of Protocol_Services_Supported '
+          '(BACnetServicesSupported): the services a device executes.',
+      unknown: r'Service Supported $value',
+      names: {
+        'READ_PROP_CONDITIONAL': 'readPropertyConditional',
+        'READ_PROP_MULTIPLE': 'readPropertyMultiple',
+        'WRITE_PROP_MULTIPLE': 'writePropertyMultiple',
+        'PRIVATE_TRANSFER': 'confirmedPrivateTransfer',
+        'TEXT_MESSAGE': 'confirmedTextMessage',
+      },
+      labels: {
+        'READ_PROP_CONDITIONAL': 'Read Property Conditional',
+        'READ_PROP_MULTIPLE': 'Read Property Multiple',
+        'WRITE_PROP_MULTIPLE': 'Write Property Multiple',
+        'PRIVATE_TRANSFER': 'Confirmed Private Transfer',
+        'TEXT_MESSAGE': 'Confirmed Text Message',
+      },
+    ),
+    _Enum(
+      'BacnetFileAccessMethod',
+      cEnum: 'BACNET_FILE_ACCESS_METHOD',
+      prefix: 'FILE_',
+      doc:
+          'How the content of a File object is accessed (BACnetFileAccessMethod).',
+      unknown: r'File Access Method $value',
+    ),
+    _Enum(
+      'BacnetNetworkMessageType',
+      cEnum: 'BACNET_NETWORK_MESSAGE_TYPE',
+      prefix: 'NETWORK_MESSAGE_',
+      doc:
+          'Network layer message types (clause 6.2.4); 0x80 and above are '
+          'proprietary.',
+      unknown: r'Network Message $value',
+      names: {
+        'INIT_RT_TABLE': 'initializeRoutingTable',
+        'INIT_RT_TABLE_ACK': 'initializeRoutingTableAck',
+      },
+      labels: {
+        'INIT_RT_TABLE': 'Initialize Routing Table',
+        'INIT_RT_TABLE_ACK': 'Initialize Routing Table Ack',
+      },
+      skip: {'ASHRAE_RESERVED_MIN', 'ASHRAE_RESERVED_MAX', 'INVALID'},
+      maxValue: 255,
+    ),
+    _Enum(
+      'BacnetNetworkRejectReason',
+      cEnum: 'BACNET_NETWORK_REJECT_REASONS',
+      prefix: 'NETWORK_REJECT_',
+      doc: 'Reasons of a Reject-Message-To-Network (clause 6.4.4).',
+      unknown: r'Reject Reason $value',
+      names: {'BACNET_SECURITY': 'security'},
+      labels: {'BACNET_SECURITY': 'BACnet Security'},
+      skip: {'REASON_INVALID'},
+      maxValue: 255,
+    ),
+    _Enum(
       'BacnetBinaryPV',
       cEnum: 'BACNET_BINARY_PV',
       prefix: 'BINARY_',

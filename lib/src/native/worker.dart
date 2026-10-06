@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:math';
 import 'dart:typed_data';
 
 import '../codec/requests.dart';
@@ -19,7 +20,9 @@ import '../core/exceptions.dart';
 import '../core/types.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
+import '../models/network.dart';
 import 'bindings.g.dart';
 import 'engine.dart';
 import 'native_event.dart';
@@ -202,6 +205,17 @@ final class _Worker implements RequestTransport {
           command.payload,
           deviceId: command.deviceId,
           network: command.network,
+          mac: command.mac,
+          adr: command.adr,
+        );
+      case NetworkMessageCommand():
+        _engine.sendNetworkMessage(
+          messageType: command.messageType,
+          payload: command.payload,
+          mac: command.mac,
+          network: command.network,
+          adr: command.adr,
+          vendorId: command.vendorId,
         );
       case BindDeviceCommand():
         _engine.bindDevice(
@@ -232,12 +246,53 @@ final class _Worker implements RequestTransport {
         if (command.vendorId case final vendorId?) {
           _engine.setVendorId(vendorId);
         }
+        _engine.setPassword(_password(command.password));
+      case SetDeviceInstanceCommand(:final deviceId):
+        _engine.setDeviceInstance(deviceId);
+      case SetPasswordCommand(:final password):
+        _engine.setPassword(_password(password));
       case SendIAmCommand():
         _engine.sendIAm();
       case CreateObjectCommand():
         return _createObject(command);
       case DeleteObjectCommand():
         _engine.deleteObject(command.objectType, command.instance);
+      case TrendLogAppendCommand(
+        :final instance,
+        :final payload,
+        :final statusFlags,
+      ):
+        return _engine.appendTrendLog(instance, payload, statusFlags);
+      case BackupConfigureCommand(
+        :final files,
+        :final prepare,
+        :final apply,
+        :final failureTimeoutSeconds,
+      ):
+        _engine.configureBackup(
+          files,
+          prepare: prepare,
+          apply: apply,
+          failureTimeoutSeconds: failureTimeoutSeconds,
+        );
+      case BackupStateCommand(:final state):
+        _engine.setBackupState(state);
+      case SetFileContentCommand(:final instance, :final content):
+        _engine.setFileContent(instance, content);
+      case FileContentCommand(:final instance):
+        return _engine.fileContent(instance);
+      case ConfigureFileCommand(
+        :final instance,
+        :final fileType,
+        :final readOnly,
+        :final maxSize,
+      ):
+        _engine.configureFile(
+          instance,
+          fileType: fileType,
+          readOnly: readOnly,
+          maxSize: maxSize,
+        );
       case SetNumberCommand():
         _engine.setNumber(
           command.objectType,
@@ -283,6 +338,16 @@ final class _Worker implements RequestTransport {
         _scheduler.cancelAll(const BacnetException('BACnet stack stopped'));
     }
     return null;
+  }
+
+  /// [password], or a random one nobody knows: bacnet-stack would accept
+  /// its well-known default password otherwise.
+  static String _password(String? password) {
+    if (password != null) return password;
+    final random = Random.secure();
+    return String.fromCharCodes(
+      List.generate(20, (_) => 0x21 + random.nextInt(0x5E)),
+    );
   }
 
   int _createObject(CreateObjectCommand command) {
@@ -380,6 +445,8 @@ final class _Worker implements RequestTransport {
         switch (event.service) {
           case BacnetConfirmedService.covNotification:
             _emitCov(event.data, confirmed: true);
+          case BacnetConfirmedService.covNotificationMultiple:
+            _emitCovMultiple(event.data, confirmed: true);
           case BacnetConfirmedService.eventNotification:
             _emit(_eventNotification(event, confirmed: true));
           default:
@@ -389,6 +456,8 @@ final class _Worker implements RequestTransport {
         _emit(_writeEvent(event));
       case BP_EVENT_SERVICE:
         _emit(_serviceRequestEvent(event));
+      case BP_EVENT_NETWORK:
+        _networkMessage(event);
       case BP_EVENT_LOG:
         _log(
           BacnetLogLevel.values[event.a.clamp(0, 3)],
@@ -404,9 +473,12 @@ final class _Worker implements RequestTransport {
           BacnetErrorClass(event.a),
           BacnetErrorCode(event.b),
         );
+        int? firstFailedElement;
+        BacnetFailedCovSubscription? firstFailedSubscription;
         if (event.hasFlag(BP_FLAG_COMPLEX)) {
           try {
-            error = decodeComplexError(event.data);
+            (:error, :firstFailedElement, :firstFailedSubscription) =
+                decodeComplexError(event.data, service: event.service);
           } on BacnetDecodeException {
             error = const BacnetError(
               BacnetErrorClass(-1),
@@ -418,6 +490,8 @@ final class _Worker implements RequestTransport {
           'device $deviceId returned an error',
           errorClass: error.errorClass,
           errorCode: error.errorCode,
+          firstFailedElement: firstFailedElement,
+          firstFailedSubscription: firstFailedSubscription,
         );
       case BP_EVENT_REJECT:
         return BacnetRejectException(
@@ -445,6 +519,10 @@ final class _Worker implements RequestTransport {
         AckDecoding.readRange => decodeReadRangeAck(data),
         AckDecoding.getEventInformation => decodeGetEventInformationAck(data),
         AckDecoding.getAlarmSummary => decodeGetAlarmSummaryAck(data),
+        AckDecoding.createObject => decodeCreateObjectAck(data),
+        AckDecoding.atomicReadFile => decodeAtomicReadFileAck(data),
+        AckDecoding.atomicWriteFile => decodeAtomicWriteFileAck(data),
+        AckDecoding.privateTransfer => decodePrivateTransfer(data).parameters,
       };
       _requestSucceeded(command, value);
     } on BacnetDecodeException catch (e) {
@@ -470,6 +548,8 @@ final class _Worker implements RequestTransport {
         _scheduler.deviceBound(event.deviceId);
       case BacnetUnconfirmedService.covNotification:
         _emitCov(event.data, confirmed: false);
+      case BacnetUnconfirmedService.covNotificationMultiple:
+        _emitCovMultiple(event.data, confirmed: false);
       case BacnetUnconfirmedService.eventNotification:
         _emit(_eventNotification(event, confirmed: false));
       default:
@@ -500,6 +580,38 @@ final class _Worker implements RequestTransport {
             classNumber: t.classNumber,
             classText: t.classText,
           );
+        case BacnetUnconfirmedService.whoAmI:
+          final w = decodeWhoAmI(event.data);
+          return WhoAmIEvent(
+            vendorId: w.vendorId,
+            modelName: w.modelName,
+            serialNumber: w.serialNumber,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+            adr: event.sourceAdr,
+          );
+        case BacnetUnconfirmedService.youAre:
+          final y = decodeYouAre(event.data);
+          return YouAreEvent(
+            vendorId: y.vendorId,
+            modelName: y.modelName,
+            serialNumber: y.serialNumber,
+            deviceId: y.deviceId,
+            macAddress: y.macAddress,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+            adr: event.sourceAdr,
+          );
+        case BacnetUnconfirmedService.writeGroup:
+          final g = decodeWriteGroup(event.data);
+          return WriteGroupEvent(
+            groupNumber: g.groupNumber,
+            writePriority: g.writePriority,
+            changes: g.changes,
+            inhibitDelay: g.inhibitDelay,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
         case BacnetUnconfirmedService.privateTransfer:
           final p = decodePrivateTransfer(event.data);
           return PrivateTransferEvent(
@@ -514,6 +626,26 @@ final class _Worker implements RequestTransport {
       _log(BacnetLogLevel.warning, 'malformed service ${event.service}: $e');
     }
     return _serviceEvent(event, confirmed: false);
+  }
+
+  void _networkMessage(NativeEvent event) {
+    try {
+      _emit(
+        NetworkMessageEvent(
+          message: BacnetNetworkMessage.decode(
+            BacnetNetworkMessageType(event.service),
+            event.data,
+            vendorId: event.a,
+          ),
+          mac: event.sourceMac,
+          net: event.sourceNetwork,
+          adr: event.sourceAdr,
+          destinationNetwork: event.b,
+        ),
+      );
+    } on BacnetDecodeException catch (e) {
+      _log(BacnetLogLevel.warning, 'network message: $e');
+    }
   }
 
   /// The typed event notification, or the raw request when it is
@@ -549,6 +681,31 @@ final class _Worker implements RequestTransport {
             mac: event.sourceMac,
             net: event.sourceNetwork,
           );
+        case BacnetConfirmedService.deviceCommunicationControl:
+          final dcc = decodeDeviceCommunicationControl(event.data);
+          return CommunicationControlEvent(
+            state: dcc.state,
+            duration: dcc.duration,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+        case BacnetConfirmedService.reinitializeDevice:
+          return ReinitializeDeviceEvent(
+            state: decodeReinitializeDevice(event.data).state,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+        case BacnetConfirmedService.atomicWriteFile:
+          final write = decodeAtomicWriteFile(event.data);
+          if (write.data case final data?) {
+            return FileWriteEvent(
+              instance: write.file.instance,
+              start: write.start,
+              data: data,
+              mac: event.sourceMac,
+              net: event.sourceNetwork,
+            );
+          }
         case BacnetConfirmedService.addListElement ||
             BacnetConfirmedService.removeListElement:
           final list = decodeListElements(event.data);
@@ -595,6 +752,7 @@ final class _Worker implements RequestTransport {
       priority: event.priority,
       value: value,
       rawValue: raw,
+      internal: event.hasFlag(BP_FLAG_INTERNAL),
     );
   }
 
@@ -613,6 +771,34 @@ final class _Worker implements RequestTransport {
           confirmed: confirmed,
         ),
       );
+    } on BacnetDecodeException catch (e) {
+      _log(BacnetLogLevel.warning, 'malformed COV notification: $e');
+    }
+  }
+
+  /// One [CovNotificationEvent] per object of a COVNotificationMultiple.
+  void _emitCovMultiple(Uint8List data, {required bool confirmed}) {
+    try {
+      final cov = decodeCovNotificationMultiple(data);
+      final received = DateTime.now().toIso8601String();
+      for (final notification in cov.notifications) {
+        _emit(
+          CovNotificationEvent(
+            objectType: notification.object.type,
+            instance: notification.object.instance,
+            timestamp: received,
+            deviceId: cov.initiatingDeviceId,
+            subscriberProcessId: cov.subscriberProcessId,
+            timeRemaining: cov.timeRemaining,
+            values: {
+              for (final v in notification.values) v.propertyId: v.value,
+            },
+            confirmed: confirmed,
+            notificationTime: cov.timestamp,
+            changeTimes: notification.changeTimes,
+          ),
+        );
+      }
     } on BacnetDecodeException catch (e) {
       _log(BacnetLogLevel.warning, 'malformed COV notification: $e');
     }

@@ -3,6 +3,7 @@
 // Usage: dart run tool/demo_server.dart [port] [deviceId] [objects]
 // ignore_for_file: avoid_print
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -22,7 +23,14 @@ Future<void> main(List<String> args) async {
     ),
   );
   await server.start();
-  await server.init(deviceId, 'DemoServer', vendorName: 'bacnet_plugin');
+  await server.init(
+    deviceId,
+    'DemoServer',
+    vendorName: 'bacnet_plugin',
+    modelName: 'Demo',
+    serialNumber: 'DEMO-$deviceId',
+    password: 'demo-password',
+  );
   for (var i = 0; i < objects; i++) {
     await server.addObject(
       BacnetObjectType.analogValue,
@@ -64,9 +72,143 @@ Future<void> main(List<String> args) async {
     alarmValue: BacnetBinaryPV.active,
     notifyType: BacnetNotifyType.event,
   );
-  server.writeEvents.listen((e) => print('WRITE $e'));
+  // files kept in memory: a writable one and a read only one
+  await server.addFile(
+    1,
+    name: 'notes.txt',
+    description: 'Notes of the operator',
+    fileType: 'text/plain',
+    content: 'hello from the server'.codeUnits,
+  );
+  await server.addFile(
+    2,
+    name: 'firmware.bin',
+    readOnly: true,
+    content: List.generate(3000, (i) => i & 0xFF),
+  );
+  // a schedule writing AV 900 at priority 12, and a calendar it can refer
+  // to in its exception schedule
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    900,
+    name: 'Scheduled-AV',
+    presentValue: const BacnetReal(0),
+  );
+  await server.addCalendar(1, name: 'Holidays');
+  await server.addSchedule(
+    1,
+    name: 'Setpoint',
+    scheduleDefault: const BacnetReal(5),
+    weeklySchedule: BacnetWeeklySchedule([
+      for (var day = 0; day < 7; day++)
+        const [
+          BacnetTimeValue(
+            BacnetTime(hour: 0, minute: 0, second: 0, hundredths: 0),
+            BacnetReal(20),
+          ),
+        ],
+    ]),
+    references: const [
+      BacnetDeviceObjectPropertyReference(
+        object: BacnetObject(type: BacnetObjectType.analogValue, instance: 900),
+        property: BacnetPropertyId.presentValue,
+      ),
+    ],
+    priorityForWriting: 12,
+  );
+  // trend logs: one polls AV 910 every second, the application records
+  // the values clients write to AV 911 in the other
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    910,
+    name: 'Logged-AV',
+    presentValue: const BacnetReal(1),
+  );
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    911,
+    name: 'App-logged-AV',
+    presentValue: const BacnetReal(0),
+  );
+  await server.addTrendLog(
+    1,
+    name: 'AV 910 log',
+    source: const BacnetDeviceObjectPropertyReference(
+      object: BacnetObject(type: BacnetObjectType.analogValue, instance: 910),
+      property: BacnetPropertyId.presentValue,
+    ),
+    logInterval: const Duration(seconds: 1),
+    bufferSize: 100,
+  );
+  await server.addTrendLog(2, name: 'AV 911 writes', bufferSize: 10);
+  // backup and restore: the settings of the application in file 3
+  var settings = 'setpoint=21';
+  await server.addFile(3, name: 'settings.txt', fileType: 'text/plain');
+  await server.enableBackup(
+    files: [3],
+    prepareBackup: () => server.setFileContent(3, settings.codeUnits),
+    applyRestore: () async {
+      settings = String.fromCharCodes(await server.fileContent(3));
+      print('RESTORED $settings');
+    },
+  );
+  // a Channel: WriteGroup of control group 5 with channel 7 writes AV 920
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    920,
+    name: 'Group-AV',
+    presentValue: const BacnetReal(0),
+  );
+  await server.addChannel(
+    1,
+    name: 'Lights',
+    channelNumber: 7,
+    controlGroups: [5],
+    members: const [
+      BacnetDeviceObjectPropertyReference(
+        object: BacnetObject(type: BacnetObjectType.analogValue, instance: 920),
+        property: BacnetPropertyId.presentValue,
+      ),
+    ],
+  );
+  server.writeGroupEvents.listen((e) => print('GROUP $e'));
+  // "provision <ip> <port>": asks the supervisor there for a device
+  // instance (Who-Am-I / You-Are)
+  stdin.transform(utf8.decoder).transform(const LineSplitter()).listen((
+    line,
+  ) async {
+    final words = line.trim().split(' ');
+    if (words.length == 3 && words[0] == 'provision') {
+      final port = int.parse(words[2]);
+      final instance = await server.requestDeviceInstance(
+        supervisor: BacnetAddressRecipient(
+          network: 0,
+          mac: [...words[1].split('.').map(int.parse), port >> 8, port & 0xFF],
+        ),
+        timeout: const Duration(seconds: 10),
+        retryInterval: const Duration(seconds: 1),
+      );
+      print('PROVISIONED $instance');
+    }
+  });
+  server.fileWrites.listen((e) => print('FILE $e'));
+  server.writeEvents.listen((e) async {
+    print('WRITE $e');
+    if (e.objectType == BacnetObjectType.analogValue &&
+        e.instance == 911 &&
+        e.propertyId == BacnetPropertyId.presentValue &&
+        e.value != null) {
+      await server.logValue(
+        2,
+        e.value!,
+        statusFlags: const BacnetStatusFlags(overridden: true),
+      );
+    }
+  });
   server.alarmAcknowledgements.listen((e) => print('ACK $e'));
   server.listElementEvents.listen((e) => print('LIST $e'));
+  server.communicationControls.listen((e) => print('DCC $e'));
+  server.reinitializeRequests.listen((e) => print('REINIT $e'));
   print('READY ${server.config.port} device $deviceId objects $objects');
   final random = Random(1);
   // keep values moving to exercise COV

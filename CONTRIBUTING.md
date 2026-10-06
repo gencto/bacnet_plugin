@@ -52,7 +52,9 @@ native/src/              C engine around bacnet-stack (see bp_internal.h)
 hook/build.dart          native build for every platform
 test/                    mirrors lib/src; test/integration talks to a
                          server process over the loopback interface
-tool/                    generators, demo server, interop client
+tool/                    generators, demo server, interop client, fuzzing
+bin/bacnet.dart          command line tool (lib/src/cli/)
+native/fuzz/             libFuzzer target of the engine
 benchmark/               load tests
 example/                 Flutter demo app
 ```
@@ -62,8 +64,8 @@ example/                 Flutter demo app
 Run what CI runs before opening a pull request:
 
 ```bash
-dart format lib test hook benchmark tool
-dart analyze --fatal-infos lib test hook benchmark tool
+dart format lib test hook benchmark tool bin
+dart analyze --fatal-infos lib test hook benchmark tool bin
 dart test                       # unit and integration tests
 dart test --exclude-tags integration
 
@@ -123,6 +125,15 @@ bacnet-stack internals stay private to the native library.
   make BACDL=bip server readprop
   BACNET_IFACE=lo BACNET_IP_PORT=47830 bin/bacserv 2002 &
   dart run tool/interop_client.dart 47830 2002
+  ```
+
+- Fuzzing of the native engine with libFuzzer, AddressSanitizer and
+  UndefinedBehaviorSanitizer (needs clang and its libFuzzer runtime,
+  `libclang-rt-dev` on Debian/Ubuntu); crashes land in `build/fuzz/`:
+
+  ```bash
+  dart run tool/fuzz_native.dart 600        # seconds
+  build/fuzz/fuzz_npdu build/fuzz/crash-...  # reproduce a crash
   ```
 
 - Load tests:

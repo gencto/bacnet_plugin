@@ -244,7 +244,7 @@ bp_on_i_am(uint8_t *service_request, uint16_t service_len, BACNET_ADDRESS *src)
     bp_event_push(&hdr, service_request, service_len);
 }
 
-static void bp_forward_unconfirmed(
+void bp_forward_unconfirmed(
     uint8_t service,
     uint8_t *service_request,
     uint16_t service_len,
@@ -269,6 +269,10 @@ BP_UNCONFIRMED_FORWARDER(bp_on_i_have, SERVICE_UNCONFIRMED_I_HAVE)
 BP_UNCONFIRMED_FORWARDER(bp_on_uevent, SERVICE_UNCONFIRMED_EVENT_NOTIFICATION)
 BP_UNCONFIRMED_FORWARDER(bp_on_utext, SERVICE_UNCONFIRMED_TEXT_MESSAGE)
 BP_UNCONFIRMED_FORWARDER(bp_on_uprivate, SERVICE_UNCONFIRMED_PRIVATE_TRANSFER)
+BP_UNCONFIRMED_FORWARDER(bp_on_who_am_i, SERVICE_UNCONFIRMED_WHO_AM_I)
+BP_UNCONFIRMED_FORWARDER(bp_on_you_are, SERVICE_UNCONFIRMED_YOU_ARE)
+BP_UNCONFIRMED_FORWARDER(
+    bp_on_ucov_multiple, SERVICE_UNCONFIRMED_COV_NOTIFICATION_MULTIPLE)
 
 static void bp_confirmed_notification(
     uint8_t service,
@@ -316,6 +320,17 @@ static void bp_on_ccov(
         service_data);
 }
 
+static void bp_on_ccov_multiple(
+    uint8_t *service_request,
+    uint16_t service_len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data)
+{
+    bp_confirmed_notification(
+        SERVICE_CONFIRMED_COV_NOTIFICATION_MULTIPLE, service_request,
+        service_len, src, service_data);
+}
+
 static void bp_on_cevent(
     uint8_t *service_request,
     uint16_t service_len,
@@ -361,7 +376,13 @@ void bp_register_client_handlers(void)
     apdu_set_unconfirmed_handler(SERVICE_UNCONFIRMED_TEXT_MESSAGE, bp_on_utext);
     apdu_set_unconfirmed_handler(
         SERVICE_UNCONFIRMED_PRIVATE_TRANSFER, bp_on_uprivate);
+    apdu_set_unconfirmed_handler(SERVICE_UNCONFIRMED_WHO_AM_I, bp_on_who_am_i);
+    apdu_set_unconfirmed_handler(SERVICE_UNCONFIRMED_YOU_ARE, bp_on_you_are);
     apdu_set_confirmed_handler(SERVICE_CONFIRMED_COV_NOTIFICATION, bp_on_ccov);
+    apdu_set_unconfirmed_handler(
+        SERVICE_UNCONFIRMED_COV_NOTIFICATION_MULTIPLE, bp_on_ucov_multiple);
+    apdu_set_confirmed_handler(
+        SERVICE_CONFIRMED_COV_NOTIFICATION_MULTIPLE, bp_on_ccov_multiple);
     apdu_set_confirmed_handler(
         SERVICE_CONFIRMED_EVENT_NOTIFICATION, bp_on_cevent);
 }
@@ -447,41 +468,23 @@ BP_API int32_t bacnet_plugin_send_confirmed(
     return invoke_id;
 }
 
-BP_API int32_t bacnet_plugin_send_unconfirmed(
-    uint32_t device_id,
-    uint16_t network,
+static int32_t bp_send_unconfirmed(
+    BACNET_ADDRESS *dest,
     uint8_t service,
     const uint8_t *data,
     uint16_t data_len)
 {
     BACNET_NPDU_DATA npdu_data;
     BACNET_ADDRESS my_address;
-    BACNET_ADDRESS dest;
     int pdu_len;
 
-    if (!bp_state.initialized) {
-        return BP_ERR_NOT_INITIALIZED;
-    }
-    if (data_len > 0 && !data) {
-        return BP_ERR_INVALID_ARGUMENT;
-    }
     if (!dcc_communication_enabled()) {
         return BP_ERR_COMMUNICATION_DISABLED;
-    }
-    if (device_id == BP_DEVICE_UNKNOWN) {
-        datalink_get_broadcast_address(&dest);
-        dest.net = network;
-    } else {
-        bp_device_entry_t *device = bp_device_find(device_id);
-        if (!device) {
-            return BP_ERR_NOT_BOUND;
-        }
-        bacnet_address_copy(&dest, &device->address);
     }
     datalink_get_my_address(&my_address);
     npdu_encode_npdu_data(&npdu_data, false, MESSAGE_PRIORITY_NORMAL);
     pdu_len =
-        npdu_encode_pdu(&bp_state.tx_buf[0], &dest, &my_address, &npdu_data);
+        npdu_encode_pdu(&bp_state.tx_buf[0], dest, &my_address, &npdu_data);
     if (pdu_len <= 0 || pdu_len + 2 + data_len > MAX_PDU ||
         2 + data_len > MAX_APDU) {
         return BP_ERR_APDU_TOO_LARGE;
@@ -493,11 +496,76 @@ BP_API int32_t bacnet_plugin_send_unconfirmed(
         pdu_len += data_len;
     }
     bp_state.stats.requests_sent++;
-    if (datalink_send_pdu(&dest, &npdu_data, &bp_state.tx_buf[0], pdu_len) <=
+    if (datalink_send_pdu(dest, &npdu_data, &bp_state.tx_buf[0], pdu_len) <=
         0) {
         return BP_ERR_SEND_FAILED;
     }
     return BP_OK;
+}
+
+BP_API int32_t bacnet_plugin_send_unconfirmed(
+    uint32_t device_id,
+    uint16_t network,
+    uint8_t service,
+    const uint8_t *data,
+    uint16_t data_len)
+{
+    BACNET_ADDRESS dest;
+
+    if (!bp_state.initialized) {
+        return BP_ERR_NOT_INITIALIZED;
+    }
+    if (data_len > 0 && !data) {
+        return BP_ERR_INVALID_ARGUMENT;
+    }
+    if (device_id == BP_DEVICE_UNKNOWN) {
+        /* no MAC: a broadcast (Original-Broadcast-NPDU, or
+           Distribute-Broadcast-To-Network as foreign device); the NPCI
+           names the network unless it is the local one */
+        memset(&dest, 0, sizeof(dest));
+        dest.net = network;
+    } else {
+        bp_device_entry_t *device = bp_device_find(device_id);
+        if (!device) {
+            return BP_ERR_NOT_BOUND;
+        }
+        bacnet_address_copy(&dest, &device->address);
+    }
+    return bp_send_unconfirmed(&dest, service, data, data_len);
+}
+
+BP_API int32_t bacnet_plugin_send_unconfirmed_to(
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len,
+    uint8_t service,
+    const uint8_t *data,
+    uint16_t data_len)
+{
+    BACNET_ADDRESS dest;
+
+    if (!bp_state.initialized) {
+        return BP_ERR_NOT_INITIALIZED;
+    }
+    if ((data_len > 0 && !data) || (mac_len > 0 && !mac) ||
+        (adr_len > 0 && !adr) || mac_len > MAX_MAC_LEN ||
+        adr_len > MAX_MAC_LEN || (adr_len > 0 && net == 0)) {
+        return BP_ERR_INVALID_ARGUMENT;
+    }
+    /* no MAC: a broadcast that routers forward to DNET/DADR */
+    memset(&dest, 0, sizeof(dest));
+    dest.mac_len = mac_len;
+    if (mac_len) {
+        memcpy(dest.mac, mac, mac_len);
+    }
+    dest.net = net;
+    dest.len = adr_len;
+    if (adr_len) {
+        memcpy(dest.adr, adr, adr_len);
+    }
+    return bp_send_unconfirmed(&dest, service, data, data_len);
 }
 
 static bool bp_resolve_ipv4(const char *host, uint8_t out[4])
@@ -602,6 +670,86 @@ BP_API int32_t bacnet_plugin_local_address(uint8_t *mac)
     }
     memcpy(mac, address.mac, 6);
     return 6;
+}
+
+void bp_network_received(
+    const BACNET_ADDRESS *src,
+    const BACNET_ADDRESS *dest,
+    const BACNET_NPDU_DATA *npdu_data,
+    const uint8_t *message,
+    uint16_t message_len)
+{
+    bp_event_header_t hdr;
+
+    if ((dest->net != 0 && dest->net != BACNET_BROADCAST_NETWORK) ||
+        npdu_data->network_message_type > 0xFF) {
+        /* for a router, or no message type */
+        return;
+    }
+    bp_event_init(&hdr, BP_EVENT_NETWORK);
+    hdr.service = (uint8_t)npdu_data->network_message_type;
+    hdr.a = npdu_data->network_message_type >= 0x80 ? npdu_data->vendor_id : 0;
+    hdr.b = dest->net;
+    bp_event_src(&hdr, src);
+    bp_event_push(&hdr, message, message_len);
+}
+
+BP_API int32_t bacnet_plugin_send_network(
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len,
+    uint8_t message_type,
+    uint16_t vendor_id,
+    const uint8_t *data,
+    uint16_t data_len)
+{
+    BACNET_NPDU_DATA npdu_data;
+    BACNET_ADDRESS my_address;
+    BACNET_ADDRESS dest;
+    int pdu_len;
+
+    if (!bp_state.initialized) {
+        return BP_ERR_NOT_INITIALIZED;
+    }
+    if ((data_len > 0 && !data) || (mac_len > 0 && !mac) ||
+        (adr_len > 0 && !adr) || mac_len > MAX_MAC_LEN ||
+        adr_len > MAX_MAC_LEN || (adr_len > 0 && net == 0)) {
+        return BP_ERR_INVALID_ARGUMENT;
+    }
+    /* no MAC: a broadcast, as in bacnet_plugin_send_unconfirmed() */
+    memset(&dest, 0, sizeof(dest));
+    dest.mac_len = mac_len;
+    if (mac_len) {
+        memcpy(dest.mac, mac, mac_len);
+    }
+    dest.net = net;
+    dest.len = adr_len;
+    if (adr_len) {
+        memcpy(dest.adr, adr, adr_len);
+    }
+    datalink_get_my_address(&my_address);
+    /* Initialize-Routing-Table is the only one expecting a reply */
+    npdu_encode_npdu_network(
+        &npdu_data, (BACNET_NETWORK_MESSAGE_TYPE)message_type,
+        message_type == NETWORK_MESSAGE_INIT_RT_TABLE, MESSAGE_PRIORITY_NORMAL);
+    npdu_data.vendor_id = vendor_id;
+    pdu_len =
+        npdu_encode_pdu(&bp_state.tx_buf[0], &dest, &my_address, &npdu_data);
+    if (pdu_len <= 0 || pdu_len + data_len > MAX_PDU) {
+        return BP_ERR_APDU_TOO_LARGE;
+    }
+    if (data_len) {
+        memcpy(&bp_state.tx_buf[pdu_len], data, data_len);
+        pdu_len += data_len;
+    }
+    bp_state.stats.requests_sent++;
+    if (datalink_send_pdu(&dest, &npdu_data, &bp_state.tx_buf[0], pdu_len) <=
+        0) {
+        return BP_ERR_SEND_FAILED;
+    }
+    return BP_OK;
 }
 
 BP_API int32_t bacnet_plugin_register_foreign_device(

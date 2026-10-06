@@ -74,16 +74,28 @@ extern "C" {
 /** Diagnostic message, data = UTF-8 text, a = level (0 debug .. 3 error) */
 #define BP_EVENT_LOG 10
 /** A confirmed service request of a remote client changed the server and
- *  was answered with success: AcknowledgeAlarm, AddListElement or
- *  RemoveListElement. service = confirmed service choice, data = the
- *  service request. */
+ *  was answered with success: AcknowledgeAlarm, AddListElement,
+ *  RemoveListElement, DeviceCommunicationControl, ReinitializeDevice or
+ *  AtomicWriteFile. service = confirmed service choice, data = the service
+ *  request (without the password of DeviceCommunicationControl and
+ *  ReinitializeDevice; with the actual start position of an append of
+ *  AtomicWriteFile). */
 #define BP_EVENT_SERVICE 11
+/** Network layer message (clause 6.4) for this device: I-Am-Router-To-
+ *  Network, Network-Number-Is, Reject-Message-To-Network, ...
+ *  service = message type, a = vendor id (message types 0x80 and above),
+ *  b = destination network (0 local, 0xFFFF global broadcast),
+ *  data = the message after the message type and vendor id. */
+#define BP_EVENT_NETWORK 12
 
 #define BP_FLAG_ABORT_FROM_SERVER 0x01
 #define BP_FLAG_COMPLEX 0x02
 #define BP_FLAG_LOCAL 0x04
 /** The complex ACK was received in segments. */
 #define BP_FLAG_SEGMENTED 0x08
+/** BP_EVENT_WRITE: an object of the server (a Schedule) wrote the value,
+ *  not a remote client. */
+#define BP_FLAG_INTERNAL 0x10
 
 #define BP_DEVICE_UNKNOWN 0xFFFFFFFFu
 
@@ -228,6 +240,26 @@ BP_API int32_t bacnet_plugin_send_unconfirmed(
     uint16_t data_len);
 
 /**
+ * Sends an unconfirmed request to an address, e.g. the answer to a device
+ * without a device instance (You-Are to the sender of a Who-Am-I).
+ * @param mac BACnet/IP address (IPv4 address and UDP port, 6 bytes) of the
+ *        device or of the router, NULL or mac_len 0 for a local broadcast.
+ * @param net destination network (DNET): 0 for the local network, 0xFFFF
+ *        for a global broadcast.
+ * @param adr address on the destination network (DADR), adr_len 0 for a
+ *        broadcast on it.
+ */
+BP_API int32_t bacnet_plugin_send_unconfirmed_to(
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len,
+    uint8_t service,
+    const uint8_t *data,
+    uint16_t data_len);
+
+/**
  * Adds or replaces a static device address binding.
  * @param host IPv4 address or host name of the device (or of the router).
  * @param net remote network number (0 for local devices).
@@ -264,6 +296,28 @@ BP_API int32_t bacnet_plugin_device_binding(
  */
 BP_API int32_t bacnet_plugin_local_address(uint8_t *mac);
 
+/**
+ * Sends a network layer message (clause 6.4) without an APDU.
+ * @param mac BACnet/IP address (IPv4 address and UDP port, 6 bytes) of the
+ *        next hop, NULL or mac_len 0 for a local broadcast.
+ * @param net destination network (DNET): 0 for the local network, 0xFFFF
+ *        for a global broadcast.
+ * @param adr address on the destination network (DADR), adr_len 0 for a
+ *        broadcast on it.
+ * @param message_type network message type (0x80 and above with vendor_id).
+ * @param data the message after the message type.
+ */
+BP_API int32_t bacnet_plugin_send_network(
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len,
+    uint8_t message_type,
+    uint16_t vendor_id,
+    const uint8_t *data,
+    uint16_t data_len);
+
 /** Registers as foreign device with a BBMD and keeps the registration. */
 BP_API int32_t bacnet_plugin_register_foreign_device(
     const char *host, uint16_t port, uint16_t ttl_seconds);
@@ -279,12 +333,24 @@ BP_API int32_t
 bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name);
 
 /** Sets a string property of the local Device object
- *  (vendor name, model name, description, location, firmware, version). */
+ *  (name, vendor name, model name, description, location, firmware,
+ *  application software version, serial number). */
 BP_API int32_t
 bacnet_plugin_device_set_string(uint32_t property, const char *value);
 
+/** Changes the instance of the local Device object (e.g. as told by a
+ *  You-Are) and broadcasts an I-Am. */
+BP_API int32_t bacnet_plugin_device_set_instance(uint32_t device_instance);
+
 /** Sets the vendor identifier of the local Device object. */
 BP_API int32_t bacnet_plugin_device_set_vendor_id(uint16_t vendor_id);
+
+/**
+ * Sets the password DeviceCommunicationControl and ReinitializeDevice
+ * requests must carry (up to 20 characters). NULL or "" accepts requests
+ * without a password.
+ */
+BP_API int32_t bacnet_plugin_device_set_password(const char *password);
 
 /** Broadcasts an I-Am for the local device. */
 BP_API int32_t bacnet_plugin_send_i_am(void);
@@ -310,7 +376,8 @@ BP_API int32_t bacnet_plugin_object_set_description(
 
 /**
  * Sets a numeric property locally (no network write semantics):
- * present-value (85), out-of-service (81), units (117), cov-increment (22).
+ * present-value (85), out-of-service (81), units (117), cov-increment (22),
+ * priority-for-writing (88) of schedules.
  * A NaN present value relinquishes the given priority of commandable objects.
  */
 BP_API int32_t bacnet_plugin_object_set_number(
@@ -360,6 +427,83 @@ BP_API int32_t bacnet_plugin_object_read(
     uint16_t buffer_len,
     uint32_t *error_class,
     uint32_t *error_code);
+
+/* ---- Backup and restore of the server --------------------------------- */
+
+/** bacnet_plugin_backup_configure(): the application prepares the files of
+ *  a backup (PREPARING_FOR_BACKUP until bacnet_plugin_backup_set_state(),
+ *  else PERFORMING_A_BACKUP at once). */
+#define BP_BACKUP_PREPARE 0x01
+/** bacnet_plugin_backup_configure(): the application applies the files of
+ *  a restore (PERFORMING_A_RESTORE after END_RESTORE until
+ *  bacnet_plugin_backup_set_state(), else IDLE at once). */
+#define BP_BACKUP_APPLY 0x02
+
+/**
+ * Lets clients back up and restore the server (clause 19.1): `files` are
+ * the instances of the File objects (bacnet_plugin_object_create()) of
+ * Configuration_Files, at most 16; `flags` are BP_BACKUP_*. The procedure
+ * fails after `failure_timeout` seconds without requests (0: never).
+ * The requests are reported as BP_EVENT_SERVICE (ReinitializeDevice).
+ */
+BP_API int32_t bacnet_plugin_backup_configure(
+    const uint32_t *files,
+    uint32_t count,
+    uint32_t flags,
+    uint16_t failure_timeout);
+
+/** Sets Backup_And_Restore_State (BACnetBackupState). */
+BP_API int32_t bacnet_plugin_backup_set_state(uint8_t state);
+
+/* ---- Trend Log objects of the server ---------------------------------- */
+
+/**
+ * Appends a record to Trend Log `instance` of the server (created with
+ * bacnet_plugin_object_create()) while it is enabled.
+ * @param data application encoded value (NULL, BOOLEAN, REAL, DOUBLE,
+ *        ENUMERATED, Unsigned, INTEGER or a BIT STRING of up to 32 bits;
+ *        others are logged as failures).
+ * @param status_flags Status_Flags (in-alarm 1, fault 2, overridden 4,
+ *        out-of-service 8) or -1 to leave them out.
+ * @return 1 when appended, 0 while the log is disabled, or a negative
+ *         BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_trend_log_append(
+    uint32_t instance,
+    const uint8_t *data,
+    uint16_t length,
+    int32_t status_flags);
+
+/* ---- File objects of the server -------------------------------------- */
+
+/**
+ * Replaces the content of File object `instance` of the server (created
+ * with bacnet_plugin_object_create(); kept in memory, stream access).
+ */
+BP_API int32_t bacnet_plugin_file_set_content(
+    uint32_t instance, const uint8_t *data, uint32_t length);
+
+/**
+ * Copies up to `capacity` octets of the content of File object `instance`
+ * from `offset` to `buffer`.
+ * @return the size of the file or a negative BP_ERR_* code.
+ */
+BP_API int64_t bacnet_plugin_file_get_content(
+    uint32_t instance, uint32_t offset, uint8_t *buffer, uint32_t capacity);
+
+/**
+ * Sets the File_Type (a media type, copied; NULL keeps it), Read_Only (0 or
+ * 1; negative keeps it) and the size up to which remote clients may grow
+ * the file (AtomicWriteFile, File_Size; negative keeps it, 16 MiB by
+ * default) of File object `instance`. Remote writes also stop when all
+ * files together take 256 MiB; the content set by
+ * bacnet_plugin_file_set_content() is not limited.
+ */
+BP_API int32_t bacnet_plugin_file_configure(
+    uint32_t instance,
+    const char *file_type,
+    int32_t read_only,
+    int64_t max_size);
 
 #ifdef __cplusplus
 }

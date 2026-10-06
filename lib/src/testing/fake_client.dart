@@ -19,8 +19,12 @@ import '../models/alarms.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
+import '../models/channels.dart';
 import '../models/complex_values.dart';
+import '../models/cov_multiple.dart';
 import '../models/events.dart';
+import '../models/files.dart';
+import '../models/network.dart';
 import '../models/rpm_models.dart';
 import '../models/trend_log_data.dart';
 import '../models/wpm_models.dart';
@@ -39,6 +43,8 @@ final class FakeBacnetRequest {
     this.address,
     this.objectName,
     this.source,
+    this.networkMessage,
+    this.arguments = const {},
   });
 
   /// Client method, e.g. `readProperty`, `writeProperty`, `subscribeCOV`,
@@ -63,7 +69,8 @@ final class FakeBacnetRequest {
   /// Time sent with `timeSynchronization`.
   final DateTime? time;
 
-  /// BBMD address (`host:port`) of `registerForeignDevice`.
+  /// BBMD address (`host:port`) of `registerForeignDevice`, destination
+  /// of `sendNetworkMessage` (null for a broadcast).
   final String? address;
 
   /// Object name searched by `sendWhoHas`.
@@ -71,6 +78,13 @@ final class FakeBacnetRequest {
 
   /// Acknowledgement source of `acknowledgeAlarm`.
   final String? source;
+
+  /// Message of `sendNetworkMessage`.
+  final BacnetNetworkMessage? networkMessage;
+
+  /// Other arguments by name, e.g. `serialNumber` of `sendYouAre` or
+  /// `changes` of `writeGroup`.
+  final Map<String, Object?> arguments;
 
   @override
   String toString() =>
@@ -115,8 +129,27 @@ final class FakeBacnetObject {
     device._changed(this, property);
   }
 
+  List<int>? _file;
+
+  /// Content of a File object ([FakeBacnetDevice.addFile]).
+  Uint8List get fileContent => Uint8List.fromList(_file ?? const []);
+
+  set fileContent(List<int> content) {
+    _file = [...content];
+    properties[BacnetPropertyId.fileSize] = BacnetUnsigned(content.length);
+  }
+
   /// Applies a client write with WriteProperty semantics.
   void _write(BacnetPropertyId property, BacnetValue value, int priority) {
+    if (property == BacnetPropertyId.fileSize && _file != null) {
+      final size = value.asInt ?? _file!.length;
+      _file = size <= _file!.length
+          ? _file!.sublist(0, size)
+          : [..._file!, ...List.filled(size - _file!.length, 0)];
+      properties[property] = BacnetUnsigned(size);
+      device._changed(this, property);
+      return;
+    }
     if (property == BacnetPropertyId.presentValue && commandable) {
       _priorityArray[(priority.clamp(1, 16)) - 1] = value;
       _publishPriorityArray();
@@ -449,6 +482,168 @@ final class FakeBacnetDevice {
   /// While false, requests to the device time out and it ignores Who-Is.
   bool online = true;
 
+  /// Communication state set by DeviceCommunicationControl: while
+  /// disabled the device answers only DeviceCommunicationControl and
+  /// ReinitializeDevice; while disabled or with initiation disabled it
+  /// sends no COV or event notifications (and no I-Am while disabled).
+  BacnetCommunicationState get communication => _communication;
+  BacnetCommunicationState _communication = BacnetCommunicationState.enable;
+  Timer? _communicationTimer;
+
+  /// Password DeviceCommunicationControl and ReinitializeDevice require
+  /// (null: none).
+  String? password;
+
+  /// ReinitializeDevice requests received, oldest first.
+  final List<BacnetReinitializedState> reinitializations = [];
+
+  /// Text messages received, oldest first.
+  final List<TextMessageEvent> messages = [];
+
+  /// Answers ConfirmedPrivateTransfer with its result block; without it
+  /// the device rejects the service. Throw a [BacnetProtocolException]
+  /// for an error answer.
+  BacnetValue? Function(
+    int vendorId,
+    int serviceNumber,
+    BacnetValue? parameters,
+  )?
+  onPrivateTransfer;
+
+  /// Adds a File object with [content] (stream access).
+  FakeBacnetObject addFile(
+    int instance, {
+    List<int> content = const [],
+    String? name,
+    String fileType = 'application/octet-stream',
+    bool readOnly = false,
+  }) => addObject(
+    BacnetObjectType.file,
+    instance,
+    name: name,
+    properties: {
+      BacnetPropertyId.fileType: BacnetCharacterString(fileType),
+      BacnetPropertyId.readOnly: BacnetBoolean(readOnly),
+      BacnetPropertyId.fileAccessMethod: const BacnetEnumerated(
+        BacnetFileAccessMethod.streamAccess,
+      ),
+    },
+  )..fileContent = content;
+
+  void _setCommunication(BacnetCommunicationState state, Duration? duration) {
+    _communicationTimer?.cancel();
+    _communication = state;
+    if (duration != null && state != BacnetCommunicationState.enable) {
+      _communicationTimer = Timer(
+        duration,
+        () => _communication = BacnetCommunicationState.enable,
+      );
+    }
+  }
+
+  /// Instances of the File objects of Configuration_Files: with files the
+  /// device takes part in backup and restore (ReinitializeDevice
+  /// START_BACKUP .. ABORT_RESTORE, Backup_And_Restore_State), without it
+  /// refuses them.
+  List<int> get configurationFiles => List.unmodifiable(_configurationFiles);
+  List<int> _configurationFiles = const [];
+  set configurationFiles(List<int> files) {
+    _configurationFiles = List.of(files);
+    final device = object(BacnetObjectType.device, deviceId)!;
+    if (files.isEmpty) {
+      device.properties
+        ..remove(BacnetPropertyId.configurationFiles)
+        ..remove(BacnetPropertyId.backupAndRestoreState);
+      return;
+    }
+    device.properties[BacnetPropertyId.configurationFiles] = BacnetList([
+      for (final file in files)
+        BacnetObject(type: BacnetObjectType.file, instance: file),
+    ]);
+    _setBackupState(_backupState);
+  }
+
+  /// Backup_And_Restore_State.
+  BacnetBackupState get backupState => _backupState;
+  BacnetBackupState _backupState = BacnetBackupState.idle;
+
+  /// Restores completed with ReinitializeDevice END_RESTORE.
+  int restores = 0;
+
+  void _setBackupState(BacnetBackupState state) {
+    _backupState = state;
+    object(
+      BacnetObjectType.device,
+      deviceId,
+    )!.properties[BacnetPropertyId.backupAndRestoreState] = BacnetEnumerated(
+      state,
+    );
+  }
+
+  void _reinitialize(BacnetReinitializedState state) {
+    final inProgress =
+        _backupState != BacnetBackupState.idle &&
+        _backupState != BacnetBackupState.backupFailure &&
+        _backupState != BacnetBackupState.restoreFailure;
+    switch (state) {
+      case BacnetReinitializedState.startBackup ||
+              BacnetReinitializedState.endBackup ||
+              BacnetReinitializedState.startRestore ||
+              BacnetReinitializedState.endRestore ||
+              BacnetReinitializedState.abortRestore
+          when _configurationFiles.isEmpty:
+        throw _error(
+          BacnetErrorClass.services,
+          BacnetErrorCode.optionalFunctionalityNotSupported,
+        );
+      case BacnetReinitializedState.startBackup ||
+              BacnetReinitializedState.startRestore
+          when inProgress:
+        throw _error(
+          BacnetErrorClass.device,
+          BacnetErrorCode.configurationInProgress,
+        );
+      case BacnetReinitializedState.startBackup:
+        _setBackupState(BacnetBackupState.performingABackup);
+      case BacnetReinitializedState.startRestore:
+        _setBackupState(BacnetBackupState.performingARestore);
+      case BacnetReinitializedState.endRestore:
+        if (_backupState != BacnetBackupState.performingARestore) {
+          throw _error(
+            BacnetErrorClass.device,
+            BacnetErrorCode.configurationInProgress,
+          );
+        }
+        restores++;
+        _setBackupState(BacnetBackupState.idle);
+      case BacnetReinitializedState.endBackup ||
+          BacnetReinitializedState.abortRestore:
+        if (inProgress) _setBackupState(BacnetBackupState.idle);
+    }
+  }
+
+  void _checkPassword(String? given) {
+    if (password != null && given != password) {
+      throw _error(BacnetErrorClass.security, BacnetErrorCode.passwordFailure);
+    }
+  }
+
+  int _freeInstance(BacnetObjectType type) {
+    var instance = 1;
+    while (_objects.containsKey((type, instance))) {
+      instance++;
+    }
+    return instance;
+  }
+
+  FakeBacnetObject _fileObject(int instance) {
+    final file = _objects[(BacnetObjectType.file, instance)];
+    if (file == null || file._file == null) {
+      throw _error(BacnetErrorClass.object, BacnetErrorCode.unknownObject);
+    }
+    return file;
+  }
+
   /// Services the device rejects as unrecognized, e.g.
   /// [BacnetConfirmedService.addListElement] to test the fallbacks of an
   /// application for devices that lack them.
@@ -598,6 +793,11 @@ final class FakeBacnetDevice {
     if (type == BacnetObjectType.device && id == BacnetPropertyId.objectList) {
       return BacnetList([for (final o in _objects.values) o.identifier]);
     }
+    if (type == BacnetObjectType.device &&
+        id == BacnetPropertyId.protocolServicesSupported &&
+        !object.properties.containsKey(id)) {
+      return _servicesSupported();
+    }
     return object.properties[id] ??
         (throw _error(
           BacnetErrorClass.property,
@@ -605,12 +805,72 @@ final class FakeBacnetDevice {
         ));
   }
 
-  BacnetProtocolException _error(BacnetErrorClass c, BacnetErrorCode e) =>
-      BacnetProtocolException(
-        'device $deviceId returned an error',
-        errorClass: c,
-        errorCode: e,
-      );
+  /// Protocol_Services_Supported: the services fake devices execute,
+  /// without [unsupportedServices].
+  BacnetBitString _servicesSupported() {
+    final refused = {
+      for (final service in unsupportedServices) _serviceBit(service),
+    };
+    final executed = _executedServices.difference(refused);
+    return BacnetBitString(
+      List.unmodifiable([
+        for (var bit = 0; bit < 50; bit++) executed.contains(bit),
+      ]),
+    );
+  }
+
+  static const _executedServices = {
+    BacnetServiceSupported.acknowledgeAlarm,
+    BacnetServiceSupported.getAlarmSummary,
+    BacnetServiceSupported.subscribeCov,
+    BacnetServiceSupported.atomicReadFile,
+    BacnetServiceSupported.atomicWriteFile,
+    BacnetServiceSupported.addListElement,
+    BacnetServiceSupported.removeListElement,
+    BacnetServiceSupported.createObject,
+    BacnetServiceSupported.deleteObject,
+    BacnetServiceSupported.readProperty,
+    BacnetServiceSupported.readPropertyMultiple,
+    BacnetServiceSupported.writeProperty,
+    BacnetServiceSupported.writePropertyMultiple,
+    BacnetServiceSupported.deviceCommunicationControl,
+    BacnetServiceSupported.confirmedPrivateTransfer,
+    BacnetServiceSupported.confirmedTextMessage,
+    BacnetServiceSupported.reinitializeDevice,
+    BacnetServiceSupported.whoIs,
+    BacnetServiceSupported.readRange,
+    BacnetServiceSupported.subscribeCovProperty,
+    BacnetServiceSupported.getEventInformation,
+    BacnetServiceSupported.subscribeCovPropertyMultiple,
+  };
+
+  /// The bit of a confirmed service in Protocol_Services_Supported.
+  static int _serviceBit(BacnetConfirmedService service) => switch (service) {
+    < 26 => service,
+    BacnetConfirmedService.readRange => BacnetServiceSupported.readRange,
+    BacnetConfirmedService.lifeSafetyOperation =>
+      BacnetServiceSupported.lifeSafetyOperation,
+    BacnetConfirmedService.subscribeCovProperty =>
+      BacnetServiceSupported.subscribeCovProperty,
+    BacnetConfirmedService.getEventInformation =>
+      BacnetServiceSupported.getEventInformation,
+    BacnetConfirmedService.subscribeCovPropertyMultiple =>
+      BacnetServiceSupported.subscribeCovPropertyMultiple,
+    BacnetConfirmedService.covNotificationMultiple =>
+      BacnetServiceSupported.confirmedCovNotificationMultiple,
+    _ => -1,
+  };
+
+  BacnetProtocolException _error(
+    BacnetErrorClass c,
+    BacnetErrorCode e, {
+    int? firstFailedElement,
+  }) => BacnetProtocolException(
+    'device $deviceId returned an error',
+    errorClass: c,
+    errorCode: e,
+    firstFailedElement: firstFailedElement,
+  );
 }
 
 const BacnetEventTransitionBits _allTransitions = BacnetEventTransitionBits(
@@ -626,7 +886,68 @@ typedef _Subscription = ({
   BacnetPropertyId property,
   int processId,
   bool confirmed,
+  bool timestamped,
 });
+
+/// A router simulated by a [FakeBacnetClient]: answers
+/// Who-Is-Router-To-Network with the [networks] it reaches and routing
+/// table queries with [routingTable].
+///
+/// ```dart
+/// final client = FakeBacnetClient(
+///   routers: [FakeBacnetRouter('10.0.0.1', networks: [5, 6])],
+///   networkNumber: 1,
+/// );
+/// final routers = await client.discoverRouters(); // 10.0.0.1 -> [5, 6]
+/// ```
+final class FakeBacnetRouter {
+  /// Creates a router at [ipAddress] (an IPv4 address) and [port].
+  ///
+  /// The routing table defaults to one port per network.
+  FakeBacnetRouter(
+    this.ipAddress, {
+    required List<int> networks,
+    this.port = 47808,
+    List<BacnetRoutingTableEntry>? routingTable,
+  }) : networks = List.unmodifiable(networks),
+       routingTable = List.unmodifiable(
+         routingTable ??
+             [
+               for (final (index, network) in networks.indexed)
+                 BacnetRoutingTableEntry(network: network, portId: index + 1),
+             ],
+       ),
+       mac = List.unmodifiable([..._ipv4(ipAddress), port >> 8, port & 0xFF]) {
+    RangeError.checkValueInInterval(port, 0, 0xFFFF, 'port');
+  }
+
+  static List<int> _ipv4(String ipAddress) {
+    final octets = ipAddress.split('.').map(int.tryParse).toList();
+    if (octets.length != 4 ||
+        octets.any((o) => o == null || o < 0 || o > 255)) {
+      throw ArgumentError.value(ipAddress, 'ipAddress', 'not an IPv4 address');
+    }
+    return octets.cast<int>();
+  }
+
+  /// IPv4 address.
+  final String ipAddress;
+
+  /// UDP port.
+  final int port;
+
+  /// The networks the router reaches.
+  final List<int> networks;
+
+  /// The answer to routing table queries.
+  final List<BacnetRoutingTableEntry> routingTable;
+
+  /// BACnet/IP address (IPv4 address and port).
+  final List<int> mac;
+
+  /// While false, the router ignores all messages.
+  bool online = true;
+}
 
 /// A [BacnetClient] backed by in-memory [FakeBacnetDevice]s, for testing
 /// applications without a network or the native stack.
@@ -655,9 +976,12 @@ class FakeBacnetClient implements BacnetClient {
   /// Creates a client serving [devices].
   FakeBacnetClient({
     Iterable<FakeBacnetDevice> devices = const [],
+    Iterable<FakeBacnetRouter> routers = const [],
+    this.networkNumber,
     this.latency = Duration.zero,
     BacnetConfig config = const BacnetConfig(),
-  }) : _config = config {
+  }) : _config = config,
+       routers = List.of(routers) {
     devices.forEach(addDevice);
   }
 
@@ -679,6 +1003,13 @@ class FakeBacnetClient implements BacnetClient {
   /// Requests received, oldest first.
   final List<FakeBacnetRequest> requests = [];
 
+  /// Routers of the simulated network.
+  final List<FakeBacnetRouter> routers;
+
+  /// Number of the local network: the first online router answers
+  /// What-Is-Network-Number with it (null: nobody answers).
+  int? networkNumber;
+
   /// Devices served by this client.
   Map<int, FakeBacnetDevice> get devices => Map.unmodifiable(_devices);
 
@@ -689,6 +1020,7 @@ class FakeBacnetClient implements BacnetClient {
       (object, property) => _notify(device, object, property),
     );
     device._eventListeners.add((notification) {
+      if (device.communication != BacnetCommunicationState.enable) return;
       unawaited(
         Future<void>.delayed(latency + device.latency, () {
           if (!_events.isClosed) _events.add(notification);
@@ -716,6 +1048,84 @@ class FakeBacnetClient implements BacnetClient {
   Stream<EventNotificationEvent> get eventNotifications => events
       .where((e) => e is EventNotificationEvent)
       .cast<EventNotificationEvent>();
+
+  @override
+  Stream<WhoAmIEvent> get whoAmIRequests =>
+      events.where((e) => e is WhoAmIEvent).cast<WhoAmIEvent>();
+
+  /// Delivers [event] to the listeners as if the network produced it, e.g.
+  /// a [WhoAmIEvent] of a new device.
+  void receive(BacnetEvent event) {
+    if (!_events.isClosed) _events.add(event);
+  }
+
+  @override
+  Future<void> sendYouAre({
+    required int vendorId,
+    required String modelName,
+    required String serialNumber,
+    int? deviceId,
+    List<int>? macAddress,
+    BacnetAddressRecipient? destination,
+    int network = 0xFFFF,
+  }) async {
+    _checkStarted();
+    // validates like the real client
+    encodeYouAre(
+      vendorId: vendorId,
+      modelName: modelName,
+      serialNumber: serialNumber,
+      deviceId: deviceId,
+      macAddress: macAddress,
+    );
+    requests.add(
+      FakeBacnetRequest(
+        'sendYouAre',
+        deviceId: deviceId,
+        arguments: {
+          'vendorId': vendorId,
+          'modelName': modelName,
+          'serialNumber': serialNumber,
+          'macAddress': ?macAddress,
+          'destination': ?destination,
+        },
+      ),
+    );
+  }
+
+  @override
+  Future<void> writeGroup(
+    int groupNumber,
+    List<BacnetGroupChannelValue> changes, {
+    int writePriority = 16,
+    bool? inhibitDelay,
+    int? deviceId,
+    int network = 0xFFFF,
+  }) async {
+    _checkStarted();
+    encodeWriteGroup(
+      groupNumber,
+      changes,
+      writePriority: writePriority,
+      inhibitDelay: inhibitDelay,
+    );
+    requests.add(
+      FakeBacnetRequest(
+        'writeGroup',
+        deviceId: deviceId,
+        priority: writePriority,
+        arguments: {
+          'groupNumber': groupNumber,
+          'changes': List<BacnetGroupChannelValue>.unmodifiable(changes),
+          'inhibitDelay': ?inhibitDelay,
+        },
+      ),
+    );
+  }
+
+  @override
+  Stream<NetworkMessageEvent> get networkMessages =>
+      events.where((e) => e is NetworkMessageEvent).cast<NetworkMessageEvent>();
 
   @override
   String? get nativeVersion => _started ? 'fake' : null;
@@ -761,6 +1171,7 @@ class FakeBacnetClient implements BacnetClient {
     for (final device in _devices.values) {
       final id = device.deviceId;
       if (!device.online ||
+          device.communication == BacnetCommunicationState.disable ||
           (lowLimit >= 0 && id < lowLimit) ||
           (highLimit >= 0 && id > highLimit)) {
         continue;
@@ -929,13 +1340,34 @@ class FakeBacnetClient implements BacnetClient {
         final result =
             <BacnetObject, Map<BacnetPropertyId, BacnetPropertyResult>>{};
         for (final spec in specs) {
-          final properties = result[spec.objectIdentifier] ??= {};
+          final object = spec.objectIdentifier;
+          final properties = result[object] ??= {};
           for (final reference in spec.properties) {
-            properties[reference.propertyIdentifier] = _readOrError(
-              device,
-              spec.objectIdentifier,
-              reference.propertyIdentifier,
-            );
+            final id = reference.propertyIdentifier;
+            if (id == BacnetPropertyId.all ||
+                id == BacnetPropertyId.required ||
+                id == BacnetPropertyId.optional) {
+              // every property the object has
+              final fake = device.object(object.type, object.instance);
+              if (fake == null) {
+                properties[id] = const BacnetError(
+                  BacnetErrorClass.object,
+                  BacnetErrorCode.unknownObject,
+                );
+                continue;
+              }
+              for (final property in [
+                ...fake.properties.keys,
+                if (object.type == BacnetObjectType.device) ...[
+                  BacnetPropertyId.objectList,
+                  BacnetPropertyId.protocolServicesSupported,
+                ],
+              ]) {
+                properties[property] = _readOrError(device, object, property);
+              }
+              continue;
+            }
+            properties[id] = _readOrError(device, object, id);
           }
         }
         return result;
@@ -1077,8 +1509,143 @@ class FakeBacnetClient implements BacnetClient {
           property: propId,
           processId: processId,
           confirmed: confirmed,
+          timestamped: false,
         ));
     });
+  }
+
+  @override
+  Future<void> subscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration lifetime = const Duration(minutes: 5),
+    bool confirmed = false,
+    Duration? maxNotificationDelay,
+    Duration? timeout,
+  }) {
+    // validates like the real client
+    encodeSubscribeCovPropertyMultiple(
+      subscriberProcessId: processId,
+      specifications: specifications,
+      confirmed: confirmed,
+      lifetime: lifetime.inSeconds,
+    );
+    requests.add(
+      FakeBacnetRequest(
+        'subscribeCOVPropertyMultiple',
+        deviceId: deviceId,
+        arguments: {
+          'specifications': List<BacnetCovSubscriptionSpecification>.of(
+            specifications,
+            growable: false,
+          ),
+          'processId': processId,
+          'confirmed': confirmed,
+        },
+      ),
+    );
+    return _request(
+      BacnetConfirmedService.subscribeCovPropertyMultiple,
+      deviceId,
+      null,
+      (device) {
+        for (final specification in specifications) {
+          final object = specification.object;
+          for (final reference in specification.references) {
+            try {
+              device._read(object.type, object.instance, reference.property);
+            } on BacnetProtocolException catch (e) {
+              throw BacnetProtocolException(
+                'device $deviceId returned an error',
+                errorClass: e.errorClass,
+                errorCode: e.errorCode,
+                firstFailedSubscription: BacnetFailedCovSubscription(
+                  object: object,
+                  property: reference.property,
+                  arrayIndex: reference.arrayIndex,
+                  errorClass: e.errorClass,
+                  errorCode: e.errorCode,
+                ),
+              );
+            }
+          }
+        }
+        for (final specification in specifications) {
+          final object = specification.object;
+          for (final reference in specification.references) {
+            _subscriptions
+              ..removeWhere(
+                (s) => _same(
+                  s,
+                  deviceId,
+                  object.type,
+                  object.instance,
+                  reference.property,
+                  processId,
+                ),
+              )
+              ..add((
+                deviceId: deviceId,
+                type: object.type,
+                instance: object.instance,
+                property: reference.property,
+                processId: processId,
+                confirmed: confirmed,
+                timestamped: reference.timestamped,
+              ));
+          }
+        }
+      },
+    );
+  }
+
+  @override
+  Future<void> unsubscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration? timeout,
+  }) {
+    encodeSubscribeCovPropertyMultiple(
+      subscriberProcessId: processId,
+      specifications: specifications,
+    );
+    requests.add(
+      FakeBacnetRequest(
+        'unsubscribeCOVPropertyMultiple',
+        deviceId: deviceId,
+        arguments: {
+          'specifications': List<BacnetCovSubscriptionSpecification>.of(
+            specifications,
+            growable: false,
+          ),
+          'processId': processId,
+        },
+      ),
+    );
+    return _request(
+      BacnetConfirmedService.subscribeCovPropertyMultiple,
+      deviceId,
+      null,
+      (_) {
+        for (final specification in specifications) {
+          final object = specification.object;
+          for (final reference in specification.references) {
+            _subscriptions.removeWhere(
+              (s) => _same(
+                s,
+                deviceId,
+                object.type,
+                object.instance,
+                reference.property,
+                processId,
+              ),
+            );
+          }
+        }
+      },
+    );
   }
 
   @override
@@ -1124,6 +1691,7 @@ class FakeBacnetClient implements BacnetClient {
     FakeBacnetObject object,
     BacnetPropertyId property,
   ) {
+    if (device.communication != BacnetCommunicationState.enable) return;
     for (final s in _subscriptions) {
       if (s.deviceId != device.deviceId ||
           s.type != object.type ||
@@ -1146,6 +1714,9 @@ class FakeBacnetClient implements BacnetClient {
         subscriberProcessId: s.processId,
         values: values,
         confirmed: s.confirmed,
+        changeTimes: s.timestamped
+            ? {property: BacnetTime.fromDateTime(DateTime.now())}
+            : const {},
       );
       unawaited(
         Future<void>.delayed(latency + device.latency, () {
@@ -1460,6 +2031,405 @@ class FakeBacnetClient implements BacnetClient {
     );
   }
 
+  // ---- device management ----------------------------------------------------
+
+  @override
+  Future<void> deviceCommunicationControl(
+    int deviceId,
+    BacnetCommunicationState state, {
+    Duration? duration,
+    String? password,
+    Duration? timeout,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'deviceCommunicationControl',
+        deviceId: deviceId,
+        value: BacnetEnumerated(state),
+      ),
+    );
+    return _request(
+      BacnetConfirmedService.deviceCommunicationControl,
+      deviceId,
+      null,
+      (device) {
+        device
+          .._checkPassword(password)
+          .._setCommunication(state, duration);
+      },
+    );
+  }
+
+  @override
+  Future<void> reinitializeDevice(
+    int deviceId,
+    BacnetReinitializedState state, {
+    String? password,
+    Duration? timeout,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'reinitializeDevice',
+        deviceId: deviceId,
+        value: BacnetEnumerated(state),
+      ),
+    );
+    return _request(BacnetConfirmedService.reinitializeDevice, deviceId, null, (
+      device,
+    ) {
+      device
+        .._checkPassword(password)
+        .._reinitialize(state)
+        ..reinitializations.add(state);
+    });
+  }
+
+  @override
+  Future<BacnetObject> createObject(
+    int deviceId, {
+    BacnetObjectType? type,
+    BacnetObject? object,
+    List<BacnetPropertyValue> initialValues = const [],
+    Duration? timeout,
+  }) => Future.sync(() {
+    if ((type == null) == (object == null)) {
+      throw ArgumentError('give either type or object');
+    }
+    requests.add(
+      FakeBacnetRequest('createObject', deviceId: deviceId, object: object),
+    );
+    return _request(BacnetConfirmedService.createObject, deviceId, null, (
+      device,
+    ) {
+      final objectType = object?.type ?? type!;
+      if (objectType == BacnetObjectType.device) {
+        throw device._error(
+          BacnetErrorClass.object,
+          BacnetErrorCode.dynamicCreationNotSupported,
+          firstFailedElement: 0,
+        );
+      }
+      final instance = object?.instance ?? device._freeInstance(objectType);
+      if (device.object(objectType, instance) != null) {
+        throw device._error(
+          BacnetErrorClass.object,
+          BacnetErrorCode.objectIdentifierAlreadyExists,
+          firstFailedElement: 0,
+        );
+      }
+      for (final (index, value) in initialValues.indexed) {
+        if (value.propertyIdentifier == BacnetPropertyId.objectIdentifier ||
+            value.propertyIdentifier == BacnetPropertyId.objectType) {
+          throw device._error(
+            BacnetErrorClass.property,
+            BacnetErrorCode.writeAccessDenied,
+            firstFailedElement: index + 1,
+          );
+        }
+      }
+      final created = device.addObject(objectType, instance);
+      for (final value in initialValues) {
+        created._write(value.propertyIdentifier, value.value, value.priority);
+      }
+      return created.identifier;
+    });
+  });
+
+  @override
+  Future<void> deleteObject(
+    int deviceId,
+    BacnetObject object, {
+    Duration? timeout,
+  }) {
+    requests.add(
+      FakeBacnetRequest('deleteObject', deviceId: deviceId, object: object),
+    );
+    return _request(BacnetConfirmedService.deleteObject, deviceId, null, (
+      device,
+    ) {
+      if (object.type == BacnetObjectType.device) {
+        throw device._error(
+          BacnetErrorClass.object,
+          BacnetErrorCode.objectDeletionNotPermitted,
+        );
+      }
+      if (device._objects.remove((object.type, object.instance)) == null) {
+        throw device._error(
+          BacnetErrorClass.object,
+          BacnetErrorCode.unknownObject,
+        );
+      }
+    });
+  }
+
+  @override
+  Future<int?> deviceMaxApdu(int deviceId) async =>
+      _bound.contains(deviceId) ? _devices[deviceId]?.maxApdu : null;
+
+  // ---- files ----------------------------------------------------------------
+
+  BacnetObject _file(int instance) =>
+      BacnetObject(type: BacnetObjectType.file, instance: instance);
+
+  @override
+  Future<BacnetFileChunk> readFileStream(
+    int deviceId,
+    int fileInstance, {
+    required int start,
+    required int count,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'readFileStream',
+        deviceId: deviceId,
+        object: _file(fileInstance),
+      ),
+    );
+    return _request(
+      BacnetConfirmedService.atomicReadFile,
+      deviceId,
+      cancelToken,
+      (device) {
+        final content = device._fileObject(fileInstance)._file!;
+        if (start < 0 || start > content.length || count < 0) {
+          throw device._error(
+            BacnetErrorClass.services,
+            BacnetErrorCode.invalidFileStartPosition,
+          );
+        }
+        final end = start + count < content.length
+            ? start + count
+            : content.length;
+        return BacnetFileChunk(
+          start: start,
+          data: content.sublist(start, end),
+          endOfFile: end >= content.length,
+        );
+      },
+    );
+  }
+
+  @override
+  Future<BacnetFileRecords> readFileRecords(
+    int deviceId,
+    int fileInstance, {
+    required int start,
+    required int count,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => _recordAccess(deviceId, fileInstance, 'readFileRecords', cancelToken);
+
+  @override
+  Future<int> writeFileStream(
+    int deviceId,
+    int fileInstance,
+    List<int> data, {
+    int start = 0,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'writeFileStream',
+        deviceId: deviceId,
+        object: _file(fileInstance),
+        value: BacnetOctetString(Uint8List.fromList(data)),
+      ),
+    );
+    return _request(
+      BacnetConfirmedService.atomicWriteFile,
+      deviceId,
+      cancelToken,
+      (device) {
+        final file = device._fileObject(fileInstance);
+        if (file.properties[BacnetPropertyId.readOnly]?.asBool ?? false) {
+          throw device._error(
+            BacnetErrorClass.services,
+            BacnetErrorCode.fileAccessDenied,
+          );
+        }
+        final content = file._file!;
+        final position = start == -1 ? content.length : start;
+        if (position < 0 || position > content.length) {
+          throw device._error(
+            BacnetErrorClass.services,
+            BacnetErrorCode.invalidFileStartPosition,
+          );
+        }
+        file.fileContent = [
+          ...content.take(position),
+          ...data,
+          ...content.skip(position + data.length),
+        ];
+        return position;
+      },
+    );
+  }
+
+  @override
+  Future<int> writeFileRecords(
+    int deviceId,
+    int fileInstance,
+    List<List<int>> records, {
+    int start = 0,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => _recordAccess(deviceId, fileInstance, 'writeFileRecords', cancelToken);
+
+  /// Fake files have stream access only.
+  Future<T> _recordAccess<T>(
+    int deviceId,
+    int fileInstance,
+    String service,
+    BacnetCancelToken? cancelToken,
+  ) {
+    requests.add(
+      FakeBacnetRequest(
+        service,
+        deviceId: deviceId,
+        object: _file(fileInstance),
+      ),
+    );
+    return _request(
+      service == 'readFileRecords'
+          ? BacnetConfirmedService.atomicReadFile
+          : BacnetConfirmedService.atomicWriteFile,
+      deviceId,
+      cancelToken,
+      (device) {
+        device._fileObject(fileInstance);
+        throw device._error(
+          BacnetErrorClass.services,
+          BacnetErrorCode.invalidFileAccessMethod,
+        );
+      },
+    );
+  }
+
+  // ---- vendor services and messages -----------------------------------------
+
+  @override
+  Future<BacnetValue?> privateTransfer(
+    int deviceId,
+    int vendorId,
+    int serviceNumber, {
+    BacnetValue? parameters,
+    Duration? timeout,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'privateTransfer',
+        deviceId: deviceId,
+        value: parameters,
+      ),
+    );
+    return _request(BacnetConfirmedService.privateTransfer, deviceId, null, (
+      device,
+    ) {
+      final handler = device.onPrivateTransfer;
+      if (handler == null) {
+        throw BacnetRejectException(
+          'device $deviceId rejected the request',
+          reason: BacnetRejectReason.unrecognizedService,
+        );
+      }
+      return handler(vendorId, serviceNumber, parameters);
+    });
+  }
+
+  @override
+  Future<void> sendPrivateTransfer(
+    int vendorId,
+    int serviceNumber, {
+    BacnetValue? parameters,
+    int? deviceId,
+    int network = 0xFFFF,
+  }) async {
+    _checkStarted();
+    requests.add(
+      FakeBacnetRequest(
+        'sendPrivateTransfer',
+        deviceId: deviceId,
+        value: parameters,
+      ),
+    );
+  }
+
+  TextMessageEvent _message(
+    String message,
+    bool urgent,
+    int? classNumber,
+    String? classText,
+  ) {
+    if (classNumber != null && classText != null) {
+      throw ArgumentError('give at most one of classNumber and classText');
+    }
+    return TextMessageEvent(
+      sourceDeviceId: _config.deviceInstance,
+      message: message,
+      urgent: urgent,
+      classNumber: classNumber,
+      classText: classText,
+    );
+  }
+
+  @override
+  Future<void> textMessage(
+    int deviceId,
+    String message, {
+    bool urgent = false,
+    int? classNumber,
+    String? classText,
+    Duration? timeout,
+  }) => Future.sync(() {
+    final event = _message(message, urgent, classNumber, classText);
+    requests.add(
+      FakeBacnetRequest(
+        'textMessage',
+        deviceId: deviceId,
+        value: BacnetCharacterString(message),
+      ),
+    );
+    return _request(BacnetConfirmedService.textMessage, deviceId, null, (
+      device,
+    ) {
+      device.messages.add(event);
+    });
+  });
+
+  @override
+  Future<void> sendTextMessage(
+    String message, {
+    int? deviceId,
+    int network = 0xFFFF,
+    bool urgent = false,
+    int? classNumber,
+    String? classText,
+  }) async {
+    _checkStarted();
+    final event = _message(message, urgent, classNumber, classText);
+    requests.add(
+      FakeBacnetRequest(
+        'sendTextMessage',
+        deviceId: deviceId,
+        value: BacnetCharacterString(message),
+      ),
+    );
+    for (final device in _devices.values) {
+      if ((deviceId == null || device.deviceId == deviceId) &&
+          device.online &&
+          device.communication != BacnetCommunicationState.disable) {
+        device.messages.add(event);
+      }
+    }
+  }
+
   @override
   Future<ReadRangeResult> readRange(
     int deviceId,
@@ -1541,6 +2511,56 @@ class FakeBacnetClient implements BacnetClient {
   @override
   Future<bool> isDeviceBound(int deviceId) async => _bound.contains(deviceId);
 
+  /// Simulates the [routers]: they answer Who-Is-Router-To-Network,
+  /// What-Is-Network-Number (with [networkNumber]) and routing table
+  /// queries (an Initialize-Routing-Table without entries sent to them).
+  @override
+  Future<void> sendNetworkMessage(
+    BacnetNetworkMessage message, {
+    String? ip,
+    int port = 47808,
+    int network = 0,
+    List<int> adr = const [],
+  }) async {
+    _checkStarted();
+    requests.add(
+      FakeBacnetRequest(
+        'sendNetworkMessage',
+        address: ip == null ? null : '$ip:$port',
+        networkMessage: message,
+      ),
+    );
+    if (network != 0 && network != 0xFFFF) return;
+    for (final router in routers) {
+      if (!router.online ||
+          (ip != null && (router.ipAddress != ip || router.port != port))) {
+        continue;
+      }
+      final answer = switch (message) {
+        BacnetWhoIsRouterToNetwork(network: null) => BacnetIAmRouterToNetwork(
+          router.networks,
+        ),
+        BacnetWhoIsRouterToNetwork(:final network?)
+            when router.networks.contains(network) =>
+          BacnetIAmRouterToNetwork([network]),
+        BacnetWhatIsNetworkNumber() when networkNumber != null =>
+          BacnetNetworkNumberIs(network: networkNumber!, configured: true),
+        BacnetInitializeRoutingTable(entries: []) when ip != null =>
+          BacnetInitializeRoutingTableAck(router.routingTable),
+        _ => null,
+      };
+      if (answer == null) continue;
+      unawaited(
+        Future<void>.delayed(latency, () {
+          if (_events.isClosed) return;
+          _events.add(NetworkMessageEvent(message: answer, mac: router.mac));
+        }),
+      );
+      // one device tells the network number
+      if (answer is BacnetNetworkNumberIs) break;
+    }
+  }
+
   /// `127.0.0.1` and the port of [config].
   @override
   Future<BacnetAddressRecipient> localAddress() async {
@@ -1591,7 +2611,10 @@ class FakeBacnetClient implements BacnetClient {
             deviceId: deviceId,
           );
         }
-        if (!device.online) {
+        if (!device.online ||
+            (device.communication == BacnetCommunicationState.disable &&
+                service != BacnetConfirmedService.deviceCommunicationControl &&
+                service != BacnetConfirmedService.reinitializeDevice)) {
           _timeouts++;
           throw BacnetTimeoutException('device $deviceId did not answer');
         }

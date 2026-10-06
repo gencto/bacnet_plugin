@@ -16,23 +16,37 @@ Dart programs such as headless gateways and supervisory services.
   segmented answers (large object lists, schedules, RPM results) reassembled
   transparently,
   WriteProperty(Multiple) with datatype inference, SubscribeCOV(Property)
-  with decoded notifications, ReadRange/Trend Logs, alarms and events
+  and SubscribeCOVPropertyMultiple with decoded notifications, ReadRange/Trend Logs, alarms and events
   (typed event notifications, AcknowledgeAlarm, GetEventInformation,
-  GetAlarmSummary, Add/RemoveListElement), time synchronization, foreign
-  device registration and raw confirmed services.
+  GetAlarmSummary, Add/RemoveListElement), device management
+  (DeviceCommunicationControl, ReinitializeDevice, Create/DeleteObject),
+  file transfer (AtomicReadFile/AtomicWriteFile), private transfer, text
+  messages, time synchronization, router and network discovery
+  (Who-Is-Router-To-Network, What-Is-Network-Number, routing tables),
+  foreign device registration, BBMD table management (Broadcast
+  Distribution and Foreign Device Tables), backup and restore of devices,
+  device provisioning (Who-Am-I/You-Are), WriteGroup and raw confirmed
+  services.
 - **Server**: hosts Analog/Binary/Multi-state Input/Output/Value, Integer,
-  Positive Integer, CharacterString Value and Notification Class objects;
-  answers Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property),
-  ReadRange, Add/RemoveListElement, DeviceCommunicationControl and
-  ReinitializeDevice natively; reports alarms of analog and binary objects
-  (intrinsic reporting) and answers AcknowledgeAlarm, GetEventInformation
-  and GetAlarmSummary; batch updates of present values; write
-  notifications.
+  Positive Integer, CharacterString Value, Notification Class, File
+  (content in memory), Schedule, Calendar, Trend Log and Channel objects;
+  answers
+  Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property), ReadRange,
+  Add/RemoveListElement, AtomicReadFile/AtomicWriteFile,
+  DeviceCommunicationControl and ReinitializeDevice (password protected,
+  reported to the application, backup and restore) natively; reports
+  alarms of analog and binary objects (intrinsic reporting) and answers
+  AcknowledgeAlarm, GetEventInformation and GetAlarmSummary; WriteGroup;
+  asks a supervisor for its device instance (Who-Am-I/You-Are); batch
+  updates of present values; write notifications.
 - **Built for load**: request scheduler with global and per-device
   concurrency limits, back pressure, automatic address binding, concurrent
   reads merged into ReadPropertyMultiple, batched isolate messaging and
   zero-copy event processing.
-- **Robust**: bounds-checked decoder (fuzz tested), typed exceptions,
+- **Tools**: the `bacnet` command line tool (discover, read, write, watch,
+  describe) and device descriptions in JSON and EPICS notation.
+- **Robust**: bounds-checked decoder and native engine (fuzz tested), typed
+  exceptions,
   protection against late replies with recycled invoke ids, no
   `exit()`/`longjmp` tricks in native code.
 - **Modern build**: native code is compiled by a
@@ -43,7 +57,7 @@ Dart programs such as headless gateways and supervisory services.
 
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.4.0
+  bacnet_plugin: ^0.8.0
 ```
 
 Requirements:
@@ -188,7 +202,9 @@ Recommendations:
   `offlineAfterTimeouts` timeouts their requests fail at once with
   `BacnetDeviceOfflineException` until a probe or an I-Am succeeds.
 - Prefer COV (`PropertyMonitor`) over polling; subscriptions are renewed
-  and cancelled automatically, notifications carry the values.
+  and cancelled automatically, notifications carry the values. Devices
+  with SubscribeCOVPropertyMultiple get one subscription for all their
+  monitored properties.
 - On servers use `updatePresentValues` for bulk updates.
 - Watch `client.stats()` (queue length, in-flight requests, timeouts,
   dropped replies) in production.
@@ -532,6 +548,360 @@ Notification Class instances 0..63 are available, with up to 10
 recipients each. bacnet-stack keeps one destination per recipient: adding
 a destination for a recipient that is already in the list replaces it.
 
+## Device management and files
+
+```dart
+// stop a device from initiating requests for 30 minutes
+await client.deviceCommunicationControl(
+  1234,
+  BacnetCommunicationState.disableInitiation,
+  duration: const Duration(minutes: 30),
+  password: 'secret',
+);
+await client.reinitializeDevice(1234, BacnetReinitializedState.warmStart,
+    password: 'secret');
+
+// objects
+final setpoint = await client.createObject(1234,
+    type: BacnetObjectType.analogValue,
+    initialValues: const [
+      BacnetPropertyValue(
+        propertyIdentifier: BacnetPropertyId.presentValue,
+        value: BacnetReal(21),
+      ),
+    ]);
+await client.deleteObject(1234, setpoint);
+
+// files: whole files in chunks that fit into one APDU of the device
+final backup = await client.readFile(1234, 1,
+    onProgress: (done, total) => print('$done / $total'));
+await client.writeFile(1234, 1, backup);
+
+// vendor services and messages
+final result = await client.privateTransfer(1234, 260, 7,
+    parameters: const BacnetUnsigned(5));
+await client.sendTextMessage('Shutdown at 18:00'); // broadcast
+```
+
+When a device rejects an initial value of `createObject` (or an element
+of `addListElement`), `BacnetProtocolException.firstFailedElement` names
+its position. `readFileStream`/`writeFileStream` and
+`readFileRecords`/`writeFileRecords` access parts of files.
+
+The server answers DeviceCommunicationControl and ReinitializeDevice only
+with the password given to `init` (none: it refuses both) and reports
+accepted requests; restarting is up to the application:
+
+```dart
+await server.init(4194300, 'Controller', password: 'secret');
+server.reinitializeRequests.listen((request) {
+  if (request.state == BacnetReinitializedState.warmStart) restart();
+});
+server.communicationControls.listen(print);
+```
+
+The server hosts File objects whose content it keeps in memory: clients
+read them with AtomicReadFile and, unless they are read only, write them
+with AtomicWriteFile (appends answer with the position they wrote at) and
+truncate them by writing File_Size. Modification_Date and Archive follow
+the changes:
+
+```dart
+await server.addFile(1,
+    name: 'settings.json',
+    fileType: 'application/json',
+    content: utf8.encode(jsonEncode(settings)));
+await server.addFile(2, name: 'firmware.bin', readOnly: true,
+    content: firmware);
+
+server.fileWrites.listen((write) async {
+  print('${write.data.length} octets at ${write.start} of file '
+      '${write.instance}');
+  final content = await server.fileContent(write.instance);
+  applySettings(jsonDecode(utf8.decode(content)));
+});
+await server.setFileContent(1, utf8.encode(jsonEncode(defaults)));
+```
+
+The typed descriptors `BacnetProperties.fileType`, `fileSize`,
+`modificationDate`, `archive`, `readOnly` and `fileAccessMethod` read the
+properties of File objects of any device.
+
+## Schedules, trend logs and backups
+
+The server runs schedules, keeps trend logs and lets clients back it up:
+
+```dart
+// heating setpoint: 21 °C on workdays from 7:00 to 18:00, else 17 °C
+const workday = [
+  BacnetTimeValue(
+    BacnetTime(hour: 7, minute: 0, second: 0, hundredths: 0),
+    BacnetReal(21),
+  ),
+  BacnetTimeValue(
+    BacnetTime(hour: 18, minute: 0, second: 0, hundredths: 0),
+    BacnetReal(17),
+  ),
+];
+await server.addCalendar(1, name: 'Holidays', dates: [
+  BacnetCalendarDate(BacnetDate(year: 2026, month: 12, day: 25)),
+]);
+await server.addSchedule(
+  1,
+  name: 'Heating',
+  scheduleDefault: const BacnetReal(17),
+  weeklySchedule: BacnetWeeklySchedule([
+    for (var day = 0; day < 5; day++) workday,
+    const [],
+    const [],
+  ]),
+  exceptionSchedule: [
+    BacnetSpecialEvent(
+      period: const BacnetCalendarReference(
+        BacnetObject(type: BacnetObjectType.calendar, instance: 1),
+      ),
+      timeValues: const [
+        BacnetTimeValue(
+          BacnetTime(hour: 0, minute: 0, second: 0, hundredths: 0),
+          BacnetReal(17),
+        ),
+      ],
+      priority: 1,
+    ),
+  ],
+  references: const [
+    BacnetDeviceObjectPropertyReference(
+      object: BacnetObject(type: BacnetObjectType.analogValue, instance: 1),
+      property: BacnetPropertyId.presentValue,
+    ),
+  ],
+  priorityForWriting: 12,
+);
+// writes of the schedule arrive with `internal` set
+server.writeEvents.where((write) => write.internal).listen(print);
+
+// the setpoint every 5 minutes, the last 10 000 records
+await server.addTrendLog(1,
+    name: 'Setpoint log',
+    source: const BacnetDeviceObjectPropertyReference(
+      object: BacnetObject(type: BacnetObjectType.analogValue, instance: 1),
+      property: BacnetPropertyId.presentValue,
+    ),
+    logInterval: const Duration(minutes: 5),
+    bufferSize: 10000);
+// or values of the application
+await server.addTrendLog(2, name: 'Meter readings');
+await server.logValue(2, const BacnetReal(1234.5));
+```
+
+Clients read the logs with ReadRange (`client.getTrendLog`,
+`client.readRange`) and change schedules, calendars and logs with
+WriteProperty.
+
+Backup and restore (ASHRAE 135 clause 19.1) copies the configuration files
+of a device; the backup is a `BacnetDeviceBackup` that stores as JSON:
+
+```dart
+final backup = await client.backupDevice(1234, password: 'secret',
+    onProgress: (done, total) => print('$done / $total files'));
+await File('ahu-1.json').writeAsString(jsonEncode(backup.toJson()));
+// ... later, or to a replaced controller of the same kind:
+await client.restoreDevice(1234, backup, password: 'secret');
+```
+
+The server takes part with the File objects that hold the configuration
+of the application:
+
+```dart
+await server.addFile(1, name: 'settings.json');
+await server.enableBackup(
+  files: [1],
+  prepareBackup: () =>
+      server.setFileContent(1, utf8.encode(jsonEncode(settings))),
+  applyRestore: () async {
+    settings = jsonDecode(utf8.decode(await server.fileContent(1)));
+  },
+);
+```
+
+## Provisioning, groups and COV of several properties
+
+New devices without a configured device instance ask a supervisor for one
+with Who-Am-I, identifying themselves by vendor, model name and serial
+number; the supervisor answers with You-Are:
+
+```dart
+// supervisor
+client.whoAmIRequests.listen((request) async {
+  final instance = inventory[request.serialNumber];
+  if (instance == null) return;
+  await client.sendYouAre(
+    vendorId: request.vendorId,
+    modelName: request.modelName,
+    serialNumber: request.serialNumber,
+    deviceId: instance,
+    destination: request.source, // or leave out to broadcast
+  );
+});
+
+// device
+await server.init(4194302, 'Room controller',
+    vendorId: 260, modelName: 'RC-1', serialNumber: 'SN-0042');
+final instance = await server.requestDeviceInstance(); // null: no answer
+```
+
+`server.setDeviceInstance` changes the instance directly. Channel objects
+group the properties one value controls (all lights of a floor, all
+setpoints of a zone); WriteGroup writes the channels of a control group
+of every device with one broadcast:
+
+```dart
+await server.addChannel(1,
+    name: 'Lights floor 2',
+    channelNumber: 7,
+    controlGroups: [5],
+    members: const [
+      BacnetDeviceObjectPropertyReference(
+        object: BacnetObject(type: BacnetObjectType.analogOutput, instance: 1),
+        property: BacnetPropertyId.presentValue,
+      ),
+    ]);
+
+// any client: 80 % on channel 7 of group 5, at priority 10
+await client.writeGroup(5, [BacnetGroupChannelValue(7, const BacnetReal(80))],
+    writePriority: 10);
+```
+
+The members of a channel are written at the priority of the request and
+arrive as `writeEvents` with `internal` set; the requests as
+`writeGroupEvents`.
+
+`subscribeCOVPropertyMultiple` subscribes to several properties of several
+objects with one request, each with its own COV increment and optionally
+with the time of each change. The notifications arrive on `covEvents`,
+one `CovNotificationEvent` per object:
+
+```dart
+await client.subscribeCOVPropertyMultiple(1234, [
+  BacnetCovSubscriptionSpecification(supplyTemp, const [
+    BacnetCovReference(BacnetPropertyId.presentValue, covIncrement: 0.2),
+    BacnetCovReference(BacnetPropertyId.statusFlags),
+  ]),
+  BacnetCovSubscriptionSpecification(fan, const [
+    BacnetCovReference(BacnetPropertyId.presentValue, timestamped: true),
+  ]),
+], processId: 7, lifetime: const Duration(minutes: 10));
+
+client.covEvents.listen((event) {
+  print('${event.object}: ${event.presentValue} '
+      'changed at ${event.changeTimes[BacnetPropertyId.presentValue]}');
+});
+```
+
+Devices without the service reject it (`BacnetRejectException`); use
+`subscribeCOV` for them. bacnet-stack, and so the server of this package,
+does not implement it.
+
+## Device descriptions and the command line tool
+
+`describeDevice` reads every property of every object of a device, with
+ReadPropertyMultiple ALL where the device has it, property by property
+otherwise. The `BacnetDeviceDescription` stores as JSON, e.g. to compare a
+controller with its state at commissioning, and lists the objects in the
+notation of an EPICS:
+
+```dart
+final description = await client.describeDevice(
+  1234,
+  onProgress: (done, total) => print('$done / $total objects'),
+);
+await File('ahu-1.json').writeAsString(jsonEncode(description.toJson()));
+print(description.toEpics());
+// {
+//   {
+//     object-identifier: (analog-input, 1)
+//     object-name: "Supply air temperature"
+//     present-value: 21.5
+//     units: degrees-celsius
+//     ...
+```
+
+`BacnetProperties.protocolServicesSupported` tells which services a device
+executes:
+
+```dart
+final services = await client.read(1234, device,
+    BacnetProperties.protocolServicesSupported);
+if (!services.contains(BacnetServiceSupported.readPropertyMultiple)) ...
+```
+
+The package has a command line tool for the same tasks:
+
+```bash
+dart run bacnet_plugin:bacnet discover
+dart run bacnet_plugin:bacnet read 1234 ai:1 present-value
+dart run bacnet_plugin:bacnet write 1234 av:1 present-value 21.5 --priority 8
+dart run bacnet_plugin:bacnet watch 1234 ai:1
+dart run bacnet_plugin:bacnet --json describe 1234 --output ahu-1.json
+dart run bacnet_plugin:bacnet -a 192.168.1.20 objects 1234   # without Who-Is
+dart run bacnet_plugin:bacnet --help
+```
+
+Objects are written as `type:instance` (`analog-input:1`, `ai:1`, `0:1`),
+properties by name or number. Values are typed for the property (REAL for
+analog present values, ENUMERATED `active`/`inactive` for binary ones,
+...) or explicitly: `real:21.5`, `unsigned:3`, `enum:1`, `string:text`.
+
+## Routers, networks and BBMDs
+
+Routers connect BACnet networks (BACnet/IP subnets, MS/TP trunks). Their
+network layer messages arrive as `NetworkMessageEvent`s on
+`client.networkMessages`; `BacnetNetworkDiscovery` finds routers, the
+number of the local network and routing tables:
+
+```dart
+for (final router in await client.discoverRouters()) {
+  print('${router.ipAddress}:${router.port} routes to ${router.networks}');
+}
+final number = await client.whatIsNetworkNumber(); // null: nobody knows
+final table = await client.readRoutingTable('192.168.1.1');
+
+client.networkMessages.listen((event) {
+  switch (event.message) {
+    case BacnetRejectMessageToNetwork(:final reason, :final network):
+      print('network $network unreachable: ${reason.label}');
+    case BacnetRouterBusyToNetwork(:final networks):
+      print('router ${event.ipAddress} busy for $networks');
+    case _:
+  }
+});
+```
+
+`sendNetworkMessage` sends any network layer message
+(`BacnetNetworkMessage` subclasses, proprietary ones as
+`BacnetOtherNetworkMessage`) as a local broadcast, to a router, or to a
+device behind it. Devices behind a router are reached with
+`addDeviceBinding(..., network: 5, adr: [...])` or by their I-Am.
+
+BBMDs forward broadcasts between BACnet/IP subnets. `BacnetBbmdClient`
+reads and changes their tables over its own UDP socket, without a started
+client:
+
+```dart
+final bbmd = BacnetBbmdClient('192.168.1.1');
+final peers = await bbmd.readBroadcastDistributionTable();
+final foreignDevices = await bbmd.readForeignDeviceTable();
+await bbmd.writeBroadcastDistributionTable([
+  ...peers,
+  BacnetBdtEntry('10.0.0.1'), // forward broadcasts to this BBMD too
+]);
+await bbmd.deleteForeignDeviceTableEntry('192.168.5.20');
+```
+
+A device that is not a BBMD, or refuses a change, answers with a NAK:
+`BacnetBbmdException.result` tells which (`BacnetBvlcResult`).
+`client.registerForeignDevice` registers the client itself with a BBMD.
+
 ## Testing your application
 
 `package:bacnet_plugin/testing.dart` provides `FakeBacnetClient`, a
@@ -569,6 +939,17 @@ client.latency = const Duration(milliseconds: 200);
 expect(client.requests.where((r) => r.service == 'writeProperty'), isEmpty);
 ```
 
+Routers of the simulated network answer router discovery, What-Is-Network-Number
+and routing table queries:
+
+```dart
+final client = FakeBacnetClient(
+  devices: [ahu],
+  routers: [FakeBacnetRouter('10.0.0.1', networks: [5, 6])],
+  networkNumber: 1,
+);
+```
+
 Fake devices report alarms to the clients in the Recipient_List of a
 Notification Class, keep the event state for `getEventInformation` and
 `getAlarmSummary` and check acknowledgements like a device.
@@ -590,6 +971,55 @@ sensor.reportEvent(
   ),
 );
 ```
+
+## Migrating from 0.7.x
+
+- Remote clients grow File objects of the server up to `maxSize`
+  (16 MiB by default, `addFile`/`configureFile`); larger AtomicWriteFile
+  and File_Size writes fail. Before, the limit was 2 GiB per file.
+- `PropertyMonitor` reads Protocol_Services_Supported of each device once
+  and uses SubscribeCOVPropertyMultiple where the device has it. Pass
+  `useCovMultiple: false` to subscribe every property on its own as
+  before; mocks of `BacnetClient` used with a monitor need an answer for
+  that read (any `BacnetException` means "not supported").
+- Fake devices answer Protocol_Services_Supported and ReadPropertyMultiple
+  with ALL instead of an unknown property error.
+
+## Migrating from 0.6.x
+
+- `WhoAmIEvent`, `YouAreEvent` and `WriteGroupEvent` are new
+  `BacnetEvent` subclasses: a `switch` over `BacnetEvent` needs cases for
+  them.
+- Classes implementing `BacnetClient` need `whoAmIRequests`,
+  `sendYouAre`, `writeGroup`, `subscribeCOVPropertyMultiple` and
+  `unsubscribeCOVPropertyMultiple`.
+- The client acknowledges ConfirmedCOVNotificationMultiple; it rejected
+  them as an unrecognized service before.
+
+## Migrating from 0.5.x
+
+- Schedules of the server write their members through the server like
+  clients do: those writes arrive as `writeEvents` with
+  `PropertyWriteEvent.internal` set.
+- Fake devices refuse the backup and restore states of
+  `reinitializeDevice` unless they have `configurationFiles`, like devices
+  without the procedure.
+
+## Migrating from 0.4.x
+
+- The server refuses DeviceCommunicationControl and ReinitializeDevice
+  unless `init` (or `setPassword`) sets a password. Before, it accepted
+  bacnet-stack's default password "filister".
+- `CommunicationControlEvent`, `ReinitializeDeviceEvent`,
+  `NetworkMessageEvent` and `FileWriteEvent` are new `BacnetEvent`
+  subclasses: a `switch` over `BacnetEvent` needs cases for them.
+- Classes implementing `BacnetClient` need the new device management,
+  file and messaging methods, `deviceMaxApdu`, `networkMessages` and
+  `sendNetworkMessage`.
+- `sendWhoIs(network: 0)` (and other local broadcasts) is sent as a
+  broadcast (Original-Broadcast-NPDU, or Distribute-Broadcast-To-Network
+  as registered foreign device). Before, it went as a unicast to the
+  broadcast address, which BBMDs did not forward.
 
 ## Migrating from 0.3.x
 

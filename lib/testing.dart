@@ -25,4 +25,5 @@ export 'src/testing/fake_client.dart'
         FakeBacnetClient,
         FakeBacnetDevice,
         FakeBacnetObject,
-        FakeBacnetRequest;
+        FakeBacnetRequest,
+        FakeBacnetRouter;
