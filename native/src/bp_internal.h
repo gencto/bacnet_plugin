@@ -210,6 +210,13 @@ void bp_network_received(
     const BACNET_NPDU_DATA *npdu_data,
     const uint8_t *message,
     uint16_t message_len);
+/** Answers router discovery messages when the server routes to networks
+ *  (bp_router.c). */
+void bp_router_on_network_message(
+    BACNET_ADDRESS *src,
+    const BACNET_NPDU_DATA *npdu_data,
+    const uint8_t *message,
+    uint16_t message_len);
 
 /* ---- bp_segments.c ----------------------------------------------------- */
 

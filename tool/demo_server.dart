@@ -233,6 +233,8 @@ Future<void> main(List<String> args) async {
     auditLog: 1,
     recipient: BacnetRecipient.ip('127.0.0.1', 47862),
   );
+  // acts as the BACnet router to two virtual networks
+  await server.enableRouting([100, 200]);
   // "provision <ip> <port>": asks the supervisor there for a device
   // instance (Who-Am-I / You-Are)
   stdin.transform(utf8.decoder).transform(const LineSplitter()).listen((

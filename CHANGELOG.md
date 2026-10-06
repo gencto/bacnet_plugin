@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Server as a BACnet router** (ASHRAE 135 clause 6, BIBB NM-RC-B):
+  `server.enableRouting([100, 200])` advertises the server as the router to
+  the given virtual networks — it answers Who-Is-Router-To-Network with
+  I-Am-Router-To-Network and Initialize-Routing-Table with an acknowledgement,
+  so `client.discoverRouters` finds it. (Forwarding APDUs to devices behind
+  the router is not implemented.)
 - **BACnet/IPv6** (ANNEX U): `BacnetConfig(useIPv6: true)` runs the client and
   server over the BACnet/IPv6 datalink instead of IPv4 (POSIX only; the engine
   now builds with `BACDL_MULTIPLE` and selects the transport at runtime). The

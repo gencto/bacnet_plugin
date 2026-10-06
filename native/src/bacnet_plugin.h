@@ -612,6 +612,16 @@ BP_API int32_t bacnet_plugin_audit_reporter_set_recipient(
     const uint8_t *adr,
     uint8_t adr_len);
 
+/**
+ * Makes the server advertise itself as the BACnet router to `count` virtual
+ * networks (`networks`, each 1..65535; `count` 0 disables routing, at most 16).
+ * It answers Who-Is-Router-To-Network with I-Am-Router-To-Network and
+ * Initialize-Routing-Table with an acknowledgement for those networks.
+ * Returns BP_OK or a negative BP_ERR_* code.
+ */
+BP_API int32_t
+bacnet_plugin_router_configure(const int32_t *networks, uint32_t count);
+
 #ifdef __cplusplus
 }
 #endif

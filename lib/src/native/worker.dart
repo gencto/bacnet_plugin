@@ -318,6 +318,8 @@ final class _Worker implements RequestTransport {
               ),
           ],
         );
+      case RouterConfigureCommand():
+        _engine.configureRouter(command.networks);
       case AuditLogConfigureCommand():
         _engine.configureAuditLog(command.instance, enabled: command.enabled);
       case AuditReporterConfigureCommand():

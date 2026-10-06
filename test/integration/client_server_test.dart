@@ -2363,6 +2363,40 @@ void main() {
     });
   });
 
+  group('server as router', () {
+    test('answers Who-Is-Router-To-Network for its virtual networks', () async {
+      final answer = client.networkMessages
+          .firstWhere((e) => e.message is BacnetIAmRouterToNetwork)
+          .timeout(const Duration(seconds: 10));
+      await client.sendNetworkMessage(
+        BacnetWhoIsRouterToNetwork(),
+        ip: '127.0.0.1',
+        port: serverPort,
+      );
+      final event = await answer;
+      expect(
+        (event.message as BacnetIAmRouterToNetwork).networks,
+        containsAll(<int>[100, 200]),
+      );
+    });
+
+    test('answers for a specific network only when it routes to it', () async {
+      final answer = client.networkMessages
+          .firstWhere((e) => e.message is BacnetIAmRouterToNetwork)
+          .timeout(const Duration(seconds: 10));
+      await client.sendNetworkMessage(
+        BacnetWhoIsRouterToNetwork(network: 200),
+        ip: '127.0.0.1',
+        port: serverPort,
+      );
+      final event = await answer;
+      expect(
+        (event.message as BacnetIAmRouterToNetwork).networks,
+        equals(<int>[200]),
+      );
+    });
+  });
+
   group('time master', () {
     late RawDatagramSocket socket;
     late List<List<int>> received;

@@ -1581,6 +1581,31 @@ class BacnetServer {
     return created;
   }
 
+  /// Makes the server advertise itself as the BACnet router to [networks]
+  /// (ASHRAE 135 clause 6, BIBB NM-RC-B): it answers Who-Is-Router-To-Network
+  /// and Initialize-Routing-Table for them (so `client.discoverRouters` finds
+  /// it). Forwarding APDUs to devices behind the router is not implemented.
+  /// At most 16 networks, each 1..65535.
+  ///
+  /// ```dart
+  /// await server.enableRouting([100, 200]);
+  /// ```
+  Future<void> enableRouting(List<int> networks) {
+    if (networks.length > 16) {
+      throw ArgumentError.value(networks, 'networks', 'at most 16');
+    }
+    for (final network in networks) {
+      RangeError.checkValueInInterval(network, 1, 0xFFFF, 'network');
+    }
+    return _system.call<void>(
+      (id) => RouterConfigureCommand(id, List<int>.of(networks)),
+    );
+  }
+
+  /// Stops advertising the server as a router (see [enableRouting]).
+  Future<void> disableRouting() =>
+      _system.call<void>((id) => RouterConfigureCommand(id, const []));
+
   /// Broadcasts an I-Am for the local device.
   Future<void> sendIAm() => _system.call<void>(SendIAmCommand.new);
 

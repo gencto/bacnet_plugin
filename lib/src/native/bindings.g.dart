@@ -262,6 +262,17 @@ external int bacnet_plugin_init(
 @ffi.Native<ffi.Int32 Function(ffi.Int32)>(isLeaf: true)
 external int bacnet_plugin_set_ipv6(int enabled);
 
+/// Advertises the server as the BACnet router to `count` virtual networks
+/// (each 1..65535; count 0 disables routing, at most 16). Answers
+/// Who-Is-Router-To-Network and Initialize-Routing-Table for them.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Int32>, ffi.Uint32)>(
+  isLeaf: true,
+)
+external int bacnet_plugin_router_configure(
+  ffi.Pointer<ffi.Int32> networks,
+  int count,
+);
+
 /// Copies the own BACnet/IP address (IPv4 address and UDP port, 6 bytes) to
 /// `mac`, which must hold at least 6 bytes: where devices send
 /// notifications to this engine.

@@ -113,6 +113,9 @@ static bool bp_accept_reply(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
         bp_network_received(
             &full_src, &dest, &npdu_data, &pdu[offset],
             (uint16_t)(len - offset));
+        /* reply to router discovery when configured as a router */
+        bp_router_on_network_message(
+            src, &npdu_data, &pdu[offset], (uint16_t)(len - offset));
         return true;
     }
     if (offset <= 0 || offset + 2 > len) {

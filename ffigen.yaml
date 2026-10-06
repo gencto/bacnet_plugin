@@ -21,6 +21,7 @@ functions:
       - bacnet_plugin_version
       - bacnet_plugin_set_option
       - bacnet_plugin_set_ipv6
+      - bacnet_plugin_router_configure
       - bacnet_plugin_wakeup
       - bacnet_plugin_events_data
       - bacnet_plugin_events_length

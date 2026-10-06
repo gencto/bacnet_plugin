@@ -46,7 +46,9 @@ Dart programs such as headless gateways and supervisory services.
   GetEnrollmentSummary; WriteGroup;
   asks a supervisor for its device instance (Who-Am-I/You-Are); batch
   updates of present values; write notifications; state persistence
-  (snapshot and restore its objects and values through a pluggable store).
+  (snapshot and restore its objects and values through a pluggable store);
+  advertises itself as a router to virtual networks; runs over BACnet/IPv4
+  or, on POSIX, BACnet/IPv6.
 - **Built for load**: request scheduler with global and per-device
   concurrency limits, back pressure, automatic address binding, concurrent
   reads merged into ReadPropertyMultiple, batched isolate messaging and
@@ -1058,6 +1060,17 @@ await bbmd.writeBroadcastDistributionTable([
 ]);
 await bbmd.deleteForeignDeviceTableEntry('192.168.5.20');
 ```
+
+The server can also present itself **as a router** to one or more virtual
+networks, so other devices discover it with Who-Is-Router-To-Network:
+
+```dart
+await server.enableRouting([100, 200]);
+// elsewhere: client.discoverRouters() now lists this server for 100 and 200
+```
+
+It answers Who-Is-Router-To-Network and Initialize-Routing-Table for those
+networks; forwarding APDUs to devices behind the router is not implemented.
 
 ### BACnet/IPv6
 

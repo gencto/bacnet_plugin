@@ -417,6 +417,13 @@ class EventEnrollmentCommand extends WorkerCommand {
   final int notifyType;
 }
 
+/// Advertises the server as the BACnet router to the given virtual networks
+/// (empty disables routing).
+class RouterConfigureCommand extends WorkerCommand {
+  const RouterConfigureCommand(super.id, this.networks);
+  final List<int> networks;
+}
+
 /// Enables or disables an Audit Log object.
 class AuditLogConfigureCommand extends WorkerCommand {
   const AuditLogConfigureCommand(

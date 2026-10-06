@@ -383,6 +383,24 @@ class NativeEngine {
     );
   }
 
+  /// Advertises the server as the BACnet router to [networks] (empty disables
+  /// routing).
+  void configureRouter(List<int> networks) {
+    if (networks.isEmpty) {
+      checkNative(bacnet_plugin_router_configure(ffi.nullptr, 0));
+      return;
+    }
+    final array = calloc<ffi.Int32>(networks.length);
+    try {
+      for (var i = 0; i < networks.length; i++) {
+        array[i] = networks[i];
+      }
+      checkNative(bacnet_plugin_router_configure(array, networks.length));
+    } finally {
+      calloc.free(array);
+    }
+  }
+
   /// Enables or disables Audit Log object [instance].
   void configureAuditLog(int instance, {required bool enabled}) {
     checkNative(bacnet_plugin_audit_log_configure(instance, enabled ? 1 : 0));
