@@ -271,21 +271,6 @@ Future<void> main(List<String> args) async {
     }
   });
   print('READY ${server.config.port} device $deviceId objects $objects');
-  if (Platform.environment['BACNET_HEARTBEAT'] != null) {
-    // diagnostic: prove the engine stays responsive and show the UDP counters
-    Timer.periodic(const Duration(seconds: 1), (_) async {
-      try {
-        final s = await server.stats();
-        stderr.writeln(
-          'HEARTBEAT rx=${s.packetsReceived} sent=${s.requestsSent} '
-          'queued=${s.queuedRequests} inflight=${s.inFlightRequests} '
-          'dropped=${s.repliesDropped}',
-        );
-      } on Object catch (e) {
-        stderr.writeln('HEARTBEAT-ERR $e');
-      }
-    });
-  }
   final random = Random(1);
   // keep values moving to exercise COV
   Timer.periodic(const Duration(milliseconds: 200), (_) async {
