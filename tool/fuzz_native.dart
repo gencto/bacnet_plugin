@@ -34,6 +34,12 @@ const _seeds = <String, String>{
       '00 0104 00050d00 0901 1c00000001 2902 3e0901 3f 4900 5e0901 5f',
   'get-event-information': '00 0104 00050e1d',
   'get-alarm-summary': '00 0104 00050f03',
+  'get-enrollment-summary': '00 0104 00050104 0900',
+  // empty service request (missing the mandatory acknowledgmentFilter)
+  'get-enrollment-summary-empty': '00 0104 00050104',
+  'audit-log-query': '00 0104 00050121 0c05c0000a',
+  // empty service request (missing the mandatory auditLog object identifier)
+  'audit-log-query-empty': '00 0104 00050121',
   'dcc': '00 0104 0005101109021900 2d0500 66757a7a',
   'reinitialize-backup': '00 0104 00051114 0903 1d0500 66757a7a',
   'private-transfer': '00 0104 00051212 0a0104 1901 2e21052f',

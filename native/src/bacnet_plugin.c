@@ -17,6 +17,10 @@
 #include "bacnet/basic/sys/mstimer.h"
 #include "bacnet/basic/tsm/tsm.h"
 #include "bacnet/datalink/bvlc.h"
+#include "bacnet/datalink/datalink.h"
+#if !defined(_WIN32) && defined(BACDL_BIP6)
+#include "bacnet/datalink/bip6.h"
+#endif
 #include "bacnet/dcc.h"
 #include "bacnet/npdu.h"
 #include "bacnet/version.h"
@@ -54,6 +58,10 @@ static void bp_timers(void)
                 handler_cov_timer_seconds(seconds);
                 bp_event_reporting(seconds);
                 bp_backup_timer(seconds);
+                bp_scm_task(seconds);
+#if defined(INTRINSIC_REPORTING)
+                bp_ee_task(seconds);
+#endif
             }
             if (bp_state.fdr_ttl > 0) {
                 uint32_t renew =
@@ -78,6 +86,7 @@ static void bp_timers(void)
     }
     bp_segments_timer(now);
     bp_cov_scan(now);
+    bp_time_master_tick(now);
 }
 
 /* ---- receive path ------------------------------------------------------ */
@@ -104,6 +113,9 @@ static bool bp_accept_reply(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
         bp_network_received(
             &full_src, &dest, &npdu_data, &pdu[offset],
             (uint16_t)(len - offset));
+        /* reply to router discovery when configured as a router */
+        bp_router_on_network_message(
+            src, &npdu_data, &pdu[offset], (uint16_t)(len - offset));
         return true;
     }
     if (offset <= 0 || offset + 2 > len) {
@@ -178,7 +190,7 @@ BP_API int32_t bacnet_plugin_poll(uint32_t timeout_ms, uint32_t max_packets)
         uint16_t len;
 
         memset(&src, 0, sizeof(src));
-        len = bip_receive(&src, bp_state.rx_buf, MAX_MPDU, 0);
+        len = datalink_receive(&src, bp_state.rx_buf, MAX_MPDU, 0);
         if (len == 0) {
             break;
         }
@@ -193,7 +205,9 @@ void bp_receive_packet(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
 {
     bp_state.stats.packets_received++;
     if (bp_accept_reply(src, pdu, len)) {
+        bp_audit_set_source(src);
         npdu_handler(src, pdu, len);
+        bp_audit_set_source(NULL);
     }
 }
 
@@ -203,6 +217,22 @@ BP_API const char *bacnet_plugin_version(void)
 {
     return "bacnet_plugin/" BP_XSTRINGIFY(
         BP_ENGINE_VERSION) " bacnet-stack/" BACNET_VERSION_TEXT;
+}
+
+BP_API int32_t bacnet_plugin_set_ipv6(int32_t enabled)
+{
+    if (bp_state.initialized) {
+        return BP_ERR_ALREADY_INITIALIZED;
+    }
+#if !defined(_WIN32) && defined(BACDL_BIP6)
+    bp_state.ipv6 = enabled != 0;
+    return BP_OK;
+#else
+    if (enabled) {
+        return BP_ERR_UNSUPPORTED;
+    }
+    return BP_OK;
+#endif
 }
 
 BP_API int32_t bacnet_plugin_init(
@@ -252,9 +282,27 @@ BP_API int32_t bacnet_plugin_init(
     address_own_device_id_set(Device_Object_Instance_Number());
     bp_register_client_handlers();
 
-    bip_set_port(port ? port : 0xBAC0);
-    if (!bip_init(iface && *iface ? iface : NULL)) {
-        return BP_ERR_DATALINK;
+#if !defined(_WIN32) && defined(BACDL_BIP6)
+    if (bp_state.ipv6) {
+#if defined(BACDL_MULTIPLE)
+        datalink_set("bip6");
+#endif
+        bip6_set_port(port ? port : 0xBAC0);
+        if (!bip6_init(iface && *iface ? iface : NULL)) {
+            return BP_ERR_DATALINK;
+        }
+    } else
+#endif
+    {
+#if defined(BACDL_MULTIPLE)
+        /* with a single compile-time datalink the macros already resolve to
+           bip_*; datalink_set() exists only in the runtime-dispatch build */
+        datalink_set("bip");
+#endif
+        bip_set_port(port ? port : 0xBAC0);
+        if (!bip_init(iface && *iface ? iface : NULL)) {
+            return BP_ERR_DATALINK;
+        }
     }
 #if defined(_WIN32)
     bp_apply_socket_buffer(bip_get_socket());

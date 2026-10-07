@@ -21,12 +21,15 @@ import '../core/exceptions.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
 import '../models/alarms.dart';
+import '../models/audit.dart';
 import '../models/bacnet_property.dart';
+import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
 import '../models/complex_values.dart';
 import '../models/events.dart';
 import '../native/bacnet_system.dart';
 import '../native/protocol.dart';
+import 'server_state.dart';
 
 /// One present value update for [BacnetServer.updatePresentValues].
 @immutable
@@ -54,6 +57,9 @@ class BacnetPresentValueUpdate {
   /// Priority for commandable objects (1..16).
   final int priority;
 }
+
+/// BACnetArrayAll: refers to a whole property rather than one array element.
+const _arrayAll = 0xFFFFFFFF;
 
 /// BACnet server hosting objects and answering client requests.
 ///
@@ -89,12 +95,19 @@ class BacnetServer {
 
   final BacnetConfig _config;
   final BacnetSystem _system = BacnetSystem.instance;
+
+  /// The objects created with [addObject] (and its helpers), keyed by
+  /// (object type, instance), for [captureState].
+  final Map<(int, int), BacnetObjectState> _hosted = {};
   bool _started = false;
   int? _deviceId;
   StreamSubscription<ReinitializeDeviceEvent>? _backupRequests;
 
   /// Configuration of this server.
   BacnetConfig get config => _config;
+
+  /// Engine statistics (received packets, queue depth, bound devices).
+  Future<BacnetStats> stats() => _system.stats();
 
   /// Writes performed by remote clients on objects of this server.
   Stream<PropertyWriteEvent> get writeEvents => _system.events
@@ -242,8 +255,8 @@ class BacnetServer {
     bool? outOfService,
     List<String>? stateTexts,
     BacnetValue? presentValue,
-  }) {
-    return _system.call<int>(
+  }) async {
+    final created = await _system.call<int>(
       (id) => CreateObjectCommand(
         id,
         objectType: objectType,
@@ -264,6 +277,13 @@ class BacnetServer {
         presentValueString: presentValue?.asString,
       ),
     );
+    _hosted[(objectType.value, created)] = BacnetObjectState(
+      type: objectType,
+      instance: created,
+      name: name,
+      description: description,
+    );
+    return created;
   }
 
   /// Adds a File object whose content the server keeps in memory and
@@ -346,8 +366,95 @@ class BacnetServer {
       );
 
   /// Removes an object from the server.
-  Future<void> removeObject(BacnetObjectType objectType, int instance) =>
-      _system.call<void>((id) => DeleteObjectCommand(id, objectType, instance));
+  Future<void> removeObject(BacnetObjectType objectType, int instance) {
+    _hosted.remove((objectType.value, instance));
+    return _system.call<void>(
+      (id) => DeleteObjectCommand(id, objectType, instance),
+    );
+  }
+
+  // ---- state persistence ----------------------------------------------------
+
+  /// Captures the objects this server hosts (added with [addObject] and its
+  /// helpers) and their current present values into a [BacnetServerState].
+  ///
+  /// Objects created by remote clients (CreateObject) are not included, and
+  /// only the object identity, name, description and present value are
+  /// captured — re-apply richer per-object configuration (units, limits,
+  /// schedules, recipients) from the application after [restoreState].
+  Future<BacnetServerState> captureState() async {
+    final objects = <BacnetObjectState>[];
+    for (final hosted in _hosted.values) {
+      BacnetValue? value;
+      try {
+        value = await readProperty(
+          hosted.type,
+          hosted.instance,
+          BacnetPropertyId.presentValue,
+        );
+      } on BacnetException {
+        value = null; // objects without a present value
+      }
+      objects.add(
+        BacnetObjectState(
+          type: hosted.type,
+          instance: hosted.instance,
+          name: hosted.name,
+          description: hosted.description,
+          presentValue: value,
+        ),
+      );
+    }
+    return BacnetServerState(objects: objects, deviceInstance: _deviceId);
+  }
+
+  /// Captures the server state with [captureState] and persists it with
+  /// [store] (e.g. a [JsonFileServerStateStore]).
+  Future<void> saveState(BacnetServerStateStore store) async =>
+      store.save(await captureState());
+
+  /// Loads a snapshot from [store] and re-creates its objects and present
+  /// values on this server. Does nothing when [store] holds no snapshot.
+  /// Returns true when a snapshot was applied.
+  Future<bool> restoreState(BacnetServerStateStore store) async {
+    final state = await store.load();
+    if (state == null) {
+      return false;
+    }
+    await applyState(state);
+    return true;
+  }
+
+  /// Re-creates the objects and present values of [state] on this server
+  /// (used by [restoreState]).
+  Future<void> applyState(BacnetServerState state) async {
+    for (final object in state.objects) {
+      await addObject(
+        object.type,
+        object.instance,
+        name: object.name,
+        description: object.description,
+      );
+      // setPresentValue only accepts scalar datatypes; complex present values
+      // (and relinquished nulls) are left for the application to re-apply.
+      final value = object.presentValue;
+      final settable =
+          value is BacnetReal ||
+          value is BacnetDouble ||
+          value is BacnetUnsigned ||
+          value is BacnetSigned ||
+          value is BacnetEnumerated ||
+          value is BacnetBoolean ||
+          value is BacnetCharacterString;
+      if (value != null && settable) {
+        try {
+          await setPresentValue(object.type, object.instance, value);
+        } on BacnetException {
+          // the object has no writable present value: keep it unset
+        }
+      }
+    }
+  }
 
   /// Sets the present value of an object (local update, triggers COV
   /// notifications to subscribers).
@@ -879,6 +986,143 @@ class BacnetServer {
     return created;
   }
 
+  // ---- lighting and color objects -------------------------------------------
+
+  /// Adds a Lighting Output object (dimmable light): clients drive it by
+  /// writing [BacnetProperties.lightingCommand] (a [BacnetLightingCommand])
+  /// or its Present_Value (0.0..100.0 %). Returns its instance.
+  ///
+  /// ```dart
+  /// await server.addLightingOutput(1, name: 'Desk lamp');
+  /// // a client ramps it to 80 % over two seconds:
+  /// await client.write(device, lamp, BacnetProperties.lightingCommand,
+  ///     const BacnetLightingCommand(
+  ///       operation: BacnetLightingOperation.fadeTo,
+  ///       targetLevel: 80,
+  ///       fadeTime: Duration(seconds: 2),
+  ///     ));
+  /// ```
+  Future<int> addLightingOutput(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.lightingOutput,
+    instance,
+    name: name,
+    description: description,
+  );
+
+  /// Adds a Binary Lighting Output object (a switched light): clients write
+  /// its Present_Value ([BacnetBinaryLightingPV]). Returns its instance.
+  Future<int> addBinaryLightingOutput(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.binaryLightingOutput,
+    instance,
+    name: name,
+    description: description,
+  );
+
+  /// Adds a Color object (CIE xy chromaticity): clients drive it by writing
+  /// [BacnetProperties.colorCommand] (a [BacnetColorCommand]). Returns its
+  /// instance.
+  Future<int> addColor(int instance, {String? name, String? description}) =>
+      addObject(
+        BacnetObjectType.color,
+        instance,
+        name: name,
+        description: description,
+      );
+
+  /// Adds a Color Temperature object (correlated color temperature in
+  /// kelvin): clients drive it by writing [BacnetProperties.colorCommand].
+  /// Returns its instance.
+  Future<int> addColorTemperature(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.colorTemperature,
+    instance,
+    name: name,
+    description: description,
+  );
+
+  // ---- control and grouping objects -----------------------------------------
+
+  /// Adds a Loop object (a PID control loop). Returns its instance. Configure
+  /// its setpoint, process variable and manipulated variable references and
+  /// tuning constants with [setProperty].
+  Future<int> addLoop(int instance, {String? name, String? description}) =>
+      addObject(
+        BacnetObjectType.loop,
+        instance,
+        name: name,
+        description: description,
+      );
+
+  /// Adds a Timer object (ASHRAE 135 clause 12.X). Returns its instance.
+  Future<int> addTimer(int instance, {String? name, String? description}) =>
+      addObject(
+        BacnetObjectType.timer,
+        instance,
+        name: name,
+        description: description,
+      );
+
+  /// Adds an Accumulator object (a pulse counter, e.g. a utility meter).
+  /// Returns its instance.
+  Future<int> addAccumulator(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.accumulator,
+    instance,
+    name: name,
+    description: description,
+  );
+
+  /// Adds an Averaging object (tracks the minimum, maximum and average of a
+  /// monitored property over a window). Returns its instance.
+  Future<int> addAveraging(int instance, {String? name, String? description}) =>
+      addObject(
+        BacnetObjectType.averaging,
+        instance,
+        name: name,
+        description: description,
+      );
+
+  /// Adds a Load Control object (sheds electrical load on request, ASHRAE
+  /// 135 clause 12.X). Returns its instance.
+  Future<int> addLoadControl(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.loadControl,
+    instance,
+    name: name,
+    description: description,
+  );
+
+  /// Adds a Structured View object (groups other objects into a hierarchy for
+  /// navigation). Returns its instance; add its members by writing
+  /// Subordinate_List with [setProperty].
+  Future<int> addStructuredView(
+    int instance, {
+    String? name,
+    String? description,
+  }) => addObject(
+    BacnetObjectType.structuredView,
+    instance,
+    name: name,
+    description: description,
+  );
+
   // ---- backup and restore ---------------------------------------------------
 
   /// Lets clients back up and restore this server (ASHRAE 135 clause 19.1,
@@ -1185,8 +1429,264 @@ class BacnetServer {
     await write(object, BacnetProperties.eventEnable, eventEnable);
   }
 
+  /// Adds an Event Enrollment object (ASHRAE 135 clause 12.12) that monitors a
+  /// property of another object — local or, once bound, remote — and reports
+  /// events to the recipients of [notificationClass]. Returns its instance.
+  ///
+  /// It evaluates the OUT_OF_RANGE algorithm every second on the REAL value of
+  /// [property] (Present_Value by default; pass [arrayIndex] for an array
+  /// element) of [monitored]: a value above [highLimit] or below [lowLimit]
+  /// for [timeDelay] reports a to-offnormal event, and a return inside the
+  /// limits by more than [deadband] reports to-normal. Leave a limit null to
+  /// disable that side. [eventEnable] selects the reported transitions and
+  /// [notifyType] whether they are alarms or events.
+  ///
+  /// ```dart
+  /// await server.addNotificationClass(1, recipients: [...]);
+  /// await server.addAnalogValue(7, presentValue: 20);
+  /// await server.addEventEnrollment(
+  ///   1,
+  ///   monitored: const BacnetObject(
+  ///     type: BacnetObjectType.analogValue,
+  ///     instance: 7,
+  ///   ),
+  ///   notificationClass: 1,
+  ///   highLimit: 30,
+  ///   lowLimit: 10,
+  ///   deadband: 0.5,
+  /// );
+  /// ```
+  Future<int> addEventEnrollment(
+    int instance, {
+    required BacnetObject monitored,
+    required int notificationClass,
+    BacnetPropertyId property = BacnetPropertyId.presentValue,
+    int? arrayIndex,
+    double? highLimit,
+    double? lowLimit,
+    double deadband = 0,
+    Duration timeDelay = Duration.zero,
+    BacnetEventTransitionBits eventEnable = const BacnetEventTransitionBits(
+      toOffNormal: true,
+      toFault: true,
+      toNormal: true,
+    ),
+    BacnetNotifyType notifyType = BacnetNotifyType.alarm,
+    String? name,
+    String? description,
+  }) async {
+    if (timeDelay.isNegative) {
+      throw ArgumentError.value(timeDelay, 'timeDelay', 'must not be negative');
+    }
+    if (arrayIndex != null) {
+      RangeError.checkValueInInterval(arrayIndex, 0, 0xFFFFFFFE, 'arrayIndex');
+    }
+    final created = await addObject(
+      BacnetObjectType.eventEnrollment,
+      instance,
+      name: name,
+      description: description,
+    );
+    await _system.call<void>(
+      (id) => EventEnrollmentCommand(
+        id,
+        created,
+        monitoredType: monitored.type,
+        monitoredInstance: monitored.instance,
+        monitoredProperty: property,
+        monitoredIndex: arrayIndex ?? _arrayAll,
+        lowLimit: lowLimit ?? double.negativeInfinity,
+        highLimit: highLimit ?? double.infinity,
+        deadband: deadband,
+        timeDelaySeconds: timeDelay.inSeconds,
+        notificationClass: notificationClass,
+        eventEnable:
+            (eventEnable.toOffNormal ? 1 : 0) |
+            (eventEnable.toFault ? 2 : 0) |
+            (eventEnable.toNormal ? 4 : 0),
+        notifyType: notifyType,
+      ),
+    );
+    return created;
+  }
+
+  /// Adds an Audit Log object (ASHRAE 135-2016bi) that stores audit records —
+  /// from an [addAuditReporter] on this device, or received
+  /// AuditNotifications. Returns its instance. Read its records with
+  /// [BacnetClient.queryAuditLog] or ReadRange of Log_Buffer. [enabled]
+  /// controls whether it accepts records (a disabled log drops them).
+  Future<int> addAuditLog(
+    int instance, {
+    String? name,
+    String? description,
+    bool enabled = true,
+  }) async {
+    final created = await addObject(
+      BacnetObjectType.auditLog,
+      instance,
+      name: name,
+      description: description,
+    );
+    await _system.call<void>(
+      (id) => AuditLogConfigureCommand(id, created, enabled: enabled),
+    );
+    return created;
+  }
+
+  /// Adds an Audit Reporter object (ASHRAE 135-2016bi) that generates an audit
+  /// record for each operation in [operations] (by default writes) performed
+  /// on this device by a remote client. Returns its instance.
+  ///
+  /// Records are stored in Audit Log [auditLog] (null for none) and sent as an
+  /// AuditNotification to [recipient] (null for none). [auditLevel] other than
+  /// [BacnetAuditLevel.none] enables reporting.
+  ///
+  /// ```dart
+  /// final log = await server.addAuditLog(1, name: 'Audit');
+  /// await server.addAuditReporter(
+  ///   1,
+  ///   auditLog: log,
+  ///   recipient: BacnetRecipient.ip('192.168.1.10', 47808),
+  /// );
+  /// ```
+  Future<int> addAuditReporter(
+    int instance, {
+    String? name,
+    String? description,
+    BacnetAuditLevel auditLevel = BacnetAuditLevel.auditAll,
+    List<BacnetAuditOperation> operations = const [BacnetAuditOperation.write],
+    int? auditLog,
+    BacnetRecipient? recipient,
+    Duration maxSendDelay = Duration.zero,
+  }) async {
+    var mask = 0;
+    for (final operation in operations) {
+      if (operation >= 0 && operation < 32) {
+        mask |= 1 << operation;
+      }
+    }
+    final created = await addObject(
+      BacnetObjectType.auditReporter,
+      instance,
+      name: name,
+      description: description,
+    );
+    await _system.call<void>(
+      (id) => AuditReporterConfigureCommand(
+        id,
+        created,
+        auditLevel: auditLevel,
+        operations: mask,
+        auditLogInstance: auditLog ?? _arrayAll,
+        maxSendDelaySeconds: maxSendDelay.inSeconds,
+        recipient: recipient == null ? null : _timeRecipient(recipient),
+      ),
+    );
+    return created;
+  }
+
+  /// Makes the server advertise itself as the BACnet router to [networks]
+  /// (ASHRAE 135 clause 6, BIBB NM-RC-B): it answers Who-Is-Router-To-Network
+  /// and Initialize-Routing-Table for them (so `client.discoverRouters` finds
+  /// it). Forwarding APDUs to devices behind the router is not implemented.
+  /// At most 16 networks, each 1..65535.
+  ///
+  /// ```dart
+  /// await server.enableRouting([100, 200]);
+  /// ```
+  Future<void> enableRouting(List<int> networks) {
+    if (networks.length > 16) {
+      throw ArgumentError.value(networks, 'networks', 'at most 16');
+    }
+    for (final network in networks) {
+      RangeError.checkValueInInterval(network, 1, 0xFFFF, 'network');
+    }
+    return _system.call<void>(
+      (id) => RouterConfigureCommand(id, List<int>.of(networks)),
+    );
+  }
+
+  /// Stops advertising the server as a router (see [enableRouting]).
+  Future<void> disableRouting() =>
+      _system.call<void>((id) => RouterConfigureCommand(id, const []));
+
   /// Broadcasts an I-Am for the local device.
   Future<void> sendIAm() => _system.call<void>(SendIAmCommand.new);
+
+  /// Enables the Time Master (ASHRAE 135 clause 13.12): the server sends a
+  /// TimeSynchronization — or a UTCTimeSynchronization when [utc] — every
+  /// [interval] to [recipients], using the host clock (and, for [utc], the
+  /// UTC offset of the Device object).
+  ///
+  /// Each recipient is a device ([BacnetRecipient.device], resolved through
+  /// the binding table — nothing is sent to it until it is bound), an address
+  /// ([BacnetRecipient.ip]), or a local broadcast (a [BacnetAddressRecipient]
+  /// with an empty mac). When [recipients] is empty the server broadcasts on
+  /// the local network. At most 16 recipients.
+  ///
+  /// When [alignToClock] the sends are aligned to the wall clock, [offset]
+  /// past each interval (e.g. an hourly sync with a one-minute offset fires at
+  /// 00:01, 01:01, ...).
+  ///
+  /// ```dart
+  /// // broadcast UTC time every hour, aligned to the top of the hour
+  /// await server.enableTimeMaster(
+  ///   interval: const Duration(hours: 1),
+  ///   utc: true,
+  ///   alignToClock: true,
+  /// );
+  /// ```
+  Future<void> enableTimeMaster({
+    required Duration interval,
+    List<BacnetRecipient> recipients = const [],
+    bool utc = false,
+    bool alignToClock = false,
+    Duration offset = Duration.zero,
+  }) {
+    final seconds = interval.inSeconds;
+    if (seconds <= 0) {
+      throw ArgumentError.value(interval, 'interval', 'must be positive');
+    }
+    if (offset.isNegative) {
+      throw ArgumentError.value(offset, 'offset', 'must not be negative');
+    }
+    if (recipients.length > 16) {
+      throw ArgumentError.value(recipients, 'recipients', 'at most 16');
+    }
+    return _system.call<void>(
+      (id) => TimeMasterCommand(
+        id,
+        enabled: true,
+        intervalSeconds: seconds,
+        utc: utc,
+        align: alignToClock,
+        offsetSeconds: offset.inSeconds,
+        recipients: [for (final r in recipients) _timeRecipient(r)],
+      ),
+    );
+  }
+
+  /// Disables the Time Master started by [enableTimeMaster].
+  Future<void> disableTimeMaster() => _system.call<void>(
+    (id) => TimeMasterCommand(
+      id,
+      enabled: false,
+      intervalSeconds: 60,
+      utc: false,
+      align: false,
+      offsetSeconds: 0,
+      recipients: const [],
+    ),
+  );
+
+  static TimeMasterRecipient _timeRecipient(BacnetRecipient recipient) =>
+      switch (recipient) {
+        BacnetDeviceRecipient(:final deviceId) => TimeMasterRecipient(
+          deviceId: deviceId,
+        ),
+        BacnetAddressRecipient(:final network, :final mac) =>
+          TimeMasterRecipient(network: network, mac: mac),
+      };
 
   /// The number the native engine stores; NaN relinquishes.
   static double _number(BacnetValue value) => switch (value) {

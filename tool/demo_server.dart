@@ -192,6 +192,49 @@ Future<void> main(List<String> args) async {
       ),
     ],
   );
+  // lighting and color objects
+  await server.addLightingOutput(60, name: 'Desk lamp');
+  await server.addColor(61, name: 'RGB strip');
+  await server.addColorTemperature(62, name: 'Tunable white');
+  // control and grouping objects
+  await server.addLoop(1, name: 'PID loop');
+  await server.addTimer(1, name: 'Egress timer');
+  await server.addAccumulator(1, name: 'Energy meter');
+  await server.addAveraging(1, name: 'Temp average');
+  await server.addLoadControl(1, name: 'Load shed');
+  await server.addStructuredView(1, name: 'Room view');
+  // event enrollment: watches a dedicated analog value with OUT_OF_RANGE and
+  // reports to its own notification class (2)
+  await server.addNotificationClass(2, name: 'EE Alarms');
+  await server.addObject(
+    BacnetObjectType.analogValue,
+    objects + 1,
+    name: 'EE-source',
+    presentValue: const BacnetReal(20),
+  );
+  await server.addEventEnrollment(
+    1,
+    monitored: BacnetObject(
+      type: BacnetObjectType.analogValue,
+      instance: objects + 1,
+    ),
+    notificationClass: 2,
+    highLimit: 30,
+    lowLimit: 10,
+    deadband: 1,
+    name: 'Range watch',
+  );
+  // auditing: an Audit Log and an Audit Reporter that records client writes
+  // and sends an AuditNotification to the test client (port 47862)
+  await server.addAuditLog(1, name: 'Audit log');
+  await server.addAuditReporter(
+    1,
+    name: 'Write reporter',
+    auditLog: 1,
+    recipient: BacnetRecipient.ip('127.0.0.1', 47862),
+  );
+  // acts as the BACnet router to two virtual networks
+  await server.enableRouting([100, 200]);
   // "provision <ip> <port>": asks the supervisor there for a device
   // instance (Who-Am-I / You-Are)
   stdin.transform(utf8.decoder).transform(const LineSplitter()).listen((
@@ -209,6 +252,22 @@ Future<void> main(List<String> args) async {
         retryInterval: const Duration(seconds: 1),
       );
       print('PROVISIONED $instance');
+    } else if (words.length == 2 &&
+        words[0] == 'timemaster' &&
+        words[1] == 'off') {
+      await server.disableTimeMaster();
+      print('TIMEMASTER off');
+    } else if (words.length == 4 && words[0] == 'timemaster') {
+      // "timemaster <interval_seconds> <local|utc> <ip:port>": sends a
+      // (UTC)TimeSynchronization to that recipient at the interval
+      final host = words[3].split(':');
+      final port = int.parse(host[1]);
+      await server.enableTimeMaster(
+        interval: Duration(seconds: int.parse(words[1])),
+        utc: words[2] == 'utc',
+        recipients: [BacnetRecipient.ip(host[0], port)],
+      );
+      print('TIMEMASTER ${words[1]}s ${words[2]} to ${words[3]}');
     }
   });
   print('READY ${server.config.port} device $deviceId objects $objects');

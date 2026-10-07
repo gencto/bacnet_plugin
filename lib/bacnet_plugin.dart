@@ -34,6 +34,7 @@ export 'src/core/logger.dart';
 export 'src/core/types.dart';
 // Models
 export 'src/models/alarms.dart';
+export 'src/models/audit.dart';
 export 'src/models/backup.dart';
 export 'src/models/bacnet_property.dart';
 export 'src/models/bacnet_stats.dart';
@@ -45,6 +46,7 @@ export 'src/models/cov_multiple.dart';
 export 'src/models/device_description.dart';
 export 'src/models/device_metadata.dart';
 export 'src/models/discovered_device.dart';
+export 'src/models/enrollment_summary.dart';
 export 'src/models/events.dart';
 export 'src/models/files.dart';
 export 'src/models/network.dart';
@@ -53,6 +55,7 @@ export 'src/models/rpm_models.dart';
 export 'src/models/trend_log_data.dart';
 export 'src/models/wpm_models.dart';
 export 'src/server/bacnet_server.dart';
+export 'src/server/server_state.dart';
 // Utilities
 export 'src/utilities/alarm_subscription.dart';
 export 'src/utilities/device_backup.dart';

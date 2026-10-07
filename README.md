@@ -18,7 +18,8 @@ Dart programs such as headless gateways and supervisory services.
   WriteProperty(Multiple) with datatype inference, SubscribeCOV(Property)
   and SubscribeCOVPropertyMultiple with decoded notifications, ReadRange/Trend Logs, alarms and events
   (typed event notifications, AcknowledgeAlarm, GetEventInformation,
-  GetAlarmSummary, Add/RemoveListElement), device management
+  GetAlarmSummary, GetEnrollmentSummary, Add/RemoveListElement),
+  auditing (AuditNotification, AuditLogQuery), device management
   (DeviceCommunicationControl, ReinitializeDevice, Create/DeleteObject),
   file transfer (AtomicReadFile/AtomicWriteFile), private transfer, text
   messages, time synchronization, router and network discovery
@@ -29,16 +30,25 @@ Dart programs such as headless gateways and supervisory services.
   services.
 - **Server**: hosts Analog/Binary/Multi-state Input/Output/Value, Integer,
   Positive Integer, CharacterString Value, Notification Class, File
-  (content in memory), Schedule, Calendar, Trend Log and Channel objects;
-  answers
-  Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property), ReadRange,
+  (content in memory), Schedule, Calendar, Trend Log, Channel, Lighting
+  Output, Binary Lighting Output, Color, Color Temperature, Loop, Timer,
+  Accumulator, Averaging, Load Control, Structured View, Event
+  Enrollment, Audit Log and Audit Reporter objects;
+  acts as a Time Master; audits client operations (AuditNotification,
+  AuditLogQuery); answers
+  Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property)(Multiple), ReadRange,
   Add/RemoveListElement, AtomicReadFile/AtomicWriteFile,
   DeviceCommunicationControl and ReinitializeDevice (password protected,
   reported to the application, backup and restore) natively; reports
-  alarms of analog and binary objects (intrinsic reporting) and answers
-  AcknowledgeAlarm, GetEventInformation and GetAlarmSummary; WriteGroup;
+  alarms of analog and binary objects (intrinsic reporting) and Event
+  Enrollments and answers
+  AcknowledgeAlarm, GetEventInformation, GetAlarmSummary and
+  GetEnrollmentSummary; WriteGroup;
   asks a supervisor for its device instance (Who-Am-I/You-Are); batch
-  updates of present values; write notifications.
+  updates of present values; write notifications; state persistence
+  (snapshot and restore its objects and values through a pluggable store);
+  advertises itself as a router to virtual networks; runs over BACnet/IPv4
+  or, on POSIX, BACnet/IPv6.
 - **Built for load**: request scheduler with global and per-device
   concurrency limits, back pressure, automatic address binding, concurrent
   reads merged into ReadPropertyMultiple, batched isolate messaging and
@@ -223,8 +233,8 @@ load generator are separate processes built with `dart build cli`):
 | Server, batch update of 10 000 present values | 2.5–3 ms (≈ 3.5 M values/s) |
 | Client vs bacnet-stack `bacserv`, 1 000 ReadProperty | 78 ms |
 
-Run them yourself with `benchmark/load_test.dart` and
-`benchmark/server_benchmark.dart`.
+Run them yourself with `benchmark/load_test.dart` (modes `rp`, `rpm` and
+`write`) and `benchmark/server_benchmark.dart`.
 
 ## Architecture
 
@@ -548,6 +558,104 @@ Notification Class instances 0..63 are available, with up to 10
 recipients each. bacnet-stack keeps one destination per recipient: adding
 a destination for a recipient that is already in the list replaces it.
 
+An **Event Enrollment** object monitors a property of another object — local,
+or remote once the device is bound — instead of enabling the algorithm on the
+object itself:
+
+```dart
+await server.addNotificationClass(2, name: 'Range alarms');
+await server.addEventEnrollment(
+  1,
+  monitored: const BacnetObject(type: BacnetObjectType.analogValue, instance: 7),
+  notificationClass: 2,
+  highLimit: 30,
+  lowLimit: 10,
+  deadband: 1,
+  timeDelay: const Duration(seconds: 5),
+  name: 'Range watch',
+);
+```
+
+The enrollment runs the OUT_OF_RANGE algorithm every second and reports to the
+recipients of its Notification Class. (bacnet-stack ships only Alert
+Enrollment, so the object is implemented in the native engine.)
+
+`client.getEnrollmentSummary` lists a device's event-initiating objects — the
+intrinsic-reporting objects and Event Enrollments with a configured
+Notification Class — with their event type, event state, priority and
+notification class, filtered by acknowledgment, event state, event type,
+priority range or notification class:
+
+```dart
+final summary = await client.getEnrollmentSummary(
+  1234,
+  notificationClassFilter: 2,
+);
+for (final entry in summary) {
+  print('${entry.object} ${entry.eventType} ${entry.eventState}');
+}
+```
+
+## Auditing
+
+The server can keep an **audit trail** of the operations clients perform on it
+(ASHRAE 135-2016bi). An **Audit Reporter** records each chosen operation —
+writes by default — in an **Audit Log** and, optionally, sends it as an
+AuditNotification to a recipient:
+
+```dart
+final log = await server.addAuditLog(1, name: 'Audit log');
+await server.addAuditReporter(
+  1,
+  auditLog: log,
+  operations: const [BacnetAuditOperation.write, BacnetAuditOperation.create],
+  recipient: BacnetRecipient.ip('192.168.1.10', 47808),
+);
+```
+
+A client receives those notifications and queries the log:
+
+```dart
+client.auditNotifications.listen((event) {
+  final n = event.notification;
+  print('${n.operation.label} ${n.targetObject} by ${n.sourceDevice}');
+});
+
+final result = await client.queryAuditLog(
+  1234,
+  const BacnetObject(type: BacnetObjectType.auditLog, instance: 1),
+);
+for (final record in result.records) print(record);
+```
+
+(bacnet-stack ships the Audit Log object and the record codec; the Audit
+Reporter object and the AuditNotification and AuditLogQuery services are
+implemented in the native engine.)
+
+## Server state persistence
+
+A server's container is often ephemeral, so its objects and values can be
+snapshotted and restored. The snapshot is stored through a pluggable
+`BacnetServerStateStore`; `JsonFileServerStateStore` writes a JSON file (atomic
+replace), and you can implement the interface for any other backend.
+
+```dart
+final store = JsonFileServerStateStore(File('/data/server-state.json'));
+
+// on start: re-create the saved objects and values, if any
+await server.start();
+await server.init(4194300, 'Controller');
+await server.restoreState(store);
+
+// later, after configuration or value changes (or on shutdown):
+await server.saveState(store);
+```
+
+`captureState` records the objects added with `addObject` (and its helpers)
+with their identity, name, description and present value; re-apply richer
+per-object configuration (units, limits, schedules, recipients) from the
+application after `restoreState`.
+
 ## Device management and files
 
 ```dart
@@ -724,6 +832,61 @@ await server.enableBackup(
 );
 ```
 
+The server can also act as a **Time Master** (ASHRAE 135 clause 13.12),
+sending TimeSynchronization or UTCTimeSynchronization to its recipients at an
+interval:
+
+```dart
+// broadcast UTC time every hour, aligned to the top of the hour
+await server.enableTimeMaster(
+  interval: const Duration(hours: 1),
+  utc: true,
+  alignToClock: true,
+);
+
+// or to specific recipients (a device resolved by Who-Is, an address)
+await server.enableTimeMaster(
+  interval: const Duration(minutes: 10),
+  recipients: [
+    BacnetRecipient.device(1234),
+    BacnetRecipient.ip('192.168.1.50', 47808),
+  ],
+);
+await server.disableTimeMaster();
+```
+
+## Lighting and color
+
+Lighting Output, Binary Lighting Output, Color and Color Temperature objects
+are driven with the typed `BacnetLightingCommand` and `BacnetColorCommand`
+values, written to `Lighting_Command` and `Color_Command`:
+
+```dart
+// host the objects on a server
+await server.addLightingOutput(1, name: 'Desk lamp');
+await server.addColorTemperature(1, name: 'Tunable white');
+
+// a client fades a lamp to 80 % over two seconds
+await client.write(1234, lamp, BacnetProperties.lightingCommand,
+    const BacnetLightingCommand(
+      operation: BacnetLightingOperation.fadeTo,
+      targetLevel: 80,
+      fadeTime: Duration(seconds: 2),
+    ));
+
+// and warms a tunable-white fitting to 2700 K
+await client.write(1234, white, BacnetProperties.colorCommand,
+    const BacnetColorCommand(
+      operation: BacnetColorOperation.fadeToColorTemperature,
+      targetColorTemperature: 2700,
+      fadeTime: Duration(seconds: 1),
+    ));
+
+final command =
+    await client.read(1234, lamp, BacnetProperties.lightingCommand);
+print(command.operation.label); // Fade To
+```
+
 ## Provisioning, groups and COV of several properties
 
 New devices without a configured device instance ask a supervisor for one
@@ -897,6 +1060,32 @@ await bbmd.writeBroadcastDistributionTable([
 ]);
 await bbmd.deleteForeignDeviceTableEntry('192.168.5.20');
 ```
+
+The server can also present itself **as a router** to one or more virtual
+networks, so other devices discover it with Who-Is-Router-To-Network:
+
+```dart
+await server.enableRouting([100, 200]);
+// elsewhere: client.discoverRouters() now lists this server for 100 and 200
+```
+
+It answers Who-Is-Router-To-Network and Initialize-Routing-Table for those
+networks; forwarding APDUs to devices behind the router is not implemented.
+
+### BACnet/IPv6
+
+On POSIX systems the client and server can run over the BACnet/IPv6 datalink
+(ASHRAE 135 ANNEX U) instead of BACnet/IPv4:
+
+```dart
+final server = BacnetServer(
+  config: const BacnetConfig(interface: 'eth0', useIPv6: true),
+);
+```
+
+The named interface must have an IPv6 address. IPv6 is not available on
+Windows, and the engine's test container has no IPv6 loopback, so the
+end-to-end IPv6 test skips where IPv6 is unavailable.
 
 A device that is not a BBMD, or refuses a change, answers with a NAK:
 `BacnetBbmdException.result` tells which (`BacnetBvlcResult`).

@@ -29,6 +29,7 @@ class BacnetConfig {
   const BacnetConfig({
     this.interface,
     this.port = defaultPort,
+    this.useIPv6 = false,
     this.deviceInstance = BacnetObject.maxInstance,
     this.requestTimeout = defaultRequestTimeout,
     this.maxRetries = defaultMaxRetries,
@@ -76,6 +77,11 @@ class BacnetConfig {
 
   /// UDP port for BACnet/IP.
   final int port;
+
+  /// Use the BACnet/IPv6 datalink (ANNEX U) instead of BACnet/IPv4. The
+  /// [interface] must then name an interface with an IPv6 address (e.g. `lo`
+  /// for `::1`). Not supported on Windows.
+  final bool useIPv6;
 
   /// Instance of the local Device object. Clients that never call
   /// [BacnetServer.init] can keep the default (unconfigured) instance.
@@ -184,6 +190,7 @@ class BacnetConfig {
   BacnetConfig copyWith({
     String? interface,
     int? port,
+    bool? useIPv6,
     int? deviceInstance,
     Duration? requestTimeout,
     int? maxRetries,
@@ -208,6 +215,7 @@ class BacnetConfig {
     return BacnetConfig(
       interface: interface ?? this.interface,
       port: port ?? this.port,
+      useIPv6: useIPv6 ?? this.useIPv6,
       deviceInstance: deviceInstance ?? this.deviceInstance,
       requestTimeout: requestTimeout ?? this.requestTimeout,
       maxRetries: maxRetries ?? this.maxRetries,

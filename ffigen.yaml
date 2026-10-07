@@ -20,6 +20,8 @@ functions:
     include:
       - bacnet_plugin_version
       - bacnet_plugin_set_option
+      - bacnet_plugin_set_ipv6
+      - bacnet_plugin_router_configure
       - bacnet_plugin_wakeup
       - bacnet_plugin_events_data
       - bacnet_plugin_events_length
@@ -35,6 +37,9 @@ functions:
       - bacnet_plugin_file_.*
       - bacnet_plugin_trend_log_.*
       - bacnet_plugin_backup_.*
+      - bacnet_plugin_time_master_.*
+      - bacnet_plugin_event_enrollment_.*
+      - bacnet_plugin_audit_.*
 structs:
   include:
     - bp_.*

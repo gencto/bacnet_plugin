@@ -101,6 +101,91 @@ external int bacnet_plugin_device_set_string(
 @ffi.Native<ffi.Int32 Function(ffi.Uint16)>()
 external int bacnet_plugin_device_set_vendor_id(int vendor_id);
 
+/// Enables or disables an Audit Log object (created first with
+/// bacnet_plugin_object_create()): a disabled log drops records.
+@ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Int32)>(isLeaf: true)
+external int bacnet_plugin_audit_log_configure(int instance, int enabled);
+
+/// Configures an Audit Reporter object (created first with
+/// bacnet_plugin_object_create()). It generates an audit record for each
+/// operation whose bit is set in `operations_mask` while `audit_level` is not
+/// AUDIT_LEVEL_NONE, storing it in Audit Log `audit_log_instance`
+/// (BACNET_MAX_INSTANCE for none) and sending it to the recipient set with
+/// bacnet_plugin_audit_reporter_set_recipient().
+@ffi.Native<
+  ffi.Int32 Function(ffi.Uint32, ffi.Uint8, ffi.Uint32, ffi.Uint32, ffi.Uint32)
+>(isLeaf: true)
+external int bacnet_plugin_audit_reporter_configure(
+  int instance,
+  int audit_level,
+  int operations_mask,
+  int audit_log_instance,
+  int max_send_delay,
+);
+
+/// Sets the Audit_Notification_Recipient of Audit Reporter `instance`.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_audit_reporter_set_recipient(
+  int instance,
+  int device_id,
+  ffi.Pointer<ffi.Uint8> mac,
+  int mac_len,
+  int net,
+  ffi.Pointer<ffi.Uint8> adr,
+  int adr_len,
+);
+
+/// Configures an Event Enrollment object (created first with
+/// bacnet_plugin_object_create()). It monitors `monitored_property` of the
+/// referenced object with the OUT_OF_RANGE algorithm: a REAL value above
+/// `high_limit` for `time_delay` seconds reports a to-offnormal event
+/// (HighLimit), below `low_limit` a LowLimit event, and a return inside the
+/// limits by more than `deadband` reports to-normal. Pass BACNET_ARRAY_ALL as
+/// `monitored_index` for a scalar property. `notification_class` names the
+/// Notification Class object that holds the recipients; `event_enable` is a bit
+/// mask (bit 0 to-offnormal, bit 1 to-fault, bit 2 to-normal) and `notify_type`
+/// is NOTIFY_ALARM or NOTIFY_EVENT. Returns BP_OK or a negative BP_ERR_* code.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Uint32,
+    ffi.Uint16,
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Float,
+    ffi.Float,
+    ffi.Float,
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Uint8,
+    ffi.Uint8,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_event_enrollment_configure(
+  int instance,
+  int monitored_type,
+  int monitored_instance,
+  int monitored_property,
+  int monitored_index,
+  double low_limit,
+  double high_limit,
+  double deadband,
+  int time_delay,
+  int notification_class,
+  int event_enable,
+  int notify_type,
+);
+
 /// Empties the event buffer.
 @ffi.Native<ffi.Void Function()>(isLeaf: true)
 external void bacnet_plugin_events_clear();
@@ -169,6 +254,23 @@ external int bacnet_plugin_init(
   int port,
   int device_instance,
   int socket_buffer_bytes,
+);
+
+/// Selects the BACnet/IPv6 datalink (ANNEX U) for the next
+/// bacnet_plugin_init(). Must be called before init. Returns BP_OK,
+/// BP_ERR_ALREADY_INITIALIZED, or BP_ERR_UNSUPPORTED (Windows).
+@ffi.Native<ffi.Int32 Function(ffi.Int32)>(isLeaf: true)
+external int bacnet_plugin_set_ipv6(int enabled);
+
+/// Advertises the server as the BACnet router to `count` virtual networks
+/// (each 1..65535; count 0 disables routing, at most 16). Answers
+/// Who-Is-Router-To-Network and Initialize-Routing-Table for them.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Int32>, ffi.Uint32)>(
+  isLeaf: true,
+)
+external int bacnet_plugin_router_configure(
+  ffi.Pointer<ffi.Int32> networks,
+  int count,
 );
 
 /// Copies the own BACnet/IP address (IPv4 address and UDP port, 6 bytes) to
@@ -460,6 +562,52 @@ external void bacnet_plugin_shutdown();
 /// Fills `out` with engine statistics.
 @ffi.Native<ffi.Void Function(ffi.Pointer<bp_stats_t>)>(isLeaf: true)
 external void bacnet_plugin_stats(ffi.Pointer<bp_stats_t> out);
+
+/// Adds a Time Master recipient. When `device_id` is non-zero the recipient is
+/// that device (resolved through the binding table; nothing is sent until it is
+/// bound). Otherwise it is the address `mac` (and `adr` on network `net` behind
+/// a router), or a local broadcast when `mac_len` is 0. At most 16 recipients.
+@ffi.Native<
+  ffi.Int32 Function(
+    ffi.Uint32,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+    ffi.Uint16,
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Uint8,
+  )
+>(isLeaf: true)
+external int bacnet_plugin_time_master_add_recipient(
+  int device_id,
+  ffi.Pointer<ffi.Uint8> mac,
+  int mac_len,
+  int net,
+  ffi.Pointer<ffi.Uint8> adr,
+  int adr_len,
+);
+
+/// Removes every Time Master recipient. Returns BP_OK.
+@ffi.Native<ffi.Int32 Function()>(isLeaf: true)
+external int bacnet_plugin_time_master_clear_recipients();
+
+/// Configures the Time Master. When `enabled` is non-zero the server sends a
+/// TimeSynchronization (local time) or, when `utc` is non-zero, a
+/// UTCTimeSynchronization every `interval_seconds` to the recipients added
+/// with bacnet_plugin_time_master_add_recipient(). When `align` is non-zero
+/// the sends are aligned to the wall clock, `offset_seconds` past each
+/// interval. `interval_seconds` must be non-zero when enabled. The interval,
+/// alignment and offset are also mirrored (in minutes) into the Device
+/// object's Time_Synchronization_Interval, Align_Intervals and Interval_Offset.
+@ffi.Native<
+  ffi.Int32 Function(ffi.Int32, ffi.Uint32, ffi.Int32, ffi.Int32, ffi.Uint32)
+>(isLeaf: true)
+external int bacnet_plugin_time_master_configure(
+  int enabled,
+  int interval_seconds,
+  int utc,
+  int align,
+  int offset_seconds,
+);
 
 /// Appends a record to Trend Log `instance` of the server (created with
 /// bacnet_plugin_object_create()) while it is enabled.

@@ -5,6 +5,80 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - Unreleased
+
+### Added
+
+- **Server as a BACnet router** (ASHRAE 135 clause 6, BIBB NM-RC-B):
+  `server.enableRouting([100, 200])` advertises the server as the router to
+  the given virtual networks — it answers Who-Is-Router-To-Network with
+  I-Am-Router-To-Network and Initialize-Routing-Table with an acknowledgement,
+  so `client.discoverRouters` finds it. (Forwarding APDUs to devices behind
+  the router is not implemented.)
+- **BACnet/IPv6** (ANNEX U): `BacnetConfig(useIPv6: true)` runs the client and
+  server over the BACnet/IPv6 datalink instead of IPv4 (POSIX only; the engine
+  now builds with `BACDL_MULTIPLE` and selects the transport at runtime). The
+  IPv6 port reuses bacnet-stack's `bvlc6`/VMAC layer. (The IPv6 path is not
+  exercised by CI's container, which has no IPv6 loopback; its end-to-end test
+  skips where IPv6 is unavailable.)
+- **Example object explorer**: the example app gains an object explorer
+  screen that reads every property of an object with ReadPropertyMultiple
+  (property `all`), shows values and errors, and writes the present value
+  (opened from the object monitor's toolbar).
+- **Server state persistence**: `server.captureState` snapshots the objects a
+  server hosts and their present values into a `BacnetServerState`
+  (`toJson`/`fromJson`). A pluggable `BacnetServerStateStore` abstraction
+  persists it — implement it for any backend; `JsonFileServerStateStore`
+  writes a JSON file atomically. `server.saveState(store)` and
+  `server.restoreState(store)` keep a server's configuration across restarts
+  of its (ephemeral) container.
+- **Auditing** (ASHRAE 135-2016bi): a server **Audit Log** object
+  (`server.addAuditLog`) stores timestamped audit records and answers
+  ReadRange and **AuditLogQuery**; an **Audit Reporter** object
+  (`server.addAuditReporter`) generates a record for each write (and other
+  chosen operations) a remote client performs, storing it in an Audit Log and
+  sending it as an **AuditNotification** to a recipient. The client receives
+  AuditNotifications (`client.auditNotifications`) and queries a remote Audit
+  Log (`client.queryAuditLog`). The Audit Reporter object, the AuditNotification
+  and AuditLogQuery services are implemented in the native engine (bacnet-stack
+  ships only the Audit Log object and the record codec).
+- **Event Enrollment object** (ASHRAE 135 clause 12.12):
+  `server.addEventEnrollment` hosts an Event Enrollment that watches a property
+  of another object — local or, once bound, remote — with the OUT_OF_RANGE
+  algorithm (high/low limits, deadband and time delay) and reports to the
+  recipients of a Notification Class. The object is implemented in the native
+  engine (bacnet-stack ships only Alert Enrollment).
+- **GetEnrollmentSummary** (ASHRAE 135 clause 13.12):
+  `client.getEnrollmentSummary` summarizes a device's event-initiating objects
+  (object, event type, event state, priority, notification class), filtered by
+  acknowledgment, event state, event type, priority range and notification
+  class. The server answers it by enumerating the objects with a configured
+  Notification_Class (intrinsic-reporting objects and Event Enrollments).
+- **Server SubscribeCOVPropertyMultiple** (ASHRAE 135 clauses 13.16, 13.17):
+  the server now answers SubscribeCOVPropertyMultiple, tracks the
+  subscriptions (lifetime, cancellation, confirmed or unconfirmed), and sends
+  COVNotificationMultiple when the monitored properties change — grouping all
+  changed properties of a subscriber into one notification. A REAL
+  present-value is reported past its COV increment; a bad object or property
+  is refused with a SubscribeCOVPropertyMultiple-Error.
+
+- **Lighting and color**: typed `BacnetLightingCommand`, `BacnetColorCommand`
+  and `BacnetXYColor`, the `BacnetLightingOperation`, `BacnetColorOperation`
+  and `BacnetBinaryLightingPV` enumerations, and the writable
+  `BacnetProperties.lightingCommand` / `colorCommand` descriptors. Server
+  helpers `addLightingOutput`, `addBinaryLightingOutput`, `addColor` and
+  `addColorTemperature` host the objects.
+- **More server objects**: `addLoop`, `addTimer`, `addAccumulator`,
+  `addAveraging`, `addLoadControl` and `addStructuredView` host Loop, Timer,
+  Accumulator, Averaging, Load Control and Structured View objects (dynamic
+  creation of Accumulator objects is now wired through to the engine).
+- **Time Master** (ASHRAE 135 clause 13.12, BIBB DM-TS-A / DM-UTC-A):
+  `server.enableTimeMaster` makes the server send a TimeSynchronization — or
+  a UTCTimeSynchronization (`utc: true`) — at an interval to a list of
+  recipients (a device, an address, or a local broadcast when the recipient
+  list is empty), optionally aligned to the wall clock with an offset.
+  `server.disableTimeMaster` stops it.
+
 ## [0.8.0] - 2026-10-06
 
 Tools: the `bacnet` command line tool, device descriptions, shared COV

@@ -27,6 +27,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "bacnet/apdu.h"
 #include "bacnet/bacaddr.h"
 #include "bacnet/bacdef.h"
 #include "bacnet/bacenum.h"
@@ -106,6 +107,7 @@ typedef struct {
 typedef struct {
     bool initialized;
     bool server_enabled;
+    bool ipv6; /* BACnet/IPv6 datalink instead of BACnet/IPv4 */
     bool strict_source;
     bool suppress_write_events;
     /* set while an object of the server writes another one */
@@ -177,6 +179,10 @@ void bp_string_clear(void);
 
 bool bp_wake_init(void);
 void bp_wake_drain(void);
+#if !defined(_WIN32) && defined(BACDL_BIP6)
+/** The open BACnet/IPv6 UDP socket (bp_port_posix6.c), -1 when closed. */
+int bip6_get_socket(void);
+#endif
 /** Waits up to timeout_ms for traffic on the BACnet or wakeup sockets. */
 void bp_wait(uint32_t timeout_ms);
 #if defined(_WIN32)
@@ -204,6 +210,13 @@ void bp_network_received(
     const BACNET_NPDU_DATA *npdu_data,
     const uint8_t *message,
     uint16_t message_len);
+/** Answers router discovery messages when the server routes to networks
+ *  (bp_router.c). */
+void bp_router_on_network_message(
+    BACNET_ADDRESS *src,
+    const BACNET_NPDU_DATA *npdu_data,
+    const uint8_t *message,
+    uint16_t message_len);
 
 /* ---- bp_segments.c ----------------------------------------------------- */
 
@@ -221,6 +234,33 @@ void bp_tx_end(bp_transaction_t *tx);
 void bp_cov_scan(uint32_t now);
 void bp_event_reporting(uint32_t seconds);
 void bp_alarm_ack_hooks(void);
+
+/* ---- bp_timesync.c ----------------------------------------------------- */
+
+/** Sends TimeSynchronization to the recipients when the interval elapsed. */
+void bp_time_master_tick(uint32_t now_ms);
+
+/* ---- bp_cov_multiple.c ------------------------------------------------- */
+
+/** Handles a SubscribeCOVPropertyMultiple request of a remote client. */
+void bp_scm_handler(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data);
+/** Detects changes and sends COVNotificationMultiple; ages subscriptions. */
+void bp_scm_task(uint32_t seconds);
+/** Drops every SubscribeCOVPropertyMultiple subscription. */
+void bp_scm_reset(void);
+
+/* ---- bp_enroll.c ------------------------------------------------------- */
+
+/** Answers GetEnrollmentSummary by enumerating event-initiating objects. */
+void bp_on_get_enrollment_summary(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data);
 #include "bacnet/list_element.h"
 /* reports a successful Add/RemoveListElement of a remote client */
 void bp_list_element_changed(
@@ -285,7 +325,8 @@ void bp_tl_property_lists(
     const int32_t **required,
     const int32_t **optional,
     const int32_t **proprietary);
-void bp_tl_writable_property_list(uint32_t instance, const int32_t **properties);
+void bp_tl_writable_property_list(
+    uint32_t instance, const int32_t **properties);
 bool bp_tl_rr_info(BACNET_READ_RANGE_DATA *request, RR_PROP_INFO *info);
 uint32_t bp_tl_create(uint32_t object_instance);
 bool bp_tl_delete(uint32_t object_instance);
@@ -325,6 +366,61 @@ uint32_t bp_nc_create(uint32_t instance);
 bool bp_nc_delete(uint32_t instance);
 int bp_nc_add_list_element(BACNET_LIST_ELEMENT_DATA *list_element);
 int bp_nc_remove_list_element(BACNET_LIST_ELEMENT_DATA *list_element);
+
+/* ---- Event Enrollment objects (bp_event_enrollment.c) ----------------- */
+
+void bp_ee_init(void);
+unsigned bp_ee_count(void);
+uint32_t bp_ee_index_to_instance(unsigned index);
+bool bp_ee_valid_instance(uint32_t instance);
+bool bp_ee_object_name(uint32_t instance, BACNET_CHARACTER_STRING *name);
+bool bp_ee_name_set(uint32_t instance, const char *name);
+bool bp_ee_description_set(uint32_t instance, const char *description);
+int bp_ee_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
+bool bp_ee_write_property(BACNET_WRITE_PROPERTY_DATA *wp_data);
+void bp_ee_property_lists(
+    const int32_t **required,
+    const int32_t **optional,
+    const int32_t **proprietary);
+uint32_t bp_ee_create(uint32_t instance);
+bool bp_ee_delete(uint32_t instance);
+/** Runs the OUT_OF_RANGE algorithm of every enrollment and emits events. */
+void bp_ee_task(uint32_t seconds);
 #endif
+
+/* ---- Auditing (bp_audit.c) -------------------------------------------- */
+
+#include "bacnet/bacstr.h"
+/** ReadRange info for the Audit Log object (its RR_Info slot is NULL). */
+bool bp_al_rr_info(BACNET_READ_RANGE_DATA *request, RR_PROP_INFO *info);
+/** Remembers the source of the request in progress for the Audit Reporter. */
+void bp_audit_set_source(const BACNET_ADDRESS *src);
+/** Reports a successful WriteProperty to the Audit Reporters. */
+void bp_audit_report_write(const BACNET_WRITE_PROPERTY_DATA *wp_data);
+/** Reports an object create or delete (AUDIT_OPERATION_CREATE/DELETE). */
+void bp_audit_report_lifecycle(
+    uint8_t operation, uint16_t object_type, uint32_t object_instance);
+/** Answers AuditLogQuery from an Audit Log's records. */
+void bp_on_audit_log_query(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data);
+/* Audit Reporter object (OBJECT_AUDIT_REPORTER). */
+void bp_ar_init(void);
+unsigned bp_ar_count(void);
+uint32_t bp_ar_index_to_instance(unsigned index);
+bool bp_ar_valid_instance(uint32_t instance);
+bool bp_ar_object_name(uint32_t instance, BACNET_CHARACTER_STRING *name);
+bool bp_ar_name_set(uint32_t instance, const char *name);
+bool bp_ar_description_set(uint32_t instance, const char *description);
+int bp_ar_read_property(BACNET_READ_PROPERTY_DATA *rpdata);
+bool bp_ar_write_property(BACNET_WRITE_PROPERTY_DATA *wp_data);
+void bp_ar_property_lists(
+    const int32_t **required,
+    const int32_t **optional,
+    const int32_t **proprietary);
+uint32_t bp_ar_create(uint32_t instance);
+bool bp_ar_delete(uint32_t instance);
 
 #endif
