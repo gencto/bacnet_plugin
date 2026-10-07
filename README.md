@@ -233,8 +233,8 @@ load generator are separate processes built with `dart build cli`):
 | Server, batch update of 10 000 present values | 2.5–3 ms (≈ 3.5 M values/s) |
 | Client vs bacnet-stack `bacserv`, 1 000 ReadProperty | 78 ms |
 
-Run them yourself with `benchmark/load_test.dart` and
-`benchmark/server_benchmark.dart`.
+Run them yourself with `benchmark/load_test.dart` (modes `rp`, `rpm` and
+`write`) and `benchmark/server_benchmark.dart`.
 
 ## Architecture
 
