@@ -208,7 +208,7 @@ void main() {
     // wait until the monitor subscribed (fake devices execute
     // SubscribeCOVPropertyMultiple)
     while (!client.requests.any(
-      (r) => r.service == 'subscribeCOVPropertyMultiple',
+      (r) => r.service == 'subscribeCovPropertyMultiple',
     )) {
       await Future<void>.delayed(const Duration(milliseconds: 1));
     }
@@ -1047,13 +1047,13 @@ void main() {
           BacnetCovReference(BacnetPropertyId.presentValue),
         ]),
       ];
-      await client.subscribeCOVPropertyMultiple(
+      await client.subscribeCovPropertyMultiple(
         1234,
         specifications,
         processId: 3,
         confirmed: true,
       );
-      expect(client.requests.last.service, 'subscribeCOVPropertyMultiple');
+      expect(client.requests.last.service, 'subscribeCovPropertyMultiple');
       expect(client.requests.last.arguments['specifications'], specifications);
 
       ahu.object(
@@ -1078,7 +1078,7 @@ void main() {
       expect(events.first.changeTimes.keys, [BacnetPropertyId.presentValue]);
       expect(events.last.changeTimes, isEmpty);
 
-      await client.unsubscribeCOVPropertyMultiple(
+      await client.unsubscribeCovPropertyMultiple(
         1234,
         specifications,
         processId: 3,
@@ -1095,7 +1095,7 @@ void main() {
 
     test('names the subscription the device refuses', () async {
       await expectLater(
-        client.subscribeCOVPropertyMultiple(1234, [
+        client.subscribeCovPropertyMultiple(1234, [
           BacnetCovSubscriptionSpecification(sensor, const [
             BacnetCovReference(BacnetPropertyId.presentValue),
           ]),

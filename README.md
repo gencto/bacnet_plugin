@@ -939,13 +939,13 @@ The members of a channel are written at the priority of the request and
 arrive as `writeEvents` with `internal` set; the requests as
 `writeGroupEvents`.
 
-`subscribeCOVPropertyMultiple` subscribes to several properties of several
+`subscribeCovPropertyMultiple` subscribes to several properties of several
 objects with one request, each with its own COV increment and optionally
 with the time of each change. The notifications arrive on `covEvents`,
 one `CovNotificationEvent` per object:
 
 ```dart
-await client.subscribeCOVPropertyMultiple(1234, [
+await client.subscribeCovPropertyMultiple(1234, [
   BacnetCovSubscriptionSpecification(supplyTemp, const [
     BacnetCovReference(BacnetPropertyId.presentValue, covIncrement: 0.2),
     BacnetCovReference(BacnetPropertyId.statusFlags),
@@ -962,7 +962,7 @@ client.covEvents.listen((event) {
 ```
 
 Devices without the service reject it (`BacnetRejectException`); use
-`subscribeCOV` for them. The server of this package implements
+`subscribeCov` for them. The server of this package implements
 SubscribeCOVPropertyMultiple as a target (since 0.9.0).
 
 ## Device descriptions and the command line tool
@@ -1180,8 +1180,8 @@ sensor.reportEvent(
   `BacnetEvent` subclasses: a `switch` over `BacnetEvent` needs cases for
   them.
 - Classes implementing `BacnetClient` need `whoAmIRequests`,
-  `sendYouAre`, `writeGroup`, `subscribeCOVPropertyMultiple` and
-  `unsubscribeCOVPropertyMultiple`.
+  `sendYouAre`, `writeGroup`, `subscribeCovPropertyMultiple` and
+  `unsubscribeCovPropertyMultiple`.
 - The client acknowledges ConfirmedCOVNotificationMultiple; it rejected
   them as an unrecognized service before.
 
@@ -1262,8 +1262,8 @@ sensor.reportEvent(
 - `BacnetClient.events` is a `Stream<BacnetEvent>`; use `iAmEvents` and
   `covEvents` for typed streams. COV notifications now include the
   initiating device and the values.
-- `subscribeCOV` completes when the device acknowledged the subscription;
-  pass `processId`/`lifetime` and cancel with `unsubscribeCOV`.
+- `subscribeCov` completes when the device acknowledged the subscription;
+  pass `processId`/`lifetime` and cancel with `unsubscribeCov`.
 - `PropertyWriteEvent.value` is decoded; the raw bytes are in
   `rawValue`.
 - Internal request/response classes (`WhoIsRequest`, `ReadPropertyRequest`,

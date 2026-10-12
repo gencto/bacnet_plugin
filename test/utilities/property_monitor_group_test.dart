@@ -38,7 +38,7 @@ void main() {
 
   /// The properties of the SubscribeCOVPropertyMultiple requests.
   Set<(BacnetObject, BacnetPropertyId)> multipleSubscribed() => {
-    for (final request in requests('subscribeCOVPropertyMultiple'))
+    for (final request in requests('subscribeCovPropertyMultiple'))
       for (final specification
           in request.arguments['specifications']!
               as List<BacnetCovSubscriptionSpecification>)
@@ -107,9 +107,9 @@ void main() {
         (output, BacnetPropertyId.presentValue),
       }),
     );
-    expect(requests('subscribeCOV'), isEmpty);
+    expect(requests('subscribeCov'), isEmpty);
     final processIds = {
-      for (final r in requests('subscribeCOVPropertyMultiple'))
+      for (final r in requests('subscribeCovPropertyMultiple'))
         r.arguments['processId'],
     };
     expect(processIds, hasLength(1));
@@ -130,9 +130,9 @@ void main() {
 
     await listeners.first.cancel();
     await eventually(
-      () => expect(requests('unsubscribeCOVPropertyMultiple'), hasLength(1)),
+      () => expect(requests('unsubscribeCovPropertyMultiple'), hasLength(1)),
     );
-    final cancel = requests('unsubscribeCOVPropertyMultiple').single;
+    final cancel = requests('unsubscribeCovPropertyMultiple').single;
     expect(
       (cancel.arguments['specifications']!
               as List<BacnetCovSubscriptionSpecification>)
@@ -163,7 +163,7 @@ void main() {
     // the device named the missing object; the sensor stayed shared
     await eventually(
       () => expect(
-        requests('subscribeCOV').map((request) => request.object),
+        requests('subscribeCov').map((request) => request.object),
         contains(missing),
       ),
     );
@@ -172,14 +172,14 @@ void main() {
       contains((sensor, BacnetPropertyId.presentValue)),
     );
     expect(
-      requests('subscribeCOVPropertyMultiple').last.arguments['specifications'],
+      requests('subscribeCovPropertyMultiple').last.arguments['specifications'],
       [
         BacnetCovSubscriptionSpecification(sensor, const [
           BacnetCovReference(BacnetPropertyId.presentValue),
         ]),
       ],
     );
-    expect(requests('subscribeCOV').single.object, missing);
+    expect(requests('subscribeCov').single.object, missing);
     for (final listener in listeners) {
       await listener.cancel();
     }
@@ -192,17 +192,17 @@ void main() {
     final monitor = PropertyMonitor(client);
     final listener = monitor.monitorPresentValue(1234, sensor).listen((_) {});
     await eventually(
-      () => expect(requests('subscribeCOV').map((r) => r.object), [sensor]),
+      () => expect(requests('subscribeCov').map((r) => r.object), [sensor]),
     );
-    expect(requests('subscribeCOVPropertyMultiple'), isEmpty);
+    expect(requests('subscribeCovPropertyMultiple'), isEmpty);
     await listener.cancel();
   });
 
   test('can be told not to share subscriptions', () async {
     final monitor = PropertyMonitor(client, useCovMultiple: false);
     final listener = monitor.monitorPresentValue(1234, sensor).listen((_) {});
-    await eventually(() => expect(requests('subscribeCOV'), hasLength(1)));
-    expect(requests('subscribeCOVPropertyMultiple'), isEmpty);
+    await eventually(() => expect(requests('subscribeCov'), hasLength(1)));
+    expect(requests('subscribeCovPropertyMultiple'), isEmpty);
     await listener.cancel();
   });
 
@@ -214,17 +214,17 @@ void main() {
     final listener = monitor.monitorPresentValue(1234, sensor).listen((_) {});
     await eventually(
       () => expect(
-        requests('subscribeCOVPropertyMultiple').length,
+        requests('subscribeCovPropertyMultiple').length,
         greaterThanOrEqualTo(3),
       ),
     );
     await listener.cancel();
     // no renewals once the subscription is cancelled
     await eventually(
-      () => expect(requests('unsubscribeCOVPropertyMultiple'), isNotEmpty),
+      () => expect(requests('unsubscribeCovPropertyMultiple'), isNotEmpty),
     );
-    final count = requests('subscribeCOVPropertyMultiple').length;
+    final count = requests('subscribeCovPropertyMultiple').length;
     await Future<void>.delayed(const Duration(milliseconds: 100));
-    expect(requests('subscribeCOVPropertyMultiple'), hasLength(count));
+    expect(requests('subscribeCovPropertyMultiple'), hasLength(count));
   });
 }

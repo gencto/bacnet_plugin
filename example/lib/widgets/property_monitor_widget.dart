@@ -76,11 +76,11 @@ class _PropertyMonitorWidgetState extends State<PropertyMonitorWidget> {
     // Subscribe to COV if enabled
     if (widget.enableCOV) {
       try {
-        await appState.client.subscribeCOV(
+        await appState.client.subscribeCov(
           widget.deviceId,
           widget.objectType,
           widget.instance,
-          propId: widget.propertyId,
+          propertyId: widget.propertyId,
         );
         _covSubscribed = true;
 

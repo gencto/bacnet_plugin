@@ -23,11 +23,11 @@ void main() {
 
   void stubSubscribe({Exception? error}) {
     when(
-      () => client.subscribeCOV(
+      () => client.subscribeCov(
         any(),
         any(),
         any(),
-        propId: any(named: 'propId'),
+        propertyId: any(named: 'propertyId'),
         processId: any(named: 'processId'),
         lifetime: any(named: 'lifetime'),
         confirmed: any(named: 'confirmed'),
@@ -57,11 +57,11 @@ void main() {
       ),
     ).thenAnswer((_) async => const BacnetReal(100));
     when(
-      () => client.unsubscribeCOV(
+      () => client.unsubscribeCov(
         any(),
         any(),
         any(),
-        propId: any(named: 'propId'),
+        propertyId: any(named: 'propertyId'),
         processId: any(named: 'processId'),
       ),
     ).thenAnswer((_) async {});
@@ -171,7 +171,7 @@ void main() {
         ),
       ).called(1);
       verify(
-        () => client.subscribeCOV(
+        () => client.subscribeCov(
           deviceId,
           BacnetObjectType.analogInput,
           1,
@@ -180,7 +180,7 @@ void main() {
         ),
       ).called(1);
       verify(
-        () => client.unsubscribeCOV(
+        () => client.unsubscribeCov(
           deviceId,
           BacnetObjectType.analogInput,
           1,
@@ -206,11 +206,11 @@ void main() {
       expect(list, hasLength(3));
       expect(list.every((u) => u.source == UpdateSource.manual), isTrue);
       verifyNever(
-        () => client.subscribeCOV(
+        () => client.subscribeCov(
           any(),
           any(),
           any(),
-          propId: any(named: 'propId'),
+          propertyId: any(named: 'propertyId'),
           processId: any(named: 'processId'),
           lifetime: any(named: 'lifetime'),
           confirmed: any(named: 'confirmed'),
@@ -240,11 +240,11 @@ void main() {
 
       expect(list.last.source, UpdateSource.missingCovFallback);
       verifyNever(
-        () => client.unsubscribeCOV(
+        () => client.unsubscribeCov(
           any(),
           any(),
           any(),
-          propId: any(named: 'propId'),
+          propertyId: any(named: 'propertyId'),
           processId: any(named: 'processId'),
         ),
       );
@@ -264,11 +264,11 @@ void main() {
       await subscription.cancel();
 
       final calls = verify(
-        () => client.subscribeCOV(
+        () => client.subscribeCov(
           any(),
           any(),
           any(),
-          propId: any(named: 'propId'),
+          propertyId: any(named: 'propertyId'),
           processId: any(named: 'processId'),
           lifetime: any(named: 'lifetime'),
           confirmed: any(named: 'confirmed'),

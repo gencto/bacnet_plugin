@@ -160,11 +160,11 @@ class PropertyMonitor {
 
     Future<bool> subscribe() async {
       try {
-        await client.subscribeCOV(
+        await client.subscribeCov(
           deviceId,
           object.type,
           object.instance,
-          propId: propertyId,
+          propertyId: propertyId,
           processId: processId,
           lifetime: subscriptionLifetime,
           confirmed: confirmed,
@@ -257,11 +257,11 @@ class PropertyMonitor {
       }
       if (subscribed) {
         try {
-          await client.unsubscribeCOV(
+          await client.unsubscribeCov(
             deviceId,
             object.type,
             object.instance,
-            propId: propertyId,
+            propertyId: propertyId,
             processId: processId,
           );
         } on BacnetException {
@@ -426,7 +426,7 @@ final class _CovGroup {
       var remaining = chunk;
       while (remaining.isNotEmpty) {
         try {
-          await _client.subscribeCOVPropertyMultiple(
+          await _client.subscribeCovPropertyMultiple(
             deviceId,
             _specifications(remaining),
             processId: processId,
@@ -468,7 +468,7 @@ final class _CovGroup {
     final maxApdu = await _client.deviceMaxApdu(deviceId) ?? 480;
     for (final chunk in _chunks(entries, maxApdu)) {
       try {
-        await _client.unsubscribeCOVPropertyMultiple(
+        await _client.unsubscribeCovPropertyMultiple(
           deviceId,
           _specifications(chunk),
           processId: processId,

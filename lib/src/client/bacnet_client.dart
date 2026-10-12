@@ -820,11 +820,14 @@ class BacnetClient {
   /// SubscribeCOVProperty. Subscriptions expire after [lifetime] and must be
   /// renewed ([PropertyMonitor] does this automatically). Listen to
   /// [covEvents] for the notifications.
-  Future<void> subscribeCOV(
+  ///
+  /// Give each independent subscriber a distinct [processId] — see
+  /// [allocateProcessId] — so their notifications can be told apart.
+  Future<void> subscribeCov(
     int deviceId,
     BacnetObjectType objectType,
     int instance, {
-    BacnetPropertyId propId = BacnetPropertyId.presentValue,
+    BacnetPropertyId propertyId = BacnetPropertyId.presentValue,
     int processId = 1,
     Duration lifetime = const Duration(minutes: 5),
     bool confirmed = false,
@@ -833,7 +836,7 @@ class BacnetClient {
   }) {
     final lifetimeSeconds = lifetime.inSeconds;
     final usePropertyService =
-        propId != BacnetPropertyId.presentValue || covIncrement != null;
+        propertyId != BacnetPropertyId.presentValue || covIncrement != null;
     return Future.sync(
       () => _system.confirmed<void>(
         deviceId: deviceId,
@@ -845,7 +848,7 @@ class BacnetClient {
                 subscriberProcessId: processId,
                 objectType: objectType,
                 instance: instance,
-                propertyId: propId,
+                propertyId: propertyId,
                 confirmed: confirmed,
                 lifetime: lifetimeSeconds,
                 covIncrement: covIncrement,
@@ -862,16 +865,40 @@ class BacnetClient {
     );
   }
 
-  /// Cancels a COV subscription created with [subscribeCOV].
-  Future<void> unsubscribeCOV(
+  /// Deprecated: renamed to [subscribeCov] (`propId` is now `propertyId`).
+  @Deprecated('Use subscribeCov; propId was renamed to propertyId.')
+  Future<void> subscribeCOV(
     int deviceId,
     BacnetObjectType objectType,
     int instance, {
     BacnetPropertyId propId = BacnetPropertyId.presentValue,
     int processId = 1,
+    Duration lifetime = const Duration(minutes: 5),
+    bool confirmed = false,
+    double? covIncrement,
+    Duration? timeout,
+  }) => subscribeCov(
+    deviceId,
+    objectType,
+    instance,
+    propertyId: propId,
+    processId: processId,
+    lifetime: lifetime,
+    confirmed: confirmed,
+    covIncrement: covIncrement,
+    timeout: timeout,
+  );
+
+  /// Cancels a COV subscription created with [subscribeCov].
+  Future<void> unsubscribeCov(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance, {
+    BacnetPropertyId propertyId = BacnetPropertyId.presentValue,
+    int processId = 1,
     Duration? timeout,
   }) {
-    final usePropertyService = propId != BacnetPropertyId.presentValue;
+    final usePropertyService = propertyId != BacnetPropertyId.presentValue;
     return Future.sync(
       () => _system.confirmed<void>(
         deviceId: deviceId,
@@ -883,7 +910,7 @@ class BacnetClient {
                 subscriberProcessId: processId,
                 objectType: objectType,
                 instance: instance,
-                propertyId: propId,
+                propertyId: propertyId,
                 cancel: true,
               )
             : encodeSubscribeCov(
@@ -897,6 +924,24 @@ class BacnetClient {
     );
   }
 
+  /// Deprecated: renamed to [unsubscribeCov] (`propId` is now `propertyId`).
+  @Deprecated('Use unsubscribeCov; propId was renamed to propertyId.')
+  Future<void> unsubscribeCOV(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance, {
+    BacnetPropertyId propId = BacnetPropertyId.presentValue,
+    int processId = 1,
+    Duration? timeout,
+  }) => unsubscribeCov(
+    deviceId,
+    objectType,
+    instance,
+    propertyId: propId,
+    processId: processId,
+    timeout: timeout,
+  );
+
   /// Subscribes to changes of several properties of several objects with
   /// one request (SubscribeCOVPropertyMultiple), e.g. to watch a whole
   /// plant room. The device sends COVNotificationMultiple, which arrive as
@@ -908,10 +953,11 @@ class BacnetClient {
   /// When the device refuses a subscription the
   /// [BacnetProtocolException.firstFailedSubscription] names it; devices
   /// without the service reject the request
-  /// ([BacnetRejectException]), use [subscribeCOV] for those.
+  /// ([BacnetRejectException]), use [subscribeCov] for those. Give each
+  /// subscriber a distinct [processId] (see [allocateProcessId]).
   ///
   /// ```dart
-  /// await client.subscribeCOVPropertyMultiple(1234, [
+  /// await client.subscribeCovPropertyMultiple(1234, [
   ///   BacnetCovSubscriptionSpecification(supplyTemp, const [
   ///     BacnetCovReference(BacnetPropertyId.presentValue, covIncrement: 0.2),
   ///     BacnetCovReference(BacnetPropertyId.statusFlags),
@@ -921,7 +967,7 @@ class BacnetClient {
   ///   ]),
   /// ], processId: 7, lifetime: const Duration(minutes: 10));
   /// ```
-  Future<void> subscribeCOVPropertyMultiple(
+  Future<void> subscribeCovPropertyMultiple(
     int deviceId,
     List<BacnetCovSubscriptionSpecification> specifications, {
     int processId = 1,
@@ -944,9 +990,29 @@ class BacnetClient {
     ),
   );
 
+  /// Deprecated: renamed to [subscribeCovPropertyMultiple].
+  @Deprecated('Use subscribeCovPropertyMultiple.')
+  Future<void> subscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration lifetime = const Duration(minutes: 5),
+    bool confirmed = false,
+    Duration? maxNotificationDelay,
+    Duration? timeout,
+  }) => subscribeCovPropertyMultiple(
+    deviceId,
+    specifications,
+    processId: processId,
+    lifetime: lifetime,
+    confirmed: confirmed,
+    maxNotificationDelay: maxNotificationDelay,
+    timeout: timeout,
+  );
+
   /// Cancels the subscriptions of [specifications] made with
-  /// [subscribeCOVPropertyMultiple].
-  Future<void> unsubscribeCOVPropertyMultiple(
+  /// [subscribeCovPropertyMultiple].
+  Future<void> unsubscribeCovPropertyMultiple(
     int deviceId,
     List<BacnetCovSubscriptionSpecification> specifications, {
     int processId = 1,
@@ -961,6 +1027,20 @@ class BacnetClient {
       ),
       timeout: timeout,
     ),
+  );
+
+  /// Deprecated: renamed to [unsubscribeCovPropertyMultiple].
+  @Deprecated('Use unsubscribeCovPropertyMultiple.')
+  Future<void> unsubscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration? timeout,
+  }) => unsubscribeCovPropertyMultiple(
+    deviceId,
+    specifications,
+    processId: processId,
+    timeout: timeout,
   );
 
   // ---- lists ----------------------------------------------------------------

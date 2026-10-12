@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- COV subscription methods now use Dart-idiomatic casing: `subscribeCov`,
+  `unsubscribeCov`, `subscribeCovPropertyMultiple` and
+  `unsubscribeCovPropertyMultiple`. `subscribeCov`/`unsubscribeCov` take
+  `propertyId` (was `propId`). The old names stay as deprecated forwarders,
+  so existing code keeps working.
+
 ### Fixed
 
 - `BacnetReadAccessSpecification` equality and `hashCode` compared only the
