@@ -79,6 +79,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   list is empty), optionally aligned to the wall clock with an offset.
   `server.disableTimeMaster` stops it.
 
+### Changed
+
+- Updated the vendored **bacnet-stack** to pick up the upstream fix for the
+  `Schedule_Object_Name` stack over-read the native fuzzer found and we
+  reported (bacnet-stack #1548). The same bump makes the Channel object's
+  `Control_Groups` and `List_Of_Object_Property_References` resizable
+  BACnetARRAYs (bacnet-stack #1543); `server.addChannel` now grows each array
+  (a write to array index 0) before setting its elements.
+
 ## [0.8.0] - 2026-10-06
 
 Tools: the `bacnet` command line tool, device descriptions, shared COV

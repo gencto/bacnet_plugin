@@ -108,9 +108,10 @@ bool bp_schedule_priority_set(uint32_t instance, uint8_t priority)
 
 /* ---- object table wrappers ------------------------------------------ */
 
-/* Schedule_Object_Name() checks the UTF-8 of the string it is about to fill
-   before filling it: callers pass uninitialized strings (Who-Has, the
-   ReadProperty of Object_Name), so it reads past them. */
+/* bacnet-stack #1548 fixed Schedule_Object_Name() so it no longer checks the
+   UTF-8 of the (possibly uninitialized) output string before filling it;
+   callers still pass uninitialized strings (Who-Has, the ReadProperty of
+   Object_Name), so initialize it here to stay safe regardless of the pin. */
 bool bp_schedule_object_name(
     uint32_t object_instance, BACNET_CHARACTER_STRING *object_name)
 {

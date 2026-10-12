@@ -952,32 +952,53 @@ class BacnetServer {
         BacnetPropertyId.channelNumber,
         BacnetUnsigned(channelNumber),
       );
-      // fixed size arrays: written element by element
-      for (final (index, group) in controlGroups.indexed) {
+      // Control_Groups and List_Of_Object_Property_References are resizable
+      // BACnetARRAYs: writing an element past the current size is rejected
+      // with Invalid Array Index, so grow the array by writing its size to
+      // index 0 first, then set each element.
+      if (controlGroups.isNotEmpty) {
         await setProperty(
           BacnetObjectType.channel,
           created,
           BacnetPropertyId.controlGroups,
-          BacnetUnsigned(group),
-          arrayIndex: index + 1,
+          BacnetUnsigned(controlGroups.length),
+          arrayIndex: 0,
         );
+        for (final (index, group) in controlGroups.indexed) {
+          await setProperty(
+            BacnetObjectType.channel,
+            created,
+            BacnetPropertyId.controlGroups,
+            BacnetUnsigned(group),
+            arrayIndex: index + 1,
+          );
+        }
       }
-      for (final (index, member) in members.indexed) {
+      if (members.isNotEmpty) {
         await setProperty(
           BacnetObjectType.channel,
           created,
           BacnetPropertyId.listOfObjectPropertyReferences,
-          // the stack writes the members that name the device
-          BacnetDeviceObjectPropertyReference.listToValue([
-            BacnetDeviceObjectPropertyReference(
-              object: member.object,
-              property: member.property,
-              arrayIndex: member.arrayIndex,
-              device: device,
-            ),
-          ]),
-          arrayIndex: index + 1,
+          BacnetUnsigned(members.length),
+          arrayIndex: 0,
         );
+        for (final (index, member) in members.indexed) {
+          await setProperty(
+            BacnetObjectType.channel,
+            created,
+            BacnetPropertyId.listOfObjectPropertyReferences,
+            // the stack writes the members that name the device
+            BacnetDeviceObjectPropertyReference.listToValue([
+              BacnetDeviceObjectPropertyReference(
+                object: member.object,
+                property: member.property,
+                arrayIndex: member.arrayIndex,
+                device: device,
+              ),
+            ]),
+            arrayIndex: index + 1,
+          );
+        }
       }
     } on Object {
       await removeObject(BacnetObjectType.channel, created);
