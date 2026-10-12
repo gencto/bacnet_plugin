@@ -119,7 +119,7 @@ Future<void> main(List<String> args) async {
   }
   final covs = <CovNotificationEvent>[];
   final sub = client.covEvents.listen(covs.add);
-  await client.subscribeCOV(
+  await client.subscribeCov(
     device,
     av.type,
     av.instance,
@@ -136,7 +136,7 @@ Future<void> main(List<String> args) async {
   );
   await Future<void>.delayed(const Duration(seconds: 2));
   print('cov: ${covs.length} ${covs.isEmpty ? '' : covs.last}');
-  await client.unsubscribeCOV(device, av.type, av.instance, processId: 3);
+  await client.unsubscribeCov(device, av.type, av.instance, processId: 3);
   await sub.cancel();
   await client.writeProperty(
     device,

@@ -49,7 +49,7 @@ final class FakeBacnetRequest {
     this.arguments = const {},
   });
 
-  /// Client method, e.g. `readProperty`, `writeProperty`, `subscribeCOV`,
+  /// Client method, e.g. `readProperty`, `writeProperty`, `subscribeCov`,
   /// `acknowledgeAlarm`.
   final String service;
 
@@ -1497,6 +1497,48 @@ class FakeBacnetClient implements BacnetClient {
   }
 
   @override
+  Future<void> subscribeCov(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance, {
+    BacnetPropertyId propertyId = BacnetPropertyId.presentValue,
+    int processId = 1,
+    Duration lifetime = const Duration(minutes: 5),
+    bool confirmed = false,
+    double? covIncrement,
+    Duration? timeout,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'subscribeCov',
+        deviceId: deviceId,
+        object: BacnetObject(type: objectType, instance: instance),
+        propertyId: propertyId,
+      ),
+    );
+    return _request(BacnetConfirmedService.subscribeCov, deviceId, null, (
+      device,
+    ) {
+      device._read(objectType, instance, propertyId);
+      _subscriptions
+        ..removeWhere(
+          (s) =>
+              _same(s, deviceId, objectType, instance, propertyId, processId),
+        )
+        ..add((
+          deviceId: deviceId,
+          type: objectType,
+          instance: instance,
+          property: propertyId,
+          processId: processId,
+          confirmed: confirmed,
+          timestamped: false,
+        ));
+    });
+  }
+
+  @override
+  @Deprecated('Use subscribeCov; propId was renamed to propertyId.')
   Future<void> subscribeCOV(
     int deviceId,
     BacnetObjectType objectType,
@@ -1507,37 +1549,20 @@ class FakeBacnetClient implements BacnetClient {
     bool confirmed = false,
     double? covIncrement,
     Duration? timeout,
-  }) {
-    requests.add(
-      FakeBacnetRequest(
-        'subscribeCOV',
-        deviceId: deviceId,
-        object: BacnetObject(type: objectType, instance: instance),
-        propertyId: propId,
-      ),
-    );
-    return _request(BacnetConfirmedService.subscribeCov, deviceId, null, (
-      device,
-    ) {
-      device._read(objectType, instance, propId);
-      _subscriptions
-        ..removeWhere(
-          (s) => _same(s, deviceId, objectType, instance, propId, processId),
-        )
-        ..add((
-          deviceId: deviceId,
-          type: objectType,
-          instance: instance,
-          property: propId,
-          processId: processId,
-          confirmed: confirmed,
-          timestamped: false,
-        ));
-    });
-  }
+  }) => subscribeCov(
+    deviceId,
+    objectType,
+    instance,
+    propertyId: propId,
+    processId: processId,
+    lifetime: lifetime,
+    confirmed: confirmed,
+    covIncrement: covIncrement,
+    timeout: timeout,
+  );
 
   @override
-  Future<void> subscribeCOVPropertyMultiple(
+  Future<void> subscribeCovPropertyMultiple(
     int deviceId,
     List<BacnetCovSubscriptionSpecification> specifications, {
     int processId = 1,
@@ -1555,7 +1580,7 @@ class FakeBacnetClient implements BacnetClient {
     );
     requests.add(
       FakeBacnetRequest(
-        'subscribeCOVPropertyMultiple',
+        'subscribeCovPropertyMultiple',
         deviceId: deviceId,
         arguments: {
           'specifications': List<BacnetCovSubscriptionSpecification>.of(
@@ -1623,7 +1648,7 @@ class FakeBacnetClient implements BacnetClient {
   }
 
   @override
-  Future<void> unsubscribeCOVPropertyMultiple(
+  Future<void> unsubscribeCovPropertyMultiple(
     int deviceId,
     List<BacnetCovSubscriptionSpecification> specifications, {
     int processId = 1,
@@ -1635,7 +1660,7 @@ class FakeBacnetClient implements BacnetClient {
     );
     requests.add(
       FakeBacnetRequest(
-        'unsubscribeCOVPropertyMultiple',
+        'unsubscribeCovPropertyMultiple',
         deviceId: deviceId,
         arguments: {
           'specifications': List<BacnetCovSubscriptionSpecification>.of(
@@ -1671,6 +1696,31 @@ class FakeBacnetClient implements BacnetClient {
   }
 
   @override
+  Future<void> unsubscribeCov(
+    int deviceId,
+    BacnetObjectType objectType,
+    int instance, {
+    BacnetPropertyId propertyId = BacnetPropertyId.presentValue,
+    int processId = 1,
+    Duration? timeout,
+  }) {
+    requests.add(
+      FakeBacnetRequest(
+        'unsubscribeCov',
+        deviceId: deviceId,
+        object: BacnetObject(type: objectType, instance: instance),
+        propertyId: propertyId,
+      ),
+    );
+    return _request(BacnetConfirmedService.subscribeCov, deviceId, null, (_) {
+      _subscriptions.removeWhere(
+        (s) => _same(s, deviceId, objectType, instance, propertyId, processId),
+      );
+    });
+  }
+
+  @override
+  @Deprecated('Use unsubscribeCov; propId was renamed to propertyId.')
   Future<void> unsubscribeCOV(
     int deviceId,
     BacnetObjectType objectType,
@@ -1678,21 +1728,48 @@ class FakeBacnetClient implements BacnetClient {
     BacnetPropertyId propId = BacnetPropertyId.presentValue,
     int processId = 1,
     Duration? timeout,
-  }) {
-    requests.add(
-      FakeBacnetRequest(
-        'unsubscribeCOV',
-        deviceId: deviceId,
-        object: BacnetObject(type: objectType, instance: instance),
-        propertyId: propId,
-      ),
-    );
-    return _request(BacnetConfirmedService.subscribeCov, deviceId, null, (_) {
-      _subscriptions.removeWhere(
-        (s) => _same(s, deviceId, objectType, instance, propId, processId),
-      );
-    });
-  }
+  }) => unsubscribeCov(
+    deviceId,
+    objectType,
+    instance,
+    propertyId: propId,
+    processId: processId,
+    timeout: timeout,
+  );
+
+  @override
+  @Deprecated('Use subscribeCovPropertyMultiple.')
+  Future<void> subscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration lifetime = const Duration(minutes: 5),
+    bool confirmed = false,
+    Duration? maxNotificationDelay,
+    Duration? timeout,
+  }) => subscribeCovPropertyMultiple(
+    deviceId,
+    specifications,
+    processId: processId,
+    lifetime: lifetime,
+    confirmed: confirmed,
+    maxNotificationDelay: maxNotificationDelay,
+    timeout: timeout,
+  );
+
+  @override
+  @Deprecated('Use unsubscribeCovPropertyMultiple.')
+  Future<void> unsubscribeCOVPropertyMultiple(
+    int deviceId,
+    List<BacnetCovSubscriptionSpecification> specifications, {
+    int processId = 1,
+    Duration? timeout,
+  }) => unsubscribeCovPropertyMultiple(
+    deviceId,
+    specifications,
+    processId: processId,
+    timeout: timeout,
+  );
 
   static bool _same(
     _Subscription s,

@@ -570,7 +570,7 @@ void main() {
   test('receives COV notifications with values', () async {
     final notifications = <CovNotificationEvent>[];
     final subscription = client.covEvents.listen(notifications.add);
-    await client.subscribeCOV(
+    await client.subscribeCov(
       device,
       BacnetObjectType.analogValue,
       1,
@@ -578,7 +578,7 @@ void main() {
       lifetime: const Duration(seconds: 30),
     );
     await Future<void>.delayed(const Duration(seconds: 1));
-    await client.unsubscribeCOV(
+    await client.unsubscribeCov(
       device,
       BacnetObjectType.analogValue,
       1,
@@ -1864,7 +1864,7 @@ void main() {
 
     test('subscribes and receives the notifications', () async {
       final device = await covDevice();
-      await client.subscribeCOVPropertyMultiple(
+      await client.subscribeCovPropertyMultiple(
         device.deviceId,
         specifications,
         processId: 9,
@@ -1950,7 +1950,7 @@ void main() {
       expect(event.confirmed, isFalse);
       expect(event.notificationTime, isNull);
 
-      await client.unsubscribeCOVPropertyMultiple(
+      await client.unsubscribeCovPropertyMultiple(
         device.deviceId,
         specifications,
         processId: 9,
@@ -1962,7 +1962,7 @@ void main() {
     test('names the subscription the device refuses', () async {
       final device = await covDevice(refused: {BacnetPropertyId.statusFlags});
       await expectLater(
-        client.subscribeCOVPropertyMultiple(device.deviceId, specifications),
+        client.subscribeCovPropertyMultiple(device.deviceId, specifications),
         throwsA(
           isA<BacnetProtocolException>()
               .having((e) => e.errorClass, 'class', BacnetErrorClass.services)
@@ -1984,7 +1984,7 @@ void main() {
       // the demo server answers SubscribeCOVPropertyMultiple but has no
       // Analog Input 1 (the `sensor` of these specifications)
       await expectLater(
-        client.subscribeCOVPropertyMultiple(device, specifications),
+        client.subscribeCovPropertyMultiple(device, specifications),
         throwsA(
           isA<BacnetProtocolException>().having(
             (e) => e.errorCode,
@@ -2097,7 +2097,7 @@ void main() {
           .where((e) => e.deviceId == device && e.object == av)
           .take(2)
           .toList();
-      await client.subscribeCOVPropertyMultiple(
+      await client.subscribeCovPropertyMultiple(
         device,
         specifications,
         processId: 42,
@@ -2113,7 +2113,7 @@ void main() {
         received.last.values[BacnetPropertyId.presentValue],
         isA<BacnetReal>(),
       );
-      await client.unsubscribeCOVPropertyMultiple(
+      await client.unsubscribeCovPropertyMultiple(
         device,
         specifications,
         processId: 42,
@@ -2124,7 +2124,7 @@ void main() {
       'reports a bad property with a SubscribeCOVPropertyMultiple-Error',
       () async {
         await expectLater(
-          client.subscribeCOVPropertyMultiple(device, [
+          client.subscribeCovPropertyMultiple(device, [
             BacnetCovSubscriptionSpecification(av, const [
               BacnetCovReference(BacnetPropertyId.weeklySchedule),
             ]),

@@ -9,7 +9,7 @@ import '../constants/property_ids.dart';
 import 'bacnet_value.dart';
 import 'construct_support.dart';
 
-/// A property watched by [BacnetClient.subscribeCOVPropertyMultiple]
+/// A property watched by [BacnetClient.subscribeCovPropertyMultiple]
 /// (BACnetCOVReference): [covIncrement] overrides the COV_Increment of
 /// the object, [timestamped] asks for the time of each change.
 @immutable
@@ -55,7 +55,7 @@ final class BacnetCovReference {
 }
 
 /// The properties of one object watched by
-/// [BacnetClient.subscribeCOVPropertyMultiple]
+/// [BacnetClient.subscribeCovPropertyMultiple]
 /// (BACnetCOVSubscriptionSpecification).
 @immutable
 final class BacnetCovSubscriptionSpecification {
