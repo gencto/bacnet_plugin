@@ -45,9 +45,18 @@ class NativeEngine {
   void init({
     required String? interface,
     required int port,
+    required bool useIPv6,
     required int deviceInstance,
     required int socketBufferSize,
   }) {
+    if (useIPv6) {
+      final rc = bacnet_plugin_set_ipv6(1);
+      if (rc != BP_OK) {
+        throw BacnetException(
+          'BACnet/IPv6 is not available: ${nativeErrorMessage(rc)}',
+        );
+      }
+    }
     final rc = _withOptionalString(
       interface,
       (iface) =>
@@ -55,7 +64,7 @@ class NativeEngine {
     );
     if (rc != BP_OK) {
       throw BacnetException(
-        'Failed to initialize BACnet/IP on '
+        'Failed to initialize BACnet/${useIPv6 ? 'IPv6' : 'IP'} on '
         '${interface ?? 'default interface'}:$port: ${nativeErrorMessage(rc)}',
       );
     }
@@ -288,6 +297,165 @@ class NativeEngine {
           type,
           readOnly == null ? -1 : (readOnly ? 1 : 0),
           maxSize ?? -1,
+        ),
+      ),
+    );
+  }
+
+  /// Configures the Time Master and replaces its recipients. When [enabled]
+  /// the server sends a (UTC)TimeSynchronization every [intervalSeconds] to
+  /// [recipients] (a device, an address, or a broadcast when the mac is
+  /// empty), optionally aligned to the wall clock [offsetSeconds] past each
+  /// interval.
+  void configureTimeMaster({
+    required bool enabled,
+    required int intervalSeconds,
+    required bool utc,
+    required bool align,
+    required int offsetSeconds,
+    required List<({int deviceId, List<int> mac, int network, List<int> adr})>
+    recipients,
+  }) {
+    checkNative(bacnet_plugin_time_master_clear_recipients());
+    for (final recipient in recipients) {
+      final mac = recipient.mac;
+      final adr = recipient.adr;
+      final bytes = Uint8List(mac.length + adr.length)
+        ..setAll(0, mac)
+        ..setAll(mac.length, adr);
+      checkNative(
+        _withBytes(
+          bytes,
+          (data, _) => bacnet_plugin_time_master_add_recipient(
+            recipient.deviceId,
+            mac.isEmpty ? ffi.nullptr : data,
+            mac.length,
+            recipient.network,
+            adr.isEmpty ? ffi.nullptr : data + mac.length,
+            adr.length,
+          ),
+        ),
+      );
+    }
+    checkNative(
+      bacnet_plugin_time_master_configure(
+        enabled ? 1 : 0,
+        intervalSeconds,
+        utc ? 1 : 0,
+        align ? 1 : 0,
+        offsetSeconds,
+      ),
+    );
+  }
+
+  /// Configures Event Enrollment object [instance] (created first with an
+  /// object create) with the OUT_OF_RANGE event algorithm on the monitored
+  /// property.
+  void configureEventEnrollment(
+    int instance, {
+    required int monitoredType,
+    required int monitoredInstance,
+    required int monitoredProperty,
+    required int monitoredIndex,
+    required double lowLimit,
+    required double highLimit,
+    required double deadband,
+    required int timeDelaySeconds,
+    required int notificationClass,
+    required int eventEnable,
+    required int notifyType,
+  }) {
+    checkNative(
+      bacnet_plugin_event_enrollment_configure(
+        instance,
+        monitoredType,
+        monitoredInstance,
+        monitoredProperty,
+        monitoredIndex,
+        lowLimit,
+        highLimit,
+        deadband,
+        timeDelaySeconds,
+        notificationClass,
+        eventEnable,
+        notifyType,
+      ),
+    );
+  }
+
+  /// Advertises the server as the BACnet router to [networks] (empty disables
+  /// routing).
+  void configureRouter(List<int> networks) {
+    if (networks.isEmpty) {
+      checkNative(bacnet_plugin_router_configure(ffi.nullptr, 0));
+      return;
+    }
+    final array = calloc<ffi.Int32>(networks.length);
+    try {
+      for (var i = 0; i < networks.length; i++) {
+        array[i] = networks[i];
+      }
+      checkNative(bacnet_plugin_router_configure(array, networks.length));
+    } finally {
+      calloc.free(array);
+    }
+  }
+
+  /// Enables or disables Audit Log object [instance].
+  void configureAuditLog(int instance, {required bool enabled}) {
+    checkNative(bacnet_plugin_audit_log_configure(instance, enabled ? 1 : 0));
+  }
+
+  /// Configures Audit Reporter object [instance]: which operations it audits,
+  /// where it stores records and the recipient it notifies.
+  void configureAuditReporter(
+    int instance, {
+    required int auditLevel,
+    required int operations,
+    required int auditLogInstance,
+    required int maxSendDelaySeconds,
+    required ({int deviceId, List<int> mac, int network, List<int> adr})?
+    recipient,
+  }) {
+    checkNative(
+      bacnet_plugin_audit_reporter_configure(
+        instance,
+        auditLevel,
+        operations,
+        auditLogInstance,
+        maxSendDelaySeconds,
+      ),
+    );
+    if (recipient == null) {
+      checkNative(
+        bacnet_plugin_audit_reporter_set_recipient(
+          instance,
+          0,
+          ffi.nullptr,
+          0,
+          0,
+          ffi.nullptr,
+          0,
+        ),
+      );
+      return;
+    }
+    final mac = recipient.mac;
+    final adr = recipient.adr;
+    final bytes = Uint8List(mac.length + adr.length)
+      ..setAll(0, mac)
+      ..setAll(mac.length, adr);
+    checkNative(
+      _withBytes(
+        bytes,
+        (data, _) => bacnet_plugin_audit_reporter_set_recipient(
+          instance,
+          recipient.deviceId,
+          mac.isEmpty ? ffi.nullptr : data,
+          mac.length,
+          recipient.network,
+          adr.isEmpty ? ffi.nullptr : data + mac.length,
+          adr.length,
         ),
       ),
     );

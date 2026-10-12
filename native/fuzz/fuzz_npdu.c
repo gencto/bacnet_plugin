@@ -2,7 +2,11 @@
  * libFuzzer target for the engine: feeds network packets (NPDUs, after the
  * BVLC header) through the receive path of bacnet_plugin_poll(), with the
  * server enabled (objects of many types, schedules, trend logs, files,
- * channels, backup) and one confirmed request of the client outstanding.
+ * channels, backup, an Event Enrollment, an Audit Log and Reporter, the
+ * server as a router and a Time Master) and one confirmed request of the
+ * client outstanding. After each packet it also drives the per-second
+ * background tasks (the Event Enrollment state machine, the COV and
+ * COV-multiple scans, the Time Master) against the fuzzed object state.
  *
  * Input: one control byte, then the NPDU.
  *   bit 0    the packet comes from the bound device (else another address)
@@ -96,6 +100,28 @@ static void fuzz_setup(void)
     }
     bacnet_plugin_backup_configure(
         backup_files, 1, BP_BACKUP_PREPARE | BP_BACKUP_APPLY, 10);
+    /* configure the event-driven background objects so their per-second tasks
+       and reactive handlers are fuzzed, not only the default server: an Event
+       Enrollment that monitors AV 1, an Audit Log with an Audit Reporter that
+       records every operation and reports to a recipient, the server as a
+       router to two networks, and a Time Master */
+    bacnet_plugin_object_create(
+        OBJECT_EVENT_ENROLLMENT, 1, &error_class, &error_code);
+    bacnet_plugin_event_enrollment_configure(
+        1, OBJECT_ANALOG_INPUT, 1, PROP_PRESENT_VALUE, BACNET_ARRAY_ALL, -10.0f,
+        10.0f, 1.0f, 0, 1, 0x07, NOTIFY_ALARM);
+    bacnet_plugin_audit_log_configure(1, 1);
+    bacnet_plugin_object_create(
+        OBJECT_AUDIT_REPORTER, 1, &error_class, &error_code);
+    bacnet_plugin_audit_reporter_configure(
+        1, AUDIT_LEVEL_DEFAULT, 0xFFFFFFFFu, 1, 0);
+    bacnet_plugin_audit_reporter_set_recipient(1, 0, NULL, 0, 0, NULL, 0);
+    {
+        static const int32_t networks[] = { 100, 200 };
+        bacnet_plugin_router_configure(networks, 2u);
+    }
+    bacnet_plugin_time_master_configure(1, 1, 0, 0, 0);
+    bacnet_plugin_time_master_add_recipient(0, NULL, 0, 0, NULL, 0);
     /* regression: object names are filled into uninitialized strings
        (Who-Has, ReadProperty); Schedule_Object_Name read them first */
     for (i = 0; i < sizeof(types) / sizeof(types[0]); i++) {
@@ -216,6 +242,19 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         src.mac_len = sizeof(other);
     }
     bp_receive_packet(&src, npdu, (uint16_t)length);
+    /* drive the per-second/background tasks against the (fuzzed) object state:
+       the Event Enrollment state machine, the COV and COV-multiple scans and
+       the Time Master, which the receive path alone never runs */
+    {
+        static uint32_t tick;
+        tick += 1;
+        bp_scm_task(1);
+#if defined(INTRINSIC_REPORTING)
+        bp_ee_task(1);
+#endif
+        bp_cov_scan(tick * 100u);
+        bp_time_master_tick(tick * 1000u);
+    }
     free(npdu);
     bacnet_plugin_events_clear();
     return 0;

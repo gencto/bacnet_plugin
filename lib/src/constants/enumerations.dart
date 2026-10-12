@@ -1229,3 +1229,182 @@ extension type const BacnetPolarity(int value) implements int {
   /// Human readable name of this value.
   String get label => getName(value);
 }
+
+/// Operations of a BACnetLightingCommand (ASHRAE 135 Table 12-67).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetLightingOperation(value)`.
+extension type const BacnetLightingOperation(int value) implements int {
+  /// None.
+  static const none = BacnetLightingOperation(0);
+
+  /// Fade To.
+  static const fadeTo = BacnetLightingOperation(1);
+
+  /// Ramp To.
+  static const rampTo = BacnetLightingOperation(2);
+
+  /// Step Up.
+  static const stepUp = BacnetLightingOperation(3);
+
+  /// Step Down.
+  static const stepDown = BacnetLightingOperation(4);
+
+  /// Step On.
+  static const stepOn = BacnetLightingOperation(5);
+
+  /// Step Off.
+  static const stepOff = BacnetLightingOperation(6);
+
+  /// Warn.
+  static const warn = BacnetLightingOperation(7);
+
+  /// Warn Off.
+  static const warnOff = BacnetLightingOperation(8);
+
+  /// Warn Relinquish.
+  static const warnRelinquish = BacnetLightingOperation(9);
+
+  /// Stop.
+  static const stop = BacnetLightingOperation(10);
+
+  /// Restore On.
+  static const restoreOn = BacnetLightingOperation(11);
+
+  /// Default On.
+  static const defaultOn = BacnetLightingOperation(12);
+
+  /// Toggle Restore.
+  static const toggleRestore = BacnetLightingOperation(13);
+
+  /// Toggle Default.
+  static const toggleDefault = BacnetLightingOperation(14);
+
+  static const Map<BacnetLightingOperation, String> _labels = {
+    none: 'None',
+    fadeTo: 'Fade To',
+    rampTo: 'Ramp To',
+    stepUp: 'Step Up',
+    stepDown: 'Step Down',
+    stepOn: 'Step On',
+    stepOff: 'Step Off',
+    warn: 'Warn',
+    warnOff: 'Warn Off',
+    warnRelinquish: 'Warn Relinquish',
+    stop: 'Stop',
+    restoreOn: 'Restore On',
+    defaultOn: 'Default On',
+    toggleRestore: 'Toggle Restore',
+    toggleDefault: 'Toggle Default',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetLightingOperation> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) =>
+      _labels[value] ?? 'Lighting Operation $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
+/// Operations of a BACnetColorCommand (ASHRAE 135 clause 12.X).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetColorOperation(value)`.
+extension type const BacnetColorOperation(int value) implements int {
+  /// None.
+  static const none = BacnetColorOperation(0);
+
+  /// Fade To Color.
+  static const fadeToColor = BacnetColorOperation(1);
+
+  /// Fade To Cct.
+  static const fadeToColorTemperature = BacnetColorOperation(2);
+
+  /// Ramp To Cct.
+  static const rampToColorTemperature = BacnetColorOperation(3);
+
+  /// Step Up Cct.
+  static const stepUpColorTemperature = BacnetColorOperation(4);
+
+  /// Step Down Cct.
+  static const stepDownColorTemperature = BacnetColorOperation(5);
+
+  /// Stop.
+  static const stop = BacnetColorOperation(6);
+
+  static const Map<BacnetColorOperation, String> _labels = {
+    none: 'None',
+    fadeToColor: 'Fade To Color',
+    fadeToColorTemperature: 'Fade To Cct',
+    rampToColorTemperature: 'Ramp To Cct',
+    stepUpColorTemperature: 'Step Up Cct',
+    stepDownColorTemperature: 'Step Down Cct',
+    stop: 'Stop',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetColorOperation> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) =>
+      _labels[value] ?? 'Color Operation $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}
+
+/// Present_Value of a Binary Lighting Output (BACnetBinaryLightingPV).
+///
+/// An extension type over the encoded value: it is an [int] at
+/// runtime and can be used wherever an int is expected. Values
+/// this library does not define (proprietary or newer ones) are
+/// created with `BacnetBinaryLightingPV(value)`.
+extension type const BacnetBinaryLightingPV(int value) implements int {
+  /// Off.
+  static const off = BacnetBinaryLightingPV(0);
+
+  /// On.
+  static const on = BacnetBinaryLightingPV(1);
+
+  /// Warn.
+  static const warn = BacnetBinaryLightingPV(2);
+
+  /// Warn Off.
+  static const warnOff = BacnetBinaryLightingPV(3);
+
+  /// Warn Relinquish.
+  static const warnRelinquish = BacnetBinaryLightingPV(4);
+
+  /// Stop.
+  static const stop = BacnetBinaryLightingPV(5);
+
+  /// Toggle.
+  static const toggle = BacnetBinaryLightingPV(6);
+
+  static const Map<BacnetBinaryLightingPV, String> _labels = {
+    off: 'Off',
+    on: 'On',
+    warn: 'Warn',
+    warnOff: 'Warn Off',
+    warnRelinquish: 'Warn Relinquish',
+    stop: 'Stop',
+    toggle: 'Toggle',
+  };
+
+  /// All values defined by this library.
+  static Iterable<BacnetBinaryLightingPV> get values => _labels.keys;
+
+  /// Human readable name of [value].
+  static String getName(int value) =>
+      _labels[value] ?? 'Binary Lighting PV $value';
+
+  /// Human readable name of this value.
+  String get label => getName(value);
+}

@@ -496,7 +496,12 @@ bool bip_init(const char *ifname)
     sin.sin_addr = BIP_Broadcast_Binding_Address_Override
         ? BIP_Broadcast_Binding_Address
         : BIP_Broadcast_Addr;
-    if (sin.sin_addr.s_addr == BIP_Address.s_addr) {
+    /* loopback has no usable IP broadcast; a second UDP socket on the same port
+       (the directed-broadcast address or the INADDR_ANY fallback) makes macOS
+       deliver datagrams unpredictably between the two, so reuse the unicast
+       socket when bound to loopback */
+    if (sin.sin_addr.s_addr == BIP_Address.s_addr ||
+        (ntohl(BIP_Address.s_addr) >> 24) == 127u) {
         BIP_Broadcast_Socket = BIP_Socket;
     } else {
         BIP_Broadcast_Socket = bip_create_socket(&sin);

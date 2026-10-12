@@ -1,7 +1,8 @@
-// Client load test: issues many concurrent ReadProperty / ReadPropertyMultiple
-// requests against one or more devices and reports throughput and latency.
-// Concurrent ReadProperty calls are merged into ReadPropertyMultiple unless
-// `--coalesce false` is given.
+// Client load test: issues many concurrent requests against one or more
+// devices and reports throughput and latency. The mode selects the service:
+// `rp` ReadProperty (the default), `rpm` ReadPropertyMultiple, `write`
+// WriteProperty of a present value. Concurrent ReadProperty calls are merged
+// into ReadPropertyMultiple unless `--coalesce false` is given.
 //
 // Start servers first (e.g. `dart run tool/demo_server.dart 47811 1001 100`)
 // then run:
@@ -53,30 +54,43 @@ Future<void> main(List<String> args) async {
   Future<void> request(int i) {
     final target = targets[i % targets.length];
     final started = clock.elapsedMicroseconds;
-    final Future<Object> response = mode == 'rpm'
-        ? client.readMultiple(target.device, [
-            for (var o = 0; o < 10; o++)
-              BacnetReadAccessSpecification(
-                objectIdentifier: BacnetObject(
-                  type: BacnetObjectType.analogValue,
-                  instance: (i + o) % objects,
-                ),
-                properties: const [
-                  BacnetPropertyReference(
-                    propertyIdentifier: BacnetPropertyId.presentValue,
-                  ),
-                  BacnetPropertyReference(
-                    propertyIdentifier: BacnetPropertyId.statusFlags,
-                  ),
-                ],
+    final Future<Object> response = switch (mode) {
+      'rpm' => client.readMultiple(target.device, [
+        for (var o = 0; o < 10; o++)
+          BacnetReadAccessSpecification(
+            objectIdentifier: BacnetObject(
+              type: BacnetObjectType.analogValue,
+              instance: (i + o) % objects,
+            ),
+            properties: const [
+              BacnetPropertyReference(
+                propertyIdentifier: BacnetPropertyId.presentValue,
               ),
-          ])
-        : client.readProperty(
-            target.device,
-            BacnetObjectType.analogValue,
-            i % objects,
-            BacnetPropertyId.presentValue,
-          );
+              BacnetPropertyReference(
+                propertyIdentifier: BacnetPropertyId.statusFlags,
+              ),
+            ],
+          ),
+      ]),
+      'write' =>
+        client
+            .write(
+              target.device,
+              BacnetObject(
+                type: BacnetObjectType.analogValue,
+                instance: i % objects,
+              ),
+              BacnetProperties.analogPresentValue,
+              (i % 100).toDouble(),
+            )
+            .then<Object>((_) => true),
+      _ => client.readProperty(
+        target.device,
+        BacnetObjectType.analogValue,
+        i % objects,
+        BacnetPropertyId.presentValue,
+      ),
+    };
     return response
         .then((_) => latencies.add(clock.elapsedMicroseconds - started))
         .catchError((Object _) {
@@ -113,8 +127,9 @@ Map<String, String> _parse(List<String> args) {
   if (!result.containsKey('targets')) {
     stderr.writeln(
       'usage: load_test.dart --targets host:port:device[,...] '
-      '[--requests N] [--mode rp|rpm] [--interface lo] [--concurrency 200] '
-      '[--per-device 8] [--objects 100] [--coalesce true|false]',
+      '[--requests N] [--mode rp|rpm|write] [--interface lo] '
+      '[--concurrency 200] [--per-device 8] [--objects 100] '
+      '[--coalesce true|false]',
     );
     exit(64);
   }

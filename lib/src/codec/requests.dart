@@ -8,6 +8,7 @@ import '../models/bacnet_value.dart';
 import '../models/channels.dart';
 import '../models/complex_values.dart';
 import '../models/cov_multiple.dart';
+import '../models/enrollment_summary.dart';
 import '../models/events.dart';
 import '../models/rpm_models.dart';
 import '../models/wpm_models.dart';
@@ -456,6 +457,54 @@ Uint8List encodeGetEventInformation({BacnetObject? lastReceived}) {
   final w = BacnetWriter(8);
   if (lastReceived case final object?) {
     w.ctxObjectId(0, object.type, object.instance);
+  }
+  return w.toBytes();
+}
+
+/// Encodes a GetEnrollmentSummary request (ASHRAE 135 clause 13.12).
+///
+/// The enrollmentFilter [1] (a BACnetRecipientProcess) is not supported and
+/// is never encoded. The priorityFilter [4] is encoded only when both
+/// [priorityMin] and [priorityMax] are given.
+Uint8List encodeGetEnrollmentSummary({
+  required BacnetAcknowledgmentFilter acknowledgmentFilter,
+  BacnetEventStateFilter? eventStateFilter,
+  BacnetEventType? eventTypeFilter,
+  int? priorityMin,
+  int? priorityMax,
+  int? notificationClassFilter,
+}) {
+  final w = BacnetWriter(16)..ctxUnsigned(0, acknowledgmentFilter.value);
+  if (eventStateFilter != null) w.ctxUnsigned(2, eventStateFilter.value);
+  if (eventTypeFilter != null) w.ctxUnsigned(3, eventTypeFilter);
+  if (priorityMin != null && priorityMax != null) {
+    w
+      ..opening(4)
+      ..ctxUnsigned(0, priorityMin)
+      ..ctxUnsigned(1, priorityMax)
+      ..closing(4);
+  }
+  if (notificationClassFilter != null) {
+    w.ctxUnsigned(5, notificationClassFilter);
+  }
+  return w.toBytes();
+}
+
+/// Encodes an AuditLogQuery request (ASHRAE 135 clause 13.9). This
+/// implementation queries [auditLog] for records at or after
+/// [startAtSequenceNumber] (1 based), up to [requestedCount] (0 or null for
+/// all); it does not send query parameters.
+Uint8List encodeAuditLogQuery({
+  required BacnetObject auditLog,
+  int? startAtSequenceNumber,
+  int? requestedCount,
+}) {
+  final w = BacnetWriter(12)..ctxObjectId(0, auditLog.type, auditLog.instance);
+  if (startAtSequenceNumber != null) {
+    w.ctxUnsigned(2, startAtSequenceNumber);
+  }
+  if (requestedCount != null) {
+    w.ctxUnsigned(3, requestedCount);
   }
   return w.toBytes();
 }

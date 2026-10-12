@@ -330,6 +330,45 @@ const List<_File> _files = [
       doc: 'Polarity of binary objects (BACnetPolarity).',
       unknown: r'Polarity $value',
     ),
+    _Enum(
+      'BacnetLightingOperation',
+      cEnum: 'BACNET_LIGHTING_OPERATION',
+      prefix: 'BACNET_LIGHTS_',
+      doc: 'Operations of a BACnetLightingCommand (ASHRAE 135 Table 12-67).',
+      unknown: r'Lighting Operation $value',
+      skip: {
+        'RESERVED_MIN',
+        'RESERVED_MAX',
+        'PROPRIETARY_MIN',
+        'PROPRIETARY_MAX',
+      },
+      maxValue: 14,
+    ),
+    _Enum(
+      'BacnetColorOperation',
+      cEnum: 'BACNET_COLOR_OPERATION',
+      prefix: 'BACNET_COLOR_OPERATION_',
+      doc: 'Operations of a BACnetColorCommand (ASHRAE 135 clause 12.X).',
+      unknown: r'Color Operation $value',
+      names: {
+        'FADE_TO_CCT': 'fadeToColorTemperature',
+        'RAMP_TO_CCT': 'rampToColorTemperature',
+        'STEP_UP_CCT': 'stepUpColorTemperature',
+        'STEP_DOWN_CCT': 'stepDownColorTemperature',
+      },
+      skip: {'MAX'},
+      maxValue: 6,
+    ),
+    _Enum(
+      'BacnetBinaryLightingPV',
+      cEnum: 'BACNET_BINARY_LIGHTING_PV',
+      prefix: 'BINARY_LIGHTING_PV_',
+      doc:
+          'Present_Value of a Binary Lighting Output (BACnetBinaryLightingPV).',
+      unknown: r'Binary Lighting PV $value',
+      skip: {'MAX', 'PROPRIETARY_MIN', 'PROPRIETARY_MAX'},
+      maxValue: 6,
+    ),
   ]),
 ];
 

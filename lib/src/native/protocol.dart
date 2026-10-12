@@ -13,6 +13,7 @@ class WorkerStartup {
     required this.mainPort,
     required this.interface,
     required this.port,
+    required this.useIPv6,
     required this.deviceInstance,
     required this.apduTimeoutMs,
     required this.apduRetries,
@@ -33,6 +34,7 @@ class WorkerStartup {
   final SendPort mainPort;
   final String? interface;
   final int port;
+  final bool useIPv6;
   final int deviceInstance;
   final int apduTimeoutMs;
   final int apduRetries;
@@ -78,6 +80,8 @@ enum AckDecoding {
   readRange,
   getEventInformation,
   getAlarmSummary,
+  getEnrollmentSummary,
+  auditLogQuery,
   createObject,
   atomicReadFile,
   atomicWriteFile,
@@ -344,6 +348,110 @@ class ConfigureFileCommand extends WorkerCommand {
   final String? fileType;
   final bool? readOnly;
   final int? maxSize;
+}
+
+/// A Time Master recipient: a device (when [deviceId] is non-zero), an
+/// address ([mac], and [adr] on [network] behind a router), or a broadcast
+/// when [mac] is empty.
+class TimeMasterRecipient {
+  const TimeMasterRecipient({
+    this.deviceId = 0,
+    this.mac = const [],
+    this.network = 0xFFFF,
+    this.adr = const [],
+  });
+  final int deviceId;
+  final List<int> mac;
+  final int network;
+  final List<int> adr;
+}
+
+/// Configures the Time Master and replaces its recipients.
+class TimeMasterCommand extends WorkerCommand {
+  const TimeMasterCommand(
+    super.id, {
+    required this.enabled,
+    required this.intervalSeconds,
+    required this.utc,
+    required this.align,
+    required this.offsetSeconds,
+    required this.recipients,
+  });
+  final bool enabled;
+  final int intervalSeconds;
+  final bool utc;
+  final bool align;
+  final int offsetSeconds;
+  final List<TimeMasterRecipient> recipients;
+}
+
+/// Configures an Event Enrollment object (created first with an
+/// [CreateObjectCommand]) with the OUT_OF_RANGE event algorithm.
+class EventEnrollmentCommand extends WorkerCommand {
+  const EventEnrollmentCommand(
+    super.id,
+    this.instance, {
+    required this.monitoredType,
+    required this.monitoredInstance,
+    required this.monitoredProperty,
+    required this.monitoredIndex,
+    required this.lowLimit,
+    required this.highLimit,
+    required this.deadband,
+    required this.timeDelaySeconds,
+    required this.notificationClass,
+    required this.eventEnable,
+    required this.notifyType,
+  });
+  final int instance;
+  final int monitoredType;
+  final int monitoredInstance;
+  final int monitoredProperty;
+  final int monitoredIndex;
+  final double lowLimit;
+  final double highLimit;
+  final double deadband;
+  final int timeDelaySeconds;
+  final int notificationClass;
+  final int eventEnable;
+  final int notifyType;
+}
+
+/// Advertises the server as the BACnet router to the given virtual networks
+/// (empty disables routing).
+class RouterConfigureCommand extends WorkerCommand {
+  const RouterConfigureCommand(super.id, this.networks);
+  final List<int> networks;
+}
+
+/// Enables or disables an Audit Log object.
+class AuditLogConfigureCommand extends WorkerCommand {
+  const AuditLogConfigureCommand(
+    super.id,
+    this.instance, {
+    required this.enabled,
+  });
+  final int instance;
+  final bool enabled;
+}
+
+/// Configures an Audit Reporter object and its recipient.
+class AuditReporterConfigureCommand extends WorkerCommand {
+  const AuditReporterConfigureCommand(
+    super.id,
+    this.instance, {
+    required this.auditLevel,
+    required this.operations,
+    required this.auditLogInstance,
+    required this.maxSendDelaySeconds,
+    required this.recipient,
+  });
+  final int instance;
+  final int auditLevel;
+  final int operations;
+  final int auditLogInstance;
+  final int maxSendDelaySeconds;
+  final TimeMasterRecipient? recipient;
 }
 
 /// Deletes a server object.

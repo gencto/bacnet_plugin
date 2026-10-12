@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../format_value.dart';
+import 'object_explorer_screen.dart';
 
 /// Screen for monitoring a BACnet object's properties with COV subscription.
 class ObjectMonitorScreen extends StatefulWidget {
@@ -178,6 +179,20 @@ class _ObjectMonitorScreenState extends State<ObjectMonitorScreen> {
               'Object ${widget.object.type}:${widget.object.instance}',
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.travel_explore),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => ObjectExplorerScreen(
+                  deviceId: widget.deviceId,
+                  object: widget.object,
+                  objectName: _objectName,
+                ),
+              ),
+            ),
+            tooltip: 'Explore all properties',
+          ),
           IconButton(
             icon: Icon(_isCovActive ? Icons.stop : Icons.play_arrow),
             onPressed: _toggleCovSubscription,

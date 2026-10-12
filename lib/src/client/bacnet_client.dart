@@ -20,12 +20,14 @@ import '../core/ip_address.dart';
 import '../core/logger.dart';
 import '../core/types.dart';
 import '../models/alarms.dart';
+import '../models/audit.dart';
 import '../models/bacnet_property.dart';
 import '../models/bacnet_stats.dart';
 import '../models/bacnet_value.dart';
 import '../models/channels.dart';
 import '../models/complex_values.dart';
 import '../models/cov_multiple.dart';
+import '../models/enrollment_summary.dart';
 import '../models/events.dart';
 import '../models/files.dart';
 import '../models/network.dart';
@@ -109,6 +111,10 @@ class BacnetClient {
   /// [addListElements] to become a recipient).
   Stream<EventNotificationEvent> get eventNotifications =>
       events.whereType<EventNotificationEvent>();
+
+  /// AuditNotifications received from devices (ASHRAE 135-2016bi).
+  Stream<AuditNotificationEvent> get auditNotifications =>
+      events.whereType<AuditNotificationEvent>();
 
   /// Version of the native engine and bacnet-stack, once started.
   String? get nativeVersion => _system.nativeVersion;
@@ -1158,6 +1164,77 @@ class BacnetClient {
     service: BacnetConfirmedService.getAlarmSummary,
     payload: Uint8List(0),
     decoding: AckDecoding.getAlarmSummary,
+    timeout: timeout,
+    background: background,
+    cancelToken: cancelToken,
+  );
+
+  /// Returns a summary of the event-initiating objects of [deviceId]
+  /// (GetEnrollmentSummary, ASHRAE 135 clause 13.12), optionally filtered.
+  ///
+  /// ```dart
+  /// // every object currently in an off-normal or fault state
+  /// final active = await client.getEnrollmentSummary(1234,
+  ///     eventStateFilter: BacnetEventStateFilter.active);
+  /// ```
+  Future<List<BacnetEnrollmentSummary>> getEnrollmentSummary(
+    int deviceId, {
+    BacnetAcknowledgmentFilter acknowledgmentFilter =
+        BacnetAcknowledgmentFilter.all,
+    BacnetEventStateFilter? eventStateFilter,
+    BacnetEventType? eventTypeFilter,
+    int? priorityMin,
+    int? priorityMax,
+    int? notificationClassFilter,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => _system.confirmed(
+    deviceId: deviceId,
+    service: BacnetConfirmedService.getEnrollmentSummary,
+    payload: encodeGetEnrollmentSummary(
+      acknowledgmentFilter: acknowledgmentFilter,
+      eventStateFilter: eventStateFilter,
+      eventTypeFilter: eventTypeFilter,
+      priorityMin: priorityMin,
+      priorityMax: priorityMax,
+      notificationClassFilter: notificationClassFilter,
+    ),
+    decoding: AckDecoding.getEnrollmentSummary,
+    timeout: timeout,
+    background: background,
+    cancelToken: cancelToken,
+  );
+
+  /// Queries the records of an Audit Log object of a device with AuditLogQuery
+  /// (ASHRAE 135-2016bi). Returns the records at or after
+  /// [startAtSequenceNumber] (1 based), up to [requestedCount] (null for as
+  /// many as fit in one response), newest first as the device stores them.
+  ///
+  /// ```dart
+  /// final result = await client.queryAuditLog(
+  ///   1234,
+  ///   const BacnetObject(type: BacnetObjectType.auditLog, instance: 1),
+  /// );
+  /// for (final record in result.records) print(record);
+  /// ```
+  Future<BacnetAuditLogQueryResult> queryAuditLog(
+    int deviceId,
+    BacnetObject auditLog, {
+    int? startAtSequenceNumber,
+    int? requestedCount,
+    Duration? timeout,
+    bool background = false,
+    BacnetCancelToken? cancelToken,
+  }) => _system.confirmed(
+    deviceId: deviceId,
+    service: BacnetConfirmedService.auditLogQuery,
+    payload: encodeAuditLogQuery(
+      auditLog: auditLog,
+      startAtSequenceNumber: startAtSequenceNumber,
+      requestedCount: requestedCount,
+    ),
+    decoding: AckDecoding.auditLogQuery,
     timeout: timeout,
     background: background,
     cancelToken: cancelToken,

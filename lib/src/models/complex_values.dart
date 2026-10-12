@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 
 import '../codec/value_encoding.dart';
+import '../constants/enumerations.dart';
 import '../constants/property_ids.dart';
 import '../core/exceptions.dart';
 import 'bacnet_value.dart';
@@ -893,6 +894,228 @@ final class BacnetPriorityArray {
   @override
   String toString() =>
       'BacnetPriorityArray(${activePriority == null ? 'relinquished' : '$activeValue @ $activePriority'})';
+}
+
+/// A CIE 1931 xy chromaticity (BACnetxyColor), the Color property of a Color
+/// object and the target of a [BacnetColorCommand]; [x] and [y] are 0.0..1.0.
+@immutable
+final class BacnetXYColor {
+  /// Creates a chromaticity.
+  const BacnetXYColor(this.x, this.y);
+
+  /// Interprets a read value (a two-REAL sequence). Throws a
+  /// [BacnetDecodeException] if it is malformed.
+  factory BacnetXYColor.fromValue(BacnetValue value) {
+    final items = _items(value);
+    double real(int i) => switch (items.length > i ? items[i] : null) {
+      BacnetReal(:final value) || BacnetDouble(:final value) => value,
+      _ => throw malformedConstruct('BACnetxyColor', value),
+    };
+    if (items.length != 2) throw malformedConstruct('BACnetxyColor', value);
+    return BacnetXYColor(real(0), real(1));
+  }
+
+  /// The x coordinate (0.0..1.0).
+  final double x;
+
+  /// The y coordinate (0.0..1.0).
+  final double y;
+
+  /// The value to write.
+  BacnetValue toValue() => BacnetList([BacnetReal(x), BacnetReal(y)]);
+
+  @override
+  bool operator ==(Object other) =>
+      other is BacnetXYColor && other.x == x && other.y == y;
+
+  @override
+  int get hashCode => Object.hash(x, y);
+
+  @override
+  String toString() => 'BacnetXYColor($x, $y)';
+}
+
+/// A BACnetLightingCommand, the Lighting_Command property of a Lighting
+/// Output object (ASHRAE 135 clause 12.54.x). Only the fields the
+/// [operation] uses are set; the rest are null.
+@immutable
+final class BacnetLightingCommand {
+  /// Creates a lighting command.
+  const BacnetLightingCommand({
+    required this.operation,
+    this.targetLevel,
+    this.rampRate,
+    this.stepIncrement,
+    this.fadeTime,
+    this.priority,
+  });
+
+  /// Interprets a read value. Throws a [BacnetDecodeException] if it is
+  /// malformed.
+  factory BacnetLightingCommand.fromValue(BacnetValue value) {
+    final f = ConstructFields(_items(value), 'BACnetLightingCommand', value);
+    final operation = BacnetLightingOperation(f.enumerated(0));
+    return BacnetLightingCommand(
+      operation: operation,
+      targetLevel: f.has(1) ? f.real(1) : null,
+      rampRate: f.has(2) ? f.real(2) : null,
+      stepIncrement: f.has(3) ? f.real(3) : null,
+      fadeTime: f.has(4) ? Duration(milliseconds: f.unsigned(4)) : null,
+      priority: f.has(5) ? f.unsigned(5) : null,
+    );
+  }
+
+  /// The operation to perform.
+  final BacnetLightingOperation operation;
+
+  /// Target level in percent (0.0..100.0), for fade and ramp operations.
+  final double? targetLevel;
+
+  /// Ramp rate in percent per second, for ramp operations.
+  final double? rampRate;
+
+  /// Step increment in percent, for step operations.
+  final double? stepIncrement;
+
+  /// Fade time, for fade operations.
+  final Duration? fadeTime;
+
+  /// Priority for writing (1..16).
+  final int? priority;
+
+  /// The value to write.
+  BacnetValue toValue() => BacnetList([
+    contextValue(0, BacnetEnumerated(operation)),
+    if (targetLevel case final v?) contextValue(1, BacnetReal(v)),
+    if (rampRate case final v?) contextValue(2, BacnetReal(v)),
+    if (stepIncrement case final v?) contextValue(3, BacnetReal(v)),
+    if (fadeTime case final v?)
+      contextValue(4, BacnetUnsigned(v.inMilliseconds)),
+    if (priority case final v?) contextValue(5, BacnetUnsigned(v)),
+  ]);
+
+  @override
+  bool operator ==(Object other) =>
+      other is BacnetLightingCommand &&
+      other.operation == operation &&
+      other.targetLevel == targetLevel &&
+      other.rampRate == rampRate &&
+      other.stepIncrement == stepIncrement &&
+      other.fadeTime == fadeTime &&
+      other.priority == priority;
+
+  @override
+  int get hashCode => Object.hash(
+    operation,
+    targetLevel,
+    rampRate,
+    stepIncrement,
+    fadeTime,
+    priority,
+  );
+
+  @override
+  String toString() =>
+      'BacnetLightingCommand(${operation.label}'
+      '${targetLevel == null ? '' : ', level $targetLevel'}'
+      '${fadeTime == null ? '' : ', fade ${fadeTime!.inMilliseconds}ms'}'
+      '${rampRate == null ? '' : ', ramp $rampRate'}'
+      '${stepIncrement == null ? '' : ', step $stepIncrement'}'
+      '${priority == null ? '' : ', priority $priority'})';
+}
+
+/// A BACnetColorCommand, the Color_Command property of a Color or Color
+/// Temperature object (ASHRAE 135). Only the fields the [operation] uses are
+/// set; target color and temperature, and the transition fields, are
+/// mutually exclusive.
+@immutable
+final class BacnetColorCommand {
+  /// Creates a color command.
+  const BacnetColorCommand({
+    required this.operation,
+    this.targetColor,
+    this.targetColorTemperature,
+    this.fadeTime,
+    this.rampRate,
+    this.stepIncrement,
+  });
+
+  /// Interprets a read value. Throws a [BacnetDecodeException] if it is
+  /// malformed.
+  factory BacnetColorCommand.fromValue(BacnetValue value) {
+    final f = ConstructFields(_items(value), 'BACnetColorCommand', value);
+    final operation = BacnetColorOperation(f.enumerated(0));
+    return BacnetColorCommand(
+      operation: operation,
+      targetColor: f.has(1)
+          ? BacnetXYColor.fromValue(BacnetList(f.constructed(1)))
+          : null,
+      targetColorTemperature: f.has(2) ? f.unsigned(2) : null,
+      fadeTime: f.has(3) ? Duration(milliseconds: f.unsigned(3)) : null,
+      rampRate: f.has(4) ? f.unsigned(4) : null,
+      stepIncrement: f.has(5) ? f.unsigned(5) : null,
+    );
+  }
+
+  /// The operation to perform.
+  final BacnetColorOperation operation;
+
+  /// Target chromaticity, for fade-to-color.
+  final BacnetXYColor? targetColor;
+
+  /// Target color temperature in kelvin, for the CCT operations.
+  final int? targetColorTemperature;
+
+  /// Fade time, for fade operations.
+  final Duration? fadeTime;
+
+  /// Ramp rate in kelvin per second, for ramp operations.
+  final int? rampRate;
+
+  /// Step increment in kelvin, for step operations.
+  final int? stepIncrement;
+
+  /// The value to write.
+  BacnetValue toValue() => BacnetList([
+    contextValue(0, BacnetEnumerated(operation)),
+    if (targetColor case final c?)
+      BacnetConstructedValue(1, [BacnetReal(c.x), BacnetReal(c.y)]),
+    if (targetColorTemperature case final v?)
+      contextValue(2, BacnetUnsigned(v)),
+    if (fadeTime case final v?)
+      contextValue(3, BacnetUnsigned(v.inMilliseconds)),
+    if (rampRate case final v?) contextValue(4, BacnetUnsigned(v)),
+    if (stepIncrement case final v?) contextValue(5, BacnetUnsigned(v)),
+  ]);
+
+  @override
+  bool operator ==(Object other) =>
+      other is BacnetColorCommand &&
+      other.operation == operation &&
+      other.targetColor == targetColor &&
+      other.targetColorTemperature == targetColorTemperature &&
+      other.fadeTime == fadeTime &&
+      other.rampRate == rampRate &&
+      other.stepIncrement == stepIncrement;
+
+  @override
+  int get hashCode => Object.hash(
+    operation,
+    targetColor,
+    targetColorTemperature,
+    fadeTime,
+    rampRate,
+    stepIncrement,
+  );
+
+  @override
+  String toString() =>
+      'BacnetColorCommand(${operation.label}'
+      '${targetColor == null ? '' : ', $targetColor'}'
+      '${targetColorTemperature == null ? '' : ', ${targetColorTemperature}K'}'
+      '${fadeTime == null ? '' : ', fade ${fadeTime!.inMilliseconds}ms'}'
+      '${rampRate == null ? '' : ', ramp $rampRate'}'
+      '${stepIncrement == null ? '' : ', step $stepIncrement'})';
 }
 
 // ---- helpers -----------------------------------------------------------------

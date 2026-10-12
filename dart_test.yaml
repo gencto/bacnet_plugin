@@ -1,3 +1,7 @@
+# Tests run serially: the integration suites each bind BACnet/IP sockets on
+# the loopback interface, so two suites running at once contend and flake.
+concurrency: 1
+
 tags:
   integration:
     timeout: 3x

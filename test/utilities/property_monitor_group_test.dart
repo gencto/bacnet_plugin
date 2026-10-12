@@ -46,8 +46,20 @@ void main() {
           (specification.object, reference.property),
   };
 
-  Future<void> settle() =>
-      Future<void>.delayed(const Duration(milliseconds: 20));
+  /// Retries [check] until it passes: the fake devices answer after their
+  /// latency and slow CI runners take their time.
+  Future<void> eventually(void Function() check) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (true) {
+      try {
+        check();
+        return;
+      } on TestFailure {
+        if (DateTime.now().isAfter(deadline)) rethrow;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+  }
 
   void set(BacnetObject object, double value) =>
       ahu.object(object.type, object.instance)![BacnetPropertyId.presentValue] =
@@ -89,28 +101,37 @@ void main() {
           }
         }),
     ];
-    await settle();
+    await eventually(
+      () => expect(multipleSubscribed(), {
+        (sensor, BacnetPropertyId.presentValue),
+        (output, BacnetPropertyId.presentValue),
+      }),
+    );
     expect(requests('subscribeCOV'), isEmpty);
-    expect(multipleSubscribed(), {
-      (sensor, BacnetPropertyId.presentValue),
-      (output, BacnetPropertyId.presentValue),
-    });
     final processIds = {
       for (final r in requests('subscribeCOVPropertyMultiple'))
         r.arguments['processId'],
     };
     expect(processIds, hasLength(1));
 
-    set(sensor, 21);
-    set(output, 60);
-    await settle();
-    expect(values, [
-      (sensor, const BacnetReal(21)),
-      (output, const BacnetReal(60)),
-    ]);
+    // the fake device takes the subscription after its latency: change the
+    // values until both notifications arrive
+    await eventually(() {
+      set(sensor, 21);
+      set(output, 60);
+      expect(
+        values,
+        containsAll([
+          (sensor, const BacnetReal(21)),
+          (output, const BacnetReal(60)),
+        ]),
+      );
+    });
 
     await listeners.first.cancel();
-    await settle();
+    await eventually(
+      () => expect(requests('unsubscribeCOVPropertyMultiple'), hasLength(1)),
+    );
     final cancel = requests('unsubscribeCOVPropertyMultiple').single;
     expect(
       (cancel.arguments['specifications']!
@@ -119,9 +140,10 @@ void main() {
           .object,
       sensor,
     );
-    set(output, 61);
-    await settle();
-    expect(values.last, (output, const BacnetReal(61)));
+    await eventually(() {
+      set(output, 61);
+      expect(values, contains((output, const BacnetReal(61))));
+    });
     await listeners.last.cancel();
   });
 
@@ -138,8 +160,13 @@ void main() {
             )
             .listen((_) {}),
     ];
-    await settle();
     // the device named the missing object; the sensor stayed shared
+    await eventually(
+      () => expect(
+        requests('subscribeCOV').map((request) => request.object),
+        contains(missing),
+      ),
+    );
     expect(
       multipleSubscribed(),
       contains((sensor, BacnetPropertyId.presentValue)),
@@ -164,18 +191,18 @@ void main() {
     );
     final monitor = PropertyMonitor(client);
     final listener = monitor.monitorPresentValue(1234, sensor).listen((_) {});
-    await settle();
+    await eventually(
+      () => expect(requests('subscribeCOV').map((r) => r.object), [sensor]),
+    );
     expect(requests('subscribeCOVPropertyMultiple'), isEmpty);
-    expect(requests('subscribeCOV').single.object, sensor);
     await listener.cancel();
   });
 
   test('can be told not to share subscriptions', () async {
     final monitor = PropertyMonitor(client, useCovMultiple: false);
     final listener = monitor.monitorPresentValue(1234, sensor).listen((_) {});
-    await settle();
+    await eventually(() => expect(requests('subscribeCOV'), hasLength(1)));
     expect(requests('subscribeCOVPropertyMultiple'), isEmpty);
-    expect(requests('subscribeCOV'), hasLength(1));
     await listener.cancel();
   });
 
@@ -185,15 +212,19 @@ void main() {
       subscriptionLifetime: const Duration(milliseconds: 40),
     );
     final listener = monitor.monitorPresentValue(1234, sensor).listen((_) {});
-    await Future<void>.delayed(const Duration(milliseconds: 120));
-    expect(
-      requests('subscribeCOVPropertyMultiple').length,
-      greaterThanOrEqualTo(3),
+    await eventually(
+      () => expect(
+        requests('subscribeCOVPropertyMultiple').length,
+        greaterThanOrEqualTo(3),
+      ),
     );
     await listener.cancel();
-    await settle();
+    // no renewals once the subscription is cancelled
+    await eventually(
+      () => expect(requests('unsubscribeCOVPropertyMultiple'), isNotEmpty),
+    );
     final count = requests('subscribeCOVPropertyMultiple').length;
-    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await Future<void>.delayed(const Duration(milliseconds: 100));
     expect(requests('subscribeCOVPropertyMultiple'), hasLength(count));
   });
 }

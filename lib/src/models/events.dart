@@ -7,6 +7,7 @@ import '../constants/object_types.dart';
 import '../constants/property_ids.dart';
 import '../core/types.dart';
 import 'alarms.dart';
+import 'audit.dart';
 import 'bacnet_value.dart';
 import 'channels.dart';
 import 'complex_values.dart';
@@ -842,3 +843,29 @@ typedef COVNotificationResponse = CovNotificationEvent;
 /// Former name of [PropertyWriteEvent].
 @Deprecated('Use PropertyWriteEvent')
 typedef WriteNotificationResponse = PropertyWriteEvent;
+
+/// An AuditNotification received from a device (ASHRAE 135-2016bi).
+final class AuditNotificationEvent extends BacnetEvent {
+  /// Creates the event.
+  const AuditNotificationEvent({
+    required this.notification,
+    required this.confirmed,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// The audit notification.
+  final BacnetAuditNotification notification;
+
+  /// True when it arrived as a ConfirmedAuditNotification.
+  final bool confirmed;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number (0 for the local network).
+  final int net;
+
+  @override
+  String toString() => 'AuditNotificationEvent($notification)';
+}

@@ -273,6 +273,7 @@ BP_UNCONFIRMED_FORWARDER(bp_on_who_am_i, SERVICE_UNCONFIRMED_WHO_AM_I)
 BP_UNCONFIRMED_FORWARDER(bp_on_you_are, SERVICE_UNCONFIRMED_YOU_ARE)
 BP_UNCONFIRMED_FORWARDER(
     bp_on_ucov_multiple, SERVICE_UNCONFIRMED_COV_NOTIFICATION_MULTIPLE)
+BP_UNCONFIRMED_FORWARDER(bp_on_uaudit, SERVICE_UNCONFIRMED_AUDIT_NOTIFICATION)
 
 static void bp_confirmed_notification(
     uint8_t service,
@@ -342,6 +343,17 @@ static void bp_on_cevent(
         service_data);
 }
 
+static void bp_on_caudit(
+    uint8_t *service_request,
+    uint16_t service_len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data)
+{
+    bp_confirmed_notification(
+        SERVICE_CONFIRMED_AUDIT_NOTIFICATION, service_request, service_len, src,
+        service_data);
+}
+
 void bp_register_client_handlers(void)
 {
     int service;
@@ -385,6 +397,10 @@ void bp_register_client_handlers(void)
         SERVICE_CONFIRMED_COV_NOTIFICATION_MULTIPLE, bp_on_ccov_multiple);
     apdu_set_confirmed_handler(
         SERVICE_CONFIRMED_EVENT_NOTIFICATION, bp_on_cevent);
+    apdu_set_unconfirmed_handler(
+        SERVICE_UNCONFIRMED_AUDIT_NOTIFICATION, bp_on_uaudit);
+    apdu_set_confirmed_handler(
+        SERVICE_CONFIRMED_AUDIT_NOTIFICATION, bp_on_caudit);
 }
 
 BP_API int32_t bacnet_plugin_send_confirmed(

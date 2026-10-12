@@ -180,6 +180,14 @@ BP_API const char *bacnet_plugin_version(void);
  * @param socket_buffer_bytes SO_RCVBUF / SO_SNDBUF size, 0 keeps OS default.
  * @return BP_OK or a negative BP_ERR_* code.
  */
+/**
+ * Selects the BACnet/IPv6 datalink (ANNEX U) for the next
+ * bacnet_plugin_init(), instead of BACnet/IPv4. Must be called before init.
+ * Returns BP_OK, BP_ERR_ALREADY_INITIALIZED, or BP_ERR_UNSUPPORTED when the
+ * platform has no IPv6 datalink (Windows).
+ */
+BP_API int32_t bacnet_plugin_set_ipv6(int32_t enabled);
+
 BP_API int32_t bacnet_plugin_init(
     const char *iface,
     uint16_t port,
@@ -504,6 +512,115 @@ BP_API int32_t bacnet_plugin_file_configure(
     const char *file_type,
     int32_t read_only,
     int64_t max_size);
+
+/**
+ * Configures the Time Master. When `enabled` is non-zero the server sends a
+ * TimeSynchronization (local time) or, when `utc` is non-zero, a
+ * UTCTimeSynchronization every `interval_seconds` to the recipients added
+ * with bacnet_plugin_time_master_add_recipient(). When `align` is non-zero
+ * the sends are aligned to the wall clock, `offset_seconds` past each
+ * interval. `interval_seconds` must be non-zero when enabled.
+ */
+BP_API int32_t bacnet_plugin_time_master_configure(
+    int32_t enabled,
+    uint32_t interval_seconds,
+    int32_t utc,
+    int32_t align,
+    uint32_t offset_seconds);
+
+/** Removes every Time Master recipient. Returns BP_OK. */
+BP_API int32_t bacnet_plugin_time_master_clear_recipients(void);
+
+/**
+ * Adds a Time Master recipient. When `device_id` is non-zero the recipient is
+ * that device (resolved through the binding table; nothing is sent until it is
+ * bound). Otherwise it is the address `mac` (and `adr` on network `net` behind
+ * a router), or a local broadcast when `mac_len` is 0. At most 16 recipients.
+ */
+BP_API int32_t bacnet_plugin_time_master_add_recipient(
+    uint32_t device_id,
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len);
+
+/**
+ * Configures an Event Enrollment object (created first with
+ * bacnet_plugin_object_create()). It monitors `monitored_property` of the
+ * referenced object with the OUT_OF_RANGE algorithm: a REAL value above
+ * `high_limit` for `time_delay` seconds reports a to-offnormal event
+ * (HighLimit), below `low_limit` a LowLimit event, and a return inside the
+ * limits by more than `deadband` reports to-normal. Pass BACNET_ARRAY_ALL as
+ * `monitored_index` for a scalar property. `notification_class` names the
+ * Notification Class object that holds the recipients; `event_enable` is a bit
+ * mask (bit 0 to-offnormal, bit 1 to-fault, bit 2 to-normal) and `notify_type`
+ * is NOTIFY_ALARM or NOTIFY_EVENT. Returns BP_OK or a negative BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_event_enrollment_configure(
+    uint32_t instance,
+    uint16_t monitored_type,
+    uint32_t monitored_instance,
+    uint32_t monitored_property,
+    uint32_t monitored_index,
+    float low_limit,
+    float high_limit,
+    float deadband,
+    uint32_t time_delay,
+    uint32_t notification_class,
+    uint8_t event_enable,
+    uint8_t notify_type);
+
+/**
+ * Enables or disables an Audit Log object (created first with
+ * bacnet_plugin_object_create()): a disabled log drops records. Returns BP_OK
+ * or a negative BP_ERR_* code.
+ */
+BP_API int32_t
+bacnet_plugin_audit_log_configure(uint32_t instance, int32_t enabled);
+
+/**
+ * Configures an Audit Reporter object (created first with
+ * bacnet_plugin_object_create()). It generates an audit record for each
+ * operation whose bit is set in `operations_mask` (over BACnetAuditOperation,
+ * e.g. 1 << AUDIT_OPERATION_WRITE) while `audit_level` is not AUDIT_LEVEL_NONE,
+ * storing it in Audit Log `audit_log_instance` (BACNET_MAX_INSTANCE for none)
+ * and sending it to the recipient set with
+ * bacnet_plugin_audit_reporter_set_recipient(). `max_send_delay` is stored for
+ * the Maximum_Send_Delay property. Returns BP_OK or a negative BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_audit_reporter_configure(
+    uint32_t instance,
+    uint8_t audit_level,
+    uint32_t operations_mask,
+    uint32_t audit_log_instance,
+    uint32_t max_send_delay);
+
+/**
+ * Sets the Audit_Notification_Recipient of Audit Reporter `instance`. When
+ * `device_id` is non-zero the recipient is that device (resolved through the
+ * binding table). Otherwise it is the address `mac` (and `adr` on network
+ * `net` behind a router); an empty `mac` with no device clears the recipient.
+ * Returns BP_OK or a negative BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_audit_reporter_set_recipient(
+    uint32_t instance,
+    uint32_t device_id,
+    const uint8_t *mac,
+    uint8_t mac_len,
+    uint16_t net,
+    const uint8_t *adr,
+    uint8_t adr_len);
+
+/**
+ * Makes the server advertise itself as the BACnet router to `count` virtual
+ * networks (`networks`, each 1..65535; `count` 0 disables routing, at most 16).
+ * It answers Who-Is-Router-To-Network with I-Am-Router-To-Network and
+ * Initialize-Routing-Table with an acknowledgement for those networks.
+ * Returns BP_OK or a negative BP_ERR_* code.
+ */
+BP_API int32_t
+bacnet_plugin_router_configure(const int32_t *networks, uint32_t count);
 
 #ifdef __cplusplus
 }

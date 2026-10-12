@@ -2,7 +2,7 @@ name: bacnet_plugin
 description: >-
   High-throughput BACnet/IP client and server for Dart and Flutter, built on
   bacnet-stack via FFI with an isolate based, non-blocking engine.
-version: 0.8.0
+version: 0.9.0
 license: MIT
 homepage: https://github.com/gencto/bacnet_plugin
 repository: https://github.com/gencto/bacnet_plugin
@@ -24,6 +24,10 @@ executables:
   bacnet:
 
 dev_dependencies:
+  # build_runner 2.16.1 (the latest) does not compile against analyzer 14.x,
+  # which dropped AnalysisOptionsImpl.contextFeatures; pin the analyzer to the
+  # 13.x line until build_runner ships an analyzer-14 compatible release.
+  analyzer: ">=13.0.0 <14.0.0"
   build_runner: ^2.16.1
   ffigen: ^22.0.0
   json_serializable: ^6.14.1

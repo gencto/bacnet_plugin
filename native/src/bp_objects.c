@@ -11,11 +11,22 @@
 #include "bacnet/bacstr.h"
 #include "bacnet/basic/object/ai.h"
 #include "bacnet/basic/object/ao.h"
+#include "bacnet/basic/object/auditlog.h"
 #include "bacnet/basic/object/av.h"
 #include "bacnet/basic/object/bacfile.h"
 #include "bacnet/basic/object/calendar.h"
 #include "bacnet/basic/object/channel.h"
 #include "bacnet/basic/object/schedule.h"
+#include "bacnet/basic/object/lo.h"
+#include "bacnet/basic/object/blo.h"
+#include "bacnet/basic/object/color_object.h"
+#include "bacnet/basic/object/color_temperature.h"
+#include "bacnet/basic/object/loop.h"
+#include "bacnet/basic/object/timer.h"
+#include "bacnet/basic/object/acc.h"
+#include "bacnet/basic/object/averaging.h"
+#include "bacnet/basic/object/lc.h"
+#include "bacnet/basic/object/structured_view.h"
 #include "bacnet/basic/object/bi.h"
 #include "bacnet/basic/object/bo.h"
 #include "bacnet/basic/object/bv.h"
@@ -72,7 +83,13 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
 #if defined(INTRINSIC_REPORTING)
         case OBJECT_NOTIFICATION_CLASS:
             return description ? bp_nc_description_set : bp_nc_name_set;
+        case OBJECT_EVENT_ENROLLMENT:
+            return description ? bp_ee_description_set : bp_ee_name_set;
 #endif
+        case OBJECT_AUDIT_LOG:
+            return description ? Audit_Log_Description_Set : Audit_Log_Name_Set;
+        case OBJECT_AUDIT_REPORTER:
+            return description ? bp_ar_description_set : bp_ar_name_set;
         case OBJECT_FILE:
             return description ? bp_file_description_set
                                : bacfile_object_name_set;
@@ -86,6 +103,32 @@ static bp_name_setter_t bp_name_setter(uint16_t type, bool description)
         case OBJECT_CHANNEL:
             return description ? Channel_Description_Set : Channel_Name_Set;
 #endif
+        case OBJECT_LIGHTING_OUTPUT:
+            return description ? Lighting_Output_Description_Set
+                               : Lighting_Output_Name_Set;
+        case OBJECT_BINARY_LIGHTING_OUTPUT:
+            return description ? Binary_Lighting_Output_Description_Set
+                               : Binary_Lighting_Output_Name_Set;
+        case OBJECT_COLOR:
+            return description ? Color_Description_Set : Color_Name_Set;
+        case OBJECT_COLOR_TEMPERATURE:
+            return description ? Color_Temperature_Description_Set
+                               : Color_Temperature_Name_Set;
+        case OBJECT_LOOP:
+            return description ? Loop_Description_Set : Loop_Name_Set;
+        case OBJECT_TIMER:
+            return description ? Timer_Description_Set : Timer_Name_Set;
+        case OBJECT_ACCUMULATOR:
+            return description ? Accumulator_Description_Set
+                               : Accumulator_Name_Set;
+        case OBJECT_AVERAGING:
+            return description ? Averaging_Description_Set : Averaging_Name_Set;
+        case OBJECT_LOAD_CONTROL:
+            return description ? Load_Control_Description_Set
+                               : Load_Control_Name_Set;
+        case OBJECT_STRUCTURED_VIEW:
+            return description ? Structured_View_Description_Set
+                               : Structured_View_Name_Set;
         default:
             return NULL;
     }

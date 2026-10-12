@@ -144,6 +144,7 @@ class BacnetSystem {
       mainPort: responses.sendPort,
       interface: config.interface,
       port: config.port,
+      useIPv6: config.useIPv6,
       deviceInstance: config.deviceInstance,
       apduTimeoutMs: config.apduTimeout.inMilliseconds.clamp(100, 0xFFFF),
       apduRetries: config.maxRetries.clamp(0, 10),
