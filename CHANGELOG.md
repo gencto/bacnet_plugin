@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Network Port object** (ASHRAE 135 clause 12.56): the server now describes
+  its datalink with a proper Network Port object (object type, name,
+  Network_Type, IP address and UDP port, APDU length, network number, …),
+  populated from the live BACnet/IP or BACnet/IPv6 socket, instead of the
+  unconfigured instance-0 placeholder a Revision-28 device previously exposed.
+  Configured automatically when the server starts; `server.configureNetworkPort`
+  overrides the instance, network number or name.
 - **Transmit-side segmentation** (ASHRAE 135 clause 5.4): the server now
   sends a response that exceeds the requester's APDU in segments, window by
   window, instead of aborting — provided the requester set

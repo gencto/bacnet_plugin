@@ -1631,6 +1631,25 @@ class BacnetServer {
   Future<void> disableRouting() =>
       _system.call<void>((id) => RouterConfigureCommand(id, const []));
 
+  /// Reconfigures the device's Network Port object (ASHRAE 135 clause 12.56),
+  /// which describes this datalink. The server already configures one
+  /// automatically from the live BACnet/IP (or IPv6) socket when it starts; use
+  /// this to change the object [instance] (1 by default), the [networkNumber]
+  /// the port is attached to (0 when unknown) or its [name] (null keeps the
+  /// datalink default, "BACnet/IP Port" or "BACnet/IPv6 Port").
+  Future<void> configureNetworkPort({
+    int instance = 1,
+    int networkNumber = 0,
+    String? name,
+  }) {
+    RangeError.checkValueInInterval(instance, 1, 0x3FFFFF, 'instance');
+    RangeError.checkValueInInterval(networkNumber, 0, 0xFFFF, 'networkNumber');
+    return _system.call<void>(
+      (id) =>
+          NetworkPortConfigureCommand(id, instance, networkNumber, name ?? ''),
+    );
+  }
+
   /// Broadcasts an I-Am for the local device.
   Future<void> sendIAm() => _system.call<void>(SendIAmCommand.new);
 

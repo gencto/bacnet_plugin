@@ -426,6 +426,19 @@ class RouterConfigureCommand extends WorkerCommand {
   final List<int> networks;
 }
 
+/// Configures the device's Network Port object from the live datalink.
+class NetworkPortConfigureCommand extends WorkerCommand {
+  const NetworkPortConfigureCommand(
+    super.id,
+    this.instance,
+    this.networkNumber,
+    this.name,
+  );
+  final int instance;
+  final int networkNumber;
+  final String name;
+}
+
 /// Enables or disables an Audit Log object.
 class AuditLogConfigureCommand extends WorkerCommand {
   const AuditLogConfigureCommand(

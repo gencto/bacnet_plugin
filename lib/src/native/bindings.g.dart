@@ -273,6 +273,17 @@ external int bacnet_plugin_router_configure(
   int count,
 );
 
+/// Configures the device's Network Port object (clause 12.56) from the live
+/// datalink: object `instance` (0 selects the default 1), the `network_number`
+/// the port is attached to (0 when unknown) and an optional `name` (empty keeps
+/// the datalink default).
+@ffi.Native<ffi.Int32 Function(ffi.Uint32, ffi.Uint16, ffi.Pointer<ffi.Char>)>()
+external int bacnet_plugin_network_port_configure(
+  int instance,
+  int network_number,
+  ffi.Pointer<ffi.Char> name,
+);
+
 /// Copies the own BACnet/IP address (IPv4 address and UDP port, 6 bytes) to
 /// `mac`, which must hold at least 6 bytes: where devices send
 /// notifications to this engine.

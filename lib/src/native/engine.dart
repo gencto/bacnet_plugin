@@ -574,6 +574,18 @@ class NativeEngine {
   void setVendorId(int vendorId) =>
       checkNative(bacnet_plugin_device_set_vendor_id(vendorId));
 
+  /// Configures the device's Network Port object from the live datalink
+  /// (an empty [name] keeps the datalink default).
+  void configureNetworkPort(int instance, int networkNumber, String name) {
+    checkNative(
+      _withString(
+        name,
+        (ptr) =>
+            bacnet_plugin_network_port_configure(instance, networkNumber, ptr),
+      ),
+    );
+  }
+
   /// Sets the password of DeviceCommunicationControl and
   /// ReinitializeDevice ("" accepts requests without one).
   void setPassword(String password) =>

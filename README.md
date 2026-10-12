@@ -33,7 +33,8 @@ Dart programs such as headless gateways and supervisory services.
   (content in memory), Schedule, Calendar, Trend Log, Channel, Lighting
   Output, Binary Lighting Output, Color, Color Temperature, Loop, Timer,
   Accumulator, Averaging, Load Control, Structured View, Event
-  Enrollment, Audit Log and Audit Reporter objects;
+  Enrollment, Audit Log and Audit Reporter objects, and a Network Port
+  object describing its datalink;
   acts as a Time Master; audits client operations (AuditNotification,
   AuditLogQuery); answers
   Who-Is, Read/WriteProperty(Multiple), SubscribeCOV(Property)(Multiple), ReadRange,

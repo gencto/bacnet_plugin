@@ -511,6 +511,9 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
         bp_scm_reset();
         Device_Write_Property_Store_Callback_Set(bp_on_write_store);
         bp_alarm_ack_hooks();
+        /* describe this datalink with a proper Network Port object instead of
+           the unconfigured instance-0 placeholder (clause 12.56) */
+        bp_netport_configure(1, 0, NULL);
         bp_state.nc_rescan = true;
         bp_state.nc_rescan_elapsed = 0;
         bp_state.server_enabled = true;

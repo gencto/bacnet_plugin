@@ -627,6 +627,16 @@ BP_API int32_t bacnet_plugin_audit_reporter_set_recipient(
 BP_API int32_t
 bacnet_plugin_router_configure(const int32_t *networks, uint32_t count);
 
+/**
+ * Configures the device's Network Port object (clause 12.56) from the live
+ * datalink: object `instance` (0 selects the default 1), the `network_number`
+ * the port is attached to (0 when unknown) and an optional `name` (NULL keeps
+ * the datalink default). The server configures it automatically on enable; call
+ * this to override. Returns BP_OK or a negative BP_ERR_* code.
+ */
+BP_API int32_t bacnet_plugin_network_port_configure(
+    uint32_t instance, uint16_t network_number, const char *name);
+
 #ifdef __cplusplus
 }
 #endif

@@ -678,6 +678,23 @@ void main() {
     );
   });
 
+  test('exposes a configured Network Port object', () async {
+    final name = await client.readProperty(
+      device,
+      BacnetObjectType.networkPort,
+      1,
+      BacnetPropertyId.objectName,
+    );
+    expect(name.asString, 'BACnet/IP Port');
+    final udpPort = await client.readProperty(
+      device,
+      BacnetObjectType.networkPort,
+      1,
+      BacnetPropertyId.bacnetIpUdpPort,
+    );
+    expect(udpPort.asInt, serverPort);
+  });
+
   test('receives COV notifications with values', () async {
     final notifications = <CovNotificationEvent>[];
     final subscription = client.covEvents.listen(notifications.add);

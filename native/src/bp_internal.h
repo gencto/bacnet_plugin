@@ -294,6 +294,12 @@ void bp_tx_segments_timer(uint32_t now);
 /** Drops every responder transfer and frees its buffer. */
 void bp_tx_segments_reset(void);
 
+/* ---- bp_netport.c ------------------------------------------------------ */
+
+/** Fills the Network Port object from the live datalink (BACnet/IP or IPv6). */
+void bp_netport_configure(
+    uint32_t instance, uint16_t network_number, const char *name);
+
 /* ---- bp_server.c ------------------------------------------------------- */
 
 /** Runs the COV detection when the scan interval elapsed. */
