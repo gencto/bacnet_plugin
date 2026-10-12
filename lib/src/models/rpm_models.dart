@@ -117,13 +117,19 @@ class BacnetReadAccessSpecification {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is BacnetReadAccessSpecification &&
-        other.objectIdentifier == objectIdentifier &&
-        other.properties.length == properties.length;
+    if (other is! BacnetReadAccessSpecification ||
+        other.objectIdentifier != objectIdentifier ||
+        other.properties.length != properties.length) {
+      return false;
+    }
+    for (var i = 0; i < properties.length; i++) {
+      if (other.properties[i] != properties[i]) return false;
+    }
+    return true;
   }
 
   @override
-  int get hashCode => Object.hash(objectIdentifier, properties.length);
+  int get hashCode => Object.hash(objectIdentifier, Object.hashAll(properties));
 
   @override
   String toString() => '$objectIdentifier: $properties';

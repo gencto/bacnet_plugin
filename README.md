@@ -962,8 +962,8 @@ client.covEvents.listen((event) {
 ```
 
 Devices without the service reject it (`BacnetRejectException`); use
-`subscribeCOV` for them. bacnet-stack, and so the server of this package,
-does not implement it.
+`subscribeCOV` for them. The server of this package implements
+SubscribeCOVPropertyMultiple as a target (since 0.9.0).
 
 ## Device descriptions and the command line tool
 
