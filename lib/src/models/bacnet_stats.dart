@@ -18,6 +18,7 @@ class BacnetStats {
     required this.bindingDevices,
     this.offlineDevices = 0,
     this.segmentedReplies = 0,
+    this.segmentedSent = 0,
     required this.freeTransactions,
     required this.pollCalls,
   });
@@ -61,6 +62,9 @@ class BacnetStats {
   /// Answers received in segments and reassembled.
   final int segmentedReplies;
 
+  /// Responses this device sent segmented (one per segmented response).
+  final int segmentedSent;
+
   /// Idle transaction state machine slots.
   final int freeTransactions;
 
@@ -76,5 +80,6 @@ class BacnetStats {
       'droppedReplies: $repliesDropped, droppedEvents: $eventsDropped, '
       'bound: $boundDevices, binding: $bindingDevices, '
       'offline: $offlineDevices, segmented: $segmentedReplies, '
+      'segmentedSent: $segmentedSent, '
       'freeTsm: $freeTransactions)';
 }

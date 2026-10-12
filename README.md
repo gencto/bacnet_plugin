@@ -47,6 +47,8 @@ Dart programs such as headless gateways and supervisory services.
   asks a supervisor for its device instance (Who-Am-I/You-Are); batch
   updates of present values; write notifications; state persistence
   (snapshot and restore its objects and values through a pluggable store);
+  transmits large answers (object lists, GetEnrollmentSummary, AuditLogQuery)
+  in segments when the requester accepts it;
   advertises itself as a router to virtual networks; runs over BACnet/IPv4
   or, on POSIX, BACnet/IPv6.
 - **Built for load**: request scheduler with global and per-device
@@ -256,11 +258,15 @@ Run them yourself with `benchmark/load_test.dart` (modes `rp`, `rpm` and
 - Services are encoded/decoded in Dart (`lib/src/codec`) with a bounds
   checked reader.
 - Server requests are answered by bacnet-stack without running Dart code.
-- Segmented answers to client requests are reassembled by the engine
-  (`native/src/bp_segments.c`), since the transaction state machine of
-  bacnet-stack does not implement segmentation. The server cannot send
-  segmented answers: requests whose answer exceeds the client's APDU are
-  aborted with segmentation-not-supported.
+- Segmentation is handled by the engine in both directions, since the
+  transaction state machine of bacnet-stack does not implement it: segmented
+  answers to our client's requests are reassembled
+  (`native/src/bp_segments.c`), and the server transmits large answers in
+  segments (`native/src/bp_tx_segments.c`) when the requester accepts
+  segmentation — otherwise it aborts with segmentation-not-supported, as
+  before. Transmit segmentation covers ReadProperty (e.g. a large object
+  list), GetEnrollmentSummary and AuditLogQuery; it can be disabled with
+  `BacnetConfig(transmitSegmentation: false)`.
 
 ## Error handling
 

@@ -146,6 +146,8 @@ typedef struct {
     uint32_t event_buffer_capacity;
     /** Complex ACKs received in segments and reassembled. */
     uint32_t segmented_replies;
+    /** Complex ACKs this device sent segmented (one per segmented response). */
+    uint32_t segmented_sent;
 } bp_stats_t;
 
 /* ---- Tunable options for bacnet_plugin_set_option() ------------------- */
@@ -164,6 +166,9 @@ typedef struct {
 /** Segments accepted in answers to our requests (0..32, below 2 disables
  *  segmented responses). */
 #define BP_OPTION_MAX_SEGMENTS 7
+/** Segment our own large responses when the requester accepts it (default on;
+ *  0 disables and the server aborts oversize responses instead). */
+#define BP_OPTION_TX_SEGMENTATION 8
 
 /* ---- Lifecycle -------------------------------------------------------- */
 

@@ -13,6 +13,10 @@
 #include "bacnet/list_element.h"
 #include "bacnet/bacstr.h"
 #include "bacnet/rd.h"
+#include "bacnet/rp.h"
+#include "bacnet/abort.h"
+#include "bacnet/reject.h"
+#include "bacnet/bacerror.h"
 #include "bacnet/alarm_ack.h"
 #include "bacnet/basic/object/bv.h"
 #include "bacnet/basic/object/device.h"
@@ -343,6 +347,82 @@ void bp_cov_scan(uint32_t now)
     }
 }
 
+/* ReadProperty handler that can segment a large answer. It mirrors
+   bacnet-stack's handler_read_property but encodes the whole ComplexACK into a
+   staging buffer so bp_tx_send_complex_ack() can send it as one datagram or,
+   when it does not fit and the requester accepts segmentation, window by
+   window (bp_tx_segments.c). */
+static void bp_on_read_property(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data)
+{
+    BACNET_READ_PROPERTY_DATA rpdata;
+    uint8_t *ack = &bp_state.tx_ack[0];
+    uint8_t err[16];
+    int ack_len = 0;
+    int status;
+    int err_len = 0;
+    bool ok = false;
+
+    memset(&rpdata, 0, sizeof(rpdata));
+    rpdata.error_class = ERROR_CLASS_SERVICES;
+    rpdata.error_code = ERROR_CODE_ABORT_SEGMENTATION_NOT_SUPPORTED;
+
+    if (service_data->segmented_message) {
+        /* a segmented request would have to be reassembled first */
+        status = BACNET_STATUS_ABORT;
+    } else if (request == NULL || len == 0) {
+        status = BACNET_STATUS_REJECT;
+        rpdata.error_code = ERROR_CODE_REJECT_MISSING_REQUIRED_PARAMETER;
+    } else {
+        status = rp_decode_service_request(request, len, &rpdata);
+        if (status > 0) {
+            if (rpdata.object_type == OBJECT_DEVICE &&
+                rpdata.object_instance == BACNET_MAX_INSTANCE) {
+                rpdata.object_instance = Device_Object_Instance_Number();
+            }
+            ack_len =
+                rp_ack_encode_apdu_init(&ack[0], service_data->invoke_id, &rpdata);
+            rpdata.application_data = &ack[ack_len];
+            rpdata.application_data_len = (int)BP_TX_ACK_SIZE - ack_len -
+                rp_ack_encode_apdu_object_property_end(NULL);
+            if (!read_property_bacnet_array_valid(&rpdata)) {
+                status = BACNET_STATUS_ERROR;
+            } else {
+                status = Device_Read_Property(&rpdata);
+            }
+            if (status >= 0) {
+                ack_len += status;
+                ack_len +=
+                    rp_ack_encode_apdu_object_property_end(&ack[ack_len]);
+                ok = true;
+            }
+        }
+    }
+    if (ok) {
+        bp_tx_send_complex_ack(src, service_data, ack, (uint32_t)ack_len);
+        return;
+    }
+    if (status == BACNET_STATUS_ABORT) {
+        err_len = abort_encode_apdu(
+            &err[0], service_data->invoke_id,
+            abort_convert_error_code(rpdata.error_code), true);
+    } else if (status == BACNET_STATUS_ERROR) {
+        err_len = bacerror_encode_apdu(
+            &err[0], service_data->invoke_id, SERVICE_CONFIRMED_READ_PROPERTY,
+            rpdata.error_class, rpdata.error_code);
+    } else {
+        err_len = reject_encode_apdu(
+            &err[0], service_data->invoke_id,
+            reject_convert_error_code(rpdata.error_code));
+    }
+    if (err_len > 0) {
+        bp_tx_send_apdu(src, service_data->priority, &err[0], (uint32_t)err_len);
+    }
+}
+
 BP_API int32_t
 bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
 {
@@ -370,7 +450,7 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
         apdu_set_unconfirmed_handler(
             SERVICE_UNCONFIRMED_UTC_TIME_SYNCHRONIZATION, handler_timesync_utc);
         apdu_set_confirmed_handler(
-            SERVICE_CONFIRMED_READ_PROPERTY, handler_read_property);
+            SERVICE_CONFIRMED_READ_PROPERTY, bp_on_read_property);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_READ_PROP_MULTIPLE,
             handler_read_property_multiple);

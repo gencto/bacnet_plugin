@@ -532,9 +532,7 @@ void bp_on_audit_log_query(
     BACNET_ADDRESS *src,
     BACNET_CONFIRMED_SERVICE_DATA *service_data)
 {
-    BACNET_NPDU_DATA npdu_data;
-    BACNET_ADDRESS my_address;
-    uint8_t *buf = &Handler_Transmit_Buffer[0];
+    uint8_t *buf = &bp_state.tx_ack[0];
     BACNET_OBJECT_TYPE object_type = OBJECT_NONE;
     uint32_t object_instance = 0;
     BACNET_UNSIGNED_INTEGER start_at = 0;
@@ -542,30 +540,33 @@ void bp_on_audit_log_query(
     uint32_t count;
     uint32_t sent = 0;
     uint32_t index;
-    int pdu_len;
+    int pdu_len = 0;
     int offset = 0;
     int tag_len;
     bool more = false;
 
-    datalink_get_my_address(&my_address);
-    npdu_encode_npdu_data(&npdu_data, false, service_data->priority);
-    pdu_len = npdu_encode_pdu(buf, src, &my_address, &npdu_data);
     if (service_data->segmented_message) {
-        pdu_len += abort_encode_apdu(
-            &buf[pdu_len], service_data->invoke_id,
+        uint8_t apdu[8];
+        int n = abort_encode_apdu(
+            &apdu[0], service_data->invoke_id,
             ABORT_REASON_SEGMENTATION_NOT_SUPPORTED, true);
-        (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len);
+        if (n > 0) {
+            bp_tx_send_apdu(src, service_data->priority, &apdu[0], (uint32_t)n);
+        }
         return;
     }
     /* auditLog [0] is mandatory; the APDU handler delivers an empty service
        request as a NULL, zero-length buffer, so reject it before any pointer
        arithmetic on request */
     if (request == NULL || len == 0) {
-        pdu_len += bacerror_encode_apdu(
-            &buf[pdu_len], service_data->invoke_id,
+        uint8_t apdu[16];
+        int n = bacerror_encode_apdu(
+            &apdu[0], service_data->invoke_id,
             SERVICE_CONFIRMED_AUDIT_LOG_QUERY, ERROR_CLASS_OBJECT,
             ERROR_CODE_UNKNOWN_OBJECT);
-        (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len);
+        if (n > 0) {
+            bp_tx_send_apdu(src, service_data->priority, &apdu[0], (uint32_t)n);
+        }
         return;
     }
     /* auditLog [0] BACnetObjectIdentifier */
@@ -573,11 +574,14 @@ void bp_on_audit_log_query(
         &request[offset], len - offset, 0, &object_type, &object_instance);
     if (tag_len <= 0 || object_type != OBJECT_AUDIT_LOG ||
         !Audit_Log_Valid_Instance(object_instance)) {
-        pdu_len += bacerror_encode_apdu(
-            &buf[pdu_len], service_data->invoke_id,
+        uint8_t apdu[16];
+        int n = bacerror_encode_apdu(
+            &apdu[0], service_data->invoke_id,
             SERVICE_CONFIRMED_AUDIT_LOG_QUERY, ERROR_CLASS_OBJECT,
             ERROR_CODE_UNKNOWN_OBJECT);
-        (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len);
+        if (n > 0) {
+            bp_tx_send_apdu(src, service_data->priority, &apdu[0], (uint32_t)n);
+        }
         return;
     }
     offset += tag_len;
@@ -643,7 +647,7 @@ void bp_on_audit_log_query(
             continue;
         }
         record_len = bacnet_audit_log_record_encode(NULL, record);
-        if (pdu_len + record_len + 8 > (int)sizeof(Handler_Transmit_Buffer)) {
+        if ((uint32_t)pdu_len + (uint32_t)record_len + 8u > BP_TX_ACK_SIZE) {
             more = true;
             break;
         }
@@ -653,5 +657,5 @@ void bp_on_audit_log_query(
     pdu_len += encode_closing_tag(&buf[pdu_len], 1);
     /* noMoreItems [2] BOOLEAN */
     pdu_len += encode_context_boolean(&buf[pdu_len], 2, !more);
-    (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len);
+    bp_tx_send_complex_ack(src, service_data, buf, (uint32_t)pdu_len);
 }

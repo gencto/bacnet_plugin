@@ -20,10 +20,22 @@ class ServerProcess {
   final Process process;
   final List<String> lines;
 
-  static Future<ServerProcess> start(int port, int device, int objects) async {
+  static Future<ServerProcess> start(
+    int port,
+    int device,
+    int objects, {
+    bool transmitSegmentation = true,
+  }) async {
     final process = await Process.start(
       Platform.resolvedExecutable,
-      ['run', 'tool/demo_server.dart', '$port', '$device', '$objects'],
+      [
+        'run',
+        'tool/demo_server.dart',
+        '$port',
+        '$device',
+        '$objects',
+        transmitSegmentation ? '1' : '0',
+      ],
       environment: {'BACNET_IFACE': '127.0.0.1'},
     );
     final lines = <String>[];
@@ -565,6 +577,105 @@ void main() {
       final stats = await client.stats();
       expect(stats.inFlightRequests, 0);
     });
+  });
+
+  group('segmented responses (server transmit)', () {
+    const bigDevice = 7300;
+    const bigPort = 47863;
+    late ServerProcess bigServer;
+
+    setUp(() async {
+      // 300 analog values push the Device object_list past one 1476-byte APDU,
+      // so our own server must segment the ReadProperty answer.
+      bigServer = await ServerProcess.start(bigPort, bigDevice, 300);
+      await client.addDeviceBinding(bigDevice, '127.0.0.1', port: bigPort);
+    });
+
+    tearDown(() async {
+      await bigServer.stop();
+    });
+
+    test(
+      'sends a large object list in segments the client reassembles',
+      () async {
+        final before = await client.stats();
+        final list = (await client.readProperty(
+          bigDevice,
+          BacnetObjectType.device,
+          bigDevice,
+          BacnetPropertyId.objectList,
+        )).asList;
+        // the 300 analog values plus the device and the other demo objects
+        expect(list.length, greaterThan(300));
+        expect(
+          list,
+          contains(
+            const BacnetObject(
+              type: BacnetObjectType.device,
+              instance: bigDevice,
+            ),
+          ),
+        );
+        // the client only reassembles a segmented reply when the server
+        // actually transmitted one, so this proves both halves end to end
+        final after = await client.stats();
+        expect(after.segmentedReplies - before.segmentedReplies, 1);
+      },
+    );
+
+    test('advertises segmented transmit support', () async {
+      final value = await client.readProperty(
+        bigDevice,
+        BacnetObjectType.device,
+        bigDevice,
+        BacnetPropertyId.segmentationSupported,
+      );
+      // SEGMENTATION_TRANSMIT (1): the engine sends segmented responses but
+      // does not reassemble segmented requests.
+      expect(value.asInt, 1);
+    });
+
+    test(
+      'aborts instead of segmenting when transmit segmentation is off',
+      () async {
+        // A second server process with transmit segmentation disabled (its own
+        // native engine, unlike a second in-process client which would share the
+        // process-global stack). It must abort the oversize ReadProperty with
+        // segmentation-not-supported; the client then falls back to reading the
+        // array element by element, so the full list still comes back without any
+        // segmented reply.
+        const offDevice = 7301;
+        const offPort = 47865;
+        final offServer = await ServerProcess.start(
+          offPort,
+          offDevice,
+          300,
+          transmitSegmentation: false,
+        );
+        addTearDown(offServer.stop);
+        await client.addDeviceBinding(offDevice, '127.0.0.1', port: offPort);
+
+        final before = await client.stats();
+        await expectLater(
+          client.readProperty(
+            offDevice,
+            BacnetObjectType.device,
+            offDevice,
+            BacnetPropertyId.objectList,
+          ),
+          throwsA(
+            isA<BacnetAbortException>().having(
+              (e) => e.reason,
+              'reason',
+              BacnetAbortReason.segmentationNotSupported,
+            ),
+          ),
+        );
+        // nothing was segmented or reassembled
+        final after = await client.stats();
+        expect(after.segmentedReplies - before.segmentedReplies, 0);
+      },
+    );
   });
 
   test('receives COV notifications with values', () async {

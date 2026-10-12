@@ -253,6 +253,25 @@ int bp_device_read_property(BACNET_READ_PROPERTY_DATA *rpdata)
 {
     uint8_t *apdu;
 
+    /* Advertise our segmentation capability regardless of the backup object:
+       the engine transmits segmented responses but cannot reassemble segmented
+       requests, so it reports SEGMENTED_TRANSMIT (not BOTH). Covers both
+       ReadProperty and ReadPropertyMultiple, which share this Device read. */
+    if (rpdata && rpdata->application_data &&
+        rpdata->application_data_len > 0) {
+        switch (rpdata->object_property) {
+            case PROP_SEGMENTATION_SUPPORTED:
+                return encode_application_enumerated(
+                    rpdata->application_data,
+                    bp_state.tx_segmentation ? SEGMENTATION_TRANSMIT
+                                             : SEGMENTATION_NONE);
+            case PROP_MAX_SEGMENTS_ACCEPTED:
+                return encode_application_unsigned(
+                    rpdata->application_data, bp_state.max_segments);
+            default:
+                break;
+        }
+    }
     if (!bp_backup.enabled || !rpdata || !rpdata->application_data ||
         rpdata->application_data_len <= 0) {
         return Device_Read_Property_Local(rpdata);

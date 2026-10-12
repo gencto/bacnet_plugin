@@ -12,6 +12,8 @@
  *   bit 0    the packet comes from the bound device (else another address)
  *   bit 1    the APDU of a reply gets the invoke id of the open request
  *   bits 2-4 the open request (ReadProperty, ReadPropertyMultiple, ...)
+ *   bit 5    also open a segmented response to the bound device, so a fuzzed
+ *            SegmentACK drives the transmit-side segmentation state machine
  *
  * Built and run by tool/fuzz_native.dart.
  */
@@ -150,11 +152,36 @@ static void fuzz_open_request(unsigned kind)
             tsm_free_invoke_id((uint8_t)id);
         }
     }
+    bp_tx_segments_reset();
     kind %= sizeof(Requests) / sizeof(Requests[0]);
     invoke_id = bacnet_plugin_send_confirmed(
         FUZZ_REMOTE, Requests[kind].service, Requests[kind].data,
         Requests[kind].length, 0);
     Open_Invoke_Id = invoke_id > 0 ? (uint8_t)invoke_id : 0;
+}
+
+/* Starts a segmented response to the bound device (same invoke id the fuzzer
+   patches onto reply APDUs), so an inbound SegmentACK of that id exercises the
+   transmit-side segmentation state machine. */
+static void fuzz_open_response(void)
+{
+    static uint8_t ack[1024];
+    bp_device_entry_t *device = bp_device_find(FUZZ_REMOTE);
+    BACNET_CONFIRMED_SERVICE_DATA service_data;
+
+    if (!device || Open_Invoke_Id == 0) {
+        return;
+    }
+    memset(ack, 0x55, sizeof(ack));
+    ack[0] = PDU_TYPE_COMPLEX_ACK;
+    ack[1] = Open_Invoke_Id;
+    ack[2] = 12; /* ReadProperty service choice */
+    memset(&service_data, 0, sizeof(service_data));
+    service_data.invoke_id = Open_Invoke_Id;
+    service_data.max_resp = 206; /* small, to force several segments */
+    service_data.max_segs = 64;
+    service_data.segmented_response_accepted = true;
+    bp_tx_send_complex_ack(&device->address, &service_data, ack, sizeof(ack));
 }
 
 /* Offset of the APDU in an NPDU, or 0 for a network layer message. */
@@ -203,6 +230,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         return 0;
     }
     fuzz_open_request((data[0] >> 2) & 0x07);
+    if (data[0] & 0x20) {
+        fuzz_open_response();
+    }
     length = size - 1;
     /* a copy of the exact size: reads past the packet are found */
     npdu = malloc(length ? length : 1);

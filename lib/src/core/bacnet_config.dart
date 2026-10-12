@@ -44,6 +44,7 @@ class BacnetConfig {
     this.offlineAfterTimeouts = 3,
     this.offlineRetryInterval = const Duration(seconds: 30),
     this.maxSegmentsAccepted = 32,
+    this.transmitSegmentation = true,
     this.socketBufferSize = 4 * 1024 * 1024,
     this.strictSourceCheck = true,
     this.covScanInterval = const Duration(milliseconds: 50),
@@ -160,6 +161,17 @@ class BacnetConfig {
   /// ReadPropertyMultiple requests and reading arrays element by element.
   final int maxSegmentsAccepted;
 
+  /// Whether the server segments its own large responses (default true).
+  ///
+  /// When a response (a large object list, a GetEnrollmentSummary or an
+  /// AuditLogQuery result) exceeds the requester's APDU size and the requester
+  /// accepts segmentation, the server sends it window by window instead of
+  /// aborting. Disable only for peers that mishandle segmented ComplexACKs; the
+  /// server then aborts oversize responses with segmentation-not-supported, as
+  /// before. The device advertises Segmentation_Supported accordingly
+  /// (segmentedTransmit when enabled, noSegmentation otherwise).
+  final bool transmitSegmentation;
+
   /// Socket send/receive buffer size in bytes (0 keeps the OS default).
   /// Large buffers avoid packet loss during I-Am storms and bursts.
   final int socketBufferSize;
@@ -205,6 +217,7 @@ class BacnetConfig {
     int? offlineAfterTimeouts,
     Duration? offlineRetryInterval,
     int? maxSegmentsAccepted,
+    bool? transmitSegmentation,
     int? socketBufferSize,
     bool? strictSourceCheck,
     Duration? covScanInterval,
@@ -232,6 +245,7 @@ class BacnetConfig {
       offlineAfterTimeouts: offlineAfterTimeouts ?? this.offlineAfterTimeouts,
       offlineRetryInterval: offlineRetryInterval ?? this.offlineRetryInterval,
       maxSegmentsAccepted: maxSegmentsAccepted ?? this.maxSegmentsAccepted,
+      transmitSegmentation: transmitSegmentation ?? this.transmitSegmentation,
       socketBufferSize: socketBufferSize ?? this.socketBufferSize,
       strictSourceCheck: strictSourceCheck ?? this.strictSourceCheck,
       covScanInterval: covScanInterval ?? this.covScanInterval,

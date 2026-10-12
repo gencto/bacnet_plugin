@@ -91,6 +91,7 @@ final class _Worker implements RequestTransport {
         strictSourceCheck: startup.strictSourceCheck,
         covScanIntervalMs: startup.covScanIntervalMs,
         maxSegments: startup.maxSegments,
+        transmitSegmentation: startup.transmitSegmentation,
       );
     } on BacnetException {
       _engine.shutdown();
@@ -460,6 +461,7 @@ final class _Worker implements RequestTransport {
       bindingDevices: _scheduler.binding,
       offlineDevices: _scheduler.offline,
       segmentedReplies: native.segmentedReplies,
+      segmentedSent: native.segmentedSent,
       freeTransactions: native.freeTransactions,
       pollCalls: native.pollCalls,
     );

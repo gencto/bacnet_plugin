@@ -102,6 +102,39 @@ typedef struct {
     bp_segments_t *segments;
 } bp_transaction_t;
 
+/* ---- transmit-side segmentation of responses (bp_tx_segments.c) -------- */
+
+/* Concurrent segmented responses in flight. */
+#define BP_TX_SEG_SLOTS 4
+/* Proposed window size: segments sent before an acknowledgement is awaited. */
+#define BP_TX_SEG_WINDOW 16
+/* Retransmissions of a window before a transfer is abandoned. */
+#define BP_TX_SEG_RETRIES 3
+/* Largest response we segment (bytes of service-ack data). */
+#define BP_TX_SEG_MAX_BYTES 65000u
+/* Upper bound on the number of segments of one response. */
+#define BP_TX_SEG_MAX_COUNT 64u
+/* Staging buffer for a complete ComplexACK before it is (maybe) segmented. */
+#define BP_TX_ACK_SIZE (BP_TX_SEG_MAX_BYTES + 8u)
+
+/** A response being transmitted window by window (bp_tx_segments.c). */
+typedef struct {
+    bool active;
+    uint8_t invoke_id;
+    uint8_t service;  /* ComplexACK service choice */
+    uint8_t priority; /* BACnet message priority of the response NPDU */
+    uint8_t window;   /* proposed window size (segments per burst) */
+    uint8_t count;    /* total number of segments */
+    uint8_t acked;    /* highest sequence positively acked (0xFF: none yet) */
+    uint8_t sent;     /* last sequence of the outstanding window */
+    uint8_t retries;  /* retransmissions of the current window */
+    uint16_t chunk;   /* service-ack bytes per segment */
+    uint32_t length;  /* total service-ack bytes */
+    uint8_t *data;    /* the service-ack data (after the 3-byte ACK header) */
+    uint32_t deadline;
+    BACNET_ADDRESS dest;
+} bp_tx_seg_t;
+
 /* ---- engine state ------------------------------------------------------ */
 
 typedef struct {
@@ -126,6 +159,9 @@ typedef struct {
     uint8_t max_segments;
     uint8_t last_invoke_id;
     uint32_t segmenting;
+    /* transmit-side segmentation of our responses */
+    bool tx_segmentation;
+    uint32_t tx_segmenting;
     /* foreign device registration */
     BACNET_IP_ADDRESS fdr_bbmd;
     uint16_t fdr_ttl;
@@ -139,10 +175,13 @@ typedef struct {
     bp_device_table_t devices;
     bp_string_table_t strings;
     bp_transaction_t tx[256];
+    bp_tx_seg_t tx_seg[BP_TX_SEG_SLOTS];
     bp_stats_t stats;
     /* buffers */
     uint8_t rx_buf[MAX_MPDU + 16];
     uint8_t tx_buf[MAX_PDU];
+    /* staging for a response ComplexACK before it is (maybe) segmented */
+    uint8_t tx_ack[BP_TX_ACK_SIZE];
 } bp_state_t;
 
 /** The engine state (bacnet_plugin.c). */
@@ -227,6 +266,33 @@ void bp_segment_received(
 void bp_segments_timer(uint32_t now);
 /** Ends a transaction and releases its reassembly buffer. */
 void bp_tx_end(bp_transaction_t *tx);
+
+/* ---- bp_tx_segments.c -------------------------------------------------- */
+
+/** Sends a complete, unsegmented ComplexACK: apdu[0]=PDU_TYPE_COMPLEX_ACK,
+ *  apdu[1]=invoke id, apdu[2]=service choice, then the service-ack data. It
+ *  goes out as one datagram when it fits the requester's APDU, is segmented
+ *  window by window when the requester accepts segmentation, or is answered
+ *  with an Abort otherwise. */
+void bp_tx_send_complex_ack(
+    const BACNET_ADDRESS *dest,
+    const BACNET_CONFIRMED_SERVICE_DATA *service_data,
+    const uint8_t *apdu,
+    uint32_t apdu_len);
+/** Prefixes the NPDU and sends one ready-made APDU datagram to dest. */
+void bp_tx_send_apdu(
+    const BACNET_ADDRESS *dest,
+    uint8_t priority,
+    const uint8_t *apdu,
+    uint32_t apdu_len);
+/** Routes an inbound SegmentACK (APDU without NPDU) to an outstanding
+ *  responder transfer; true when it belonged to one. */
+bool bp_tx_segment_ack(
+    const BACNET_ADDRESS *src, const uint8_t *apdu, uint16_t apdu_len);
+/** Retransmits or times out responder transfers. */
+void bp_tx_segments_timer(uint32_t now);
+/** Drops every responder transfer and frees its buffer. */
+void bp_tx_segments_reset(void);
 
 /* ---- bp_server.c ------------------------------------------------------- */
 

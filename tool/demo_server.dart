@@ -13,11 +13,14 @@ Future<void> main(List<String> args) async {
   final port = args.isNotEmpty ? int.parse(args[0]) : 47811;
   final deviceId = args.length > 1 ? int.parse(args[1]) : 1001;
   final objects = args.length > 2 ? int.parse(args[2]) : 100;
+  // optional 4th arg: '0' disables transmit-side segmentation of responses
+  final transmitSegmentation = args.length <= 3 || args[3] != '0';
   final iface = Platform.environment['BACNET_IFACE'] ?? 'lo';
   final server = BacnetServer(
     config: BacnetConfig(
       interface: iface,
       port: port,
+      transmitSegmentation: transmitSegmentation,
       logLevel: BacnetLogLevel.warning,
       logger: const ConsoleBacnetLogger(),
     ),

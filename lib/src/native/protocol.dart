@@ -28,6 +28,7 @@ class WorkerStartup {
     required this.offlineAfterTimeouts,
     required this.offlineRetryMs,
     required this.maxSegments,
+    required this.transmitSegmentation,
     required this.logLevel,
   });
 
@@ -49,6 +50,7 @@ class WorkerStartup {
   final int offlineAfterTimeouts;
   final int offlineRetryMs;
   final int maxSegments;
+  final bool transmitSegmentation;
   final BacnetLogLevel logLevel;
 }
 

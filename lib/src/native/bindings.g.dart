@@ -720,6 +720,8 @@ const int BP_OPTION_MAX_EVENT_BUFFER = 3;
 
 const int BP_OPTION_MAX_SEGMENTS = 7;
 
+const int BP_OPTION_TX_SEGMENTATION = 8;
+
 const int BP_OPTION_STRICT_SOURCE = 1;
 
 /// Header that precedes every event in the event buffer (host byte order,
@@ -845,6 +847,10 @@ final class bp_stats_t extends ffi.Struct {
   @ffi.Uint32()
   external int segmented_replies;
 
+  /// Complex ACKs this device sent segmented (one per segmented response).
+  @ffi.Uint32()
+  external int segmented_sent;
+
   static ffi.Pointer<bp_stats_t> $allocate(
     ffi.Allocator $allocator, {
     required int packets_received,
@@ -857,6 +863,7 @@ final class bp_stats_t extends ffi.Struct {
     required int bound_devices,
     required int event_buffer_capacity,
     required int segmented_replies,
+    required int segmented_sent,
   }) => $allocator<bp_stats_t>()
     ..ref.packets_received = packets_received
     ..ref.requests_sent = requests_sent
@@ -867,5 +874,6 @@ final class bp_stats_t extends ffi.Struct {
     ..ref.tsm_idle = tsm_idle
     ..ref.bound_devices = bound_devices
     ..ref.event_buffer_capacity = event_buffer_capacity
-    ..ref.segmented_replies = segmented_replies;
+    ..ref.segmented_replies = segmented_replies
+    ..ref.segmented_sent = segmented_sent;
 }

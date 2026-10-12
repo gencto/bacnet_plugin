@@ -85,6 +85,7 @@ static void bp_timers(void)
         }
     }
     bp_segments_timer(now);
+    bp_tx_segments_timer(now);
     bp_cov_scan(now);
     bp_time_master_tick(now);
 }
@@ -125,6 +126,11 @@ static bool bp_accept_reply(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t len)
     if (type == PDU_TYPE_COMPLEX_ACK && (pdu[offset] & 0x08)) {
         /* segmented: bacnet-stack cannot reassemble it */
         bp_segment_received(&full_src, &pdu[offset], (uint16_t)(len - offset));
+        return false;
+    }
+    if (type == PDU_TYPE_SEGMENT_ACK &&
+        bp_tx_segment_ack(&full_src, &pdu[offset], (uint16_t)(len - offset))) {
+        /* acknowledges a window of a response we are transmitting in segments */
         return false;
     }
     if (!bp_state.strict_source) {
@@ -248,6 +254,8 @@ BP_API int32_t bacnet_plugin_init(
     memset(bp_state.tx, 0, sizeof(bp_state.tx));
     bp_state.segmenting = 0;
     bp_state.max_segments = BP_DEFAULT_MAX_SEGMENTS;
+    bp_tx_segments_reset();
+    bp_state.tx_segmentation = true;
     bp_state.server_enabled = false;
     bp_state.strict_source = true;
     bp_state.suppress_write_events = false;
@@ -336,6 +344,7 @@ BP_API void bacnet_plugin_shutdown(void)
         }
     }
     memset(bp_state.tx, 0, sizeof(bp_state.tx));
+    bp_tx_segments_reset();
     Device_Write_Property_Store_Callback_Set(NULL);
     if (bp_state.server_enabled) {
         Device_Delete_Objects();
@@ -394,6 +403,9 @@ BP_API int32_t bacnet_plugin_set_option(int32_t option, int64_t value)
                 return BP_ERR_INVALID_ARGUMENT;
             }
             bp_state.max_segments = (uint8_t)value;
+            return BP_OK;
+        case BP_OPTION_TX_SEGMENTATION:
+            bp_state.tx_segmentation = value != 0;
             return BP_OK;
         default:
             return BP_ERR_INVALID_ARGUMENT;

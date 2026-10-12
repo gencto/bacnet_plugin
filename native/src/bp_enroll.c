@@ -247,31 +247,33 @@ void bp_on_get_enrollment_summary(
     BACNET_CONFIRMED_SERVICE_DATA *service_data)
 {
     bp_enroll_filter_t filter;
-    BACNET_NPDU_DATA npdu_data;
-    BACNET_ADDRESS my_address;
-    uint8_t *buf = &Handler_Transmit_Buffer[0];
+    uint8_t *buf = &bp_state.tx_ack[0];
     int pdu_len;
     unsigned count;
     unsigned i;
 
-    datalink_get_my_address(&my_address);
-    npdu_encode_npdu_data(&npdu_data, false, service_data->priority);
-    pdu_len = npdu_encode_pdu(buf, src, &my_address, &npdu_data);
     if (service_data->segmented_message) {
-        pdu_len += abort_encode_apdu(
-            &buf[pdu_len], service_data->invoke_id,
+        uint8_t apdu[8];
+        int n = abort_encode_apdu(
+            &apdu[0], service_data->invoke_id,
             ABORT_REASON_SEGMENTATION_NOT_SUPPORTED, true);
-        (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len);
+        if (n > 0) {
+            bp_tx_send_apdu(src, service_data->priority, &apdu[0], (uint32_t)n);
+        }
         return;
     }
     if (!bp_enroll_decode(request, len, &filter)) {
-        pdu_len += bacerror_encode_apdu(
-            &buf[pdu_len], service_data->invoke_id,
+        uint8_t apdu[16];
+        int n = bacerror_encode_apdu(
+            &apdu[0], service_data->invoke_id,
             SERVICE_CONFIRMED_GET_ENROLLMENT_SUMMARY, ERROR_CLASS_SERVICES,
             ERROR_CODE_INCONSISTENT_PARAMETERS);
-        (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len);
+        if (n > 0) {
+            bp_tx_send_apdu(src, service_data->priority, &apdu[0], (uint32_t)n);
+        }
         return;
     }
+    pdu_len = 0;
     buf[pdu_len++] = PDU_TYPE_COMPLEX_ACK;
     buf[pdu_len++] = service_data->invoke_id;
     buf[pdu_len++] = SERVICE_CONFIRMED_GET_ENROLLMENT_SUMMARY;
@@ -325,8 +327,8 @@ void bp_on_get_enrollment_summary(
         if (filter.has_priority && filter.priority_min > 0) {
             continue;
         }
-        if (pdu_len + 24 > (int)sizeof(Handler_Transmit_Buffer)) {
-            break;
+        if ((uint32_t)pdu_len + 24u > BP_TX_ACK_SIZE) {
+            break; /* safety bound on the staging buffer */
         }
         pdu_len += encode_application_object_id(&buf[pdu_len], type, instance);
         pdu_len += encode_application_enumerated(&buf[pdu_len], event_type);
@@ -337,5 +339,5 @@ void bp_on_get_enrollment_summary(
                 encode_application_unsigned(&buf[pdu_len], notification_class);
         }
     }
-    (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len);
+    bp_tx_send_complex_ack(src, service_data, buf, (uint32_t)pdu_len);
 }

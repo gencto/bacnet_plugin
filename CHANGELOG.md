@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Transmit-side segmentation** (ASHRAE 135 clause 5.4): the server now
+  sends a response that exceeds the requester's APDU in segments, window by
+  window, instead of aborting — provided the requester set
+  segmented-response-accepted. It covers ReadProperty (e.g. a large
+  `objectList` or other big value), GetEnrollmentSummary (previously truncated
+  silently) and AuditLogQuery. The device advertises
+  `Segmentation_Supported` as `segmentedTransmit`. New `BacnetStats.segmentedSent`
+  counts the segmented responses sent, and `BacnetConfig(transmitSegmentation:
+  false)` turns the feature off (the server then aborts oversize responses as
+  before). Segmenting large ReadPropertyMultiple/ReadRange answers and
+  segmenting the client's own outgoing requests are not yet implemented.
 - COV subscription methods now use Dart-idiomatic casing: `subscribeCov`,
   `unsubscribeCov`, `subscribeCovPropertyMultiple` and
   `unsubscribeCovPropertyMultiple`. `subscribeCov`/`unsubscribeCov` take
