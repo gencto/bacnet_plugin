@@ -17,6 +17,8 @@
 #include "bacnet/abort.h"
 #include "bacnet/reject.h"
 #include "bacnet/bacerror.h"
+#include "bacnet/create_object.h"
+#include "bacnet/delete_object.h"
 #include "bacnet/alarm_ack.h"
 #include "bacnet/basic/object/bv.h"
 #include "bacnet/basic/object/device.h"
@@ -423,6 +425,168 @@ static void bp_on_read_property(
     }
 }
 
+/* Reports a remote object create/delete to the application: the object
+   identity travels in the event header (a = type, b = instance). */
+static void bp_object_lifecycle_event(
+    uint8_t service,
+    uint16_t object_type,
+    uint32_t instance,
+    const BACNET_ADDRESS *src)
+{
+    bp_event_header_t hdr;
+
+    bp_event_init(&hdr, BP_EVENT_SERVICE);
+    hdr.service = service;
+    hdr.a = object_type;
+    hdr.b = instance;
+    if (src) {
+        bp_event_src(&hdr, src);
+    }
+    bp_event_push(&hdr, NULL, 0);
+}
+
+static void bp_object_created_hook(
+    uint16_t object_type, uint32_t instance, const BACNET_ADDRESS *src)
+{
+    /* value objects are writable by clients as their BACnet definition
+       requires; bacnet-stack disables it by default (as the local create does) */
+    switch ((BACNET_OBJECT_TYPE)object_type) {
+        case OBJECT_BINARY_VALUE:
+            Binary_Value_Write_Enable(instance);
+            break;
+        case OBJECT_MULTI_STATE_VALUE:
+            Multistate_Value_Write_Enable(instance);
+            break;
+        default:
+            break;
+    }
+    bp_alarm_ack_hooks();
+    bp_audit_report_lifecycle(AUDIT_OPERATION_CREATE, object_type, instance);
+    bp_object_lifecycle_event(
+        SERVICE_CONFIRMED_CREATE_OBJECT, object_type, instance, src);
+}
+
+static void bp_object_deleted_hook(
+    uint16_t object_type, uint32_t instance, const BACNET_ADDRESS *src)
+{
+    bp_string_remove(bp_string_key(object_type, instance, BP_STRING_NAME));
+    bp_string_remove(bp_string_key(object_type, instance, BP_STRING_DESCRIPTION));
+    bp_string_remove(bp_string_key(object_type, instance, BP_STRING_STATE_TEXTS));
+    bp_audit_report_lifecycle(AUDIT_OPERATION_DELETE, object_type, instance);
+    bp_object_lifecycle_event(
+        SERVICE_CONFIRMED_DELETE_OBJECT, object_type, instance, src);
+}
+
+/* CreateObject (clause 15.3): lets a remote client create an object. Mirrors
+   bacnet-stack's handler_create_object, then runs the plugin's post-creation
+   hooks (value-object write enable, audit, application event). */
+static void bp_on_create_object(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data)
+{
+    BACNET_CREATE_OBJECT_DATA data;
+    BACNET_NPDU_DATA npdu_data;
+    BACNET_ADDRESS my_address;
+    uint8_t *buf = &Handler_Transmit_Buffer[0];
+    int pdu_len;
+    int ack_len = 0;
+    bool created = false;
+
+    memset(&data, 0, sizeof(data));
+    datalink_get_my_address(&my_address);
+    npdu_encode_npdu_data(&npdu_data, false, service_data->priority);
+    pdu_len = npdu_encode_pdu(buf, src, &my_address, &npdu_data);
+    if (len == 0) {
+        ack_len = reject_encode_apdu(
+            &buf[pdu_len], service_data->invoke_id,
+            REJECT_REASON_MISSING_REQUIRED_PARAMETER);
+    } else if (service_data->segmented_message) {
+        ack_len = abort_encode_apdu(
+            &buf[pdu_len], service_data->invoke_id,
+            ABORT_REASON_SEGMENTATION_NOT_SUPPORTED, true);
+    } else {
+        int decoded =
+            create_object_decode_service_request(request, len, &data);
+        if (decoded <= 0) {
+            if (decoded == BACNET_STATUS_ABORT) {
+                ack_len = abort_encode_apdu(
+                    &buf[pdu_len], service_data->invoke_id,
+                    abort_convert_error_code(data.error_code), true);
+            } else {
+                ack_len = reject_encode_apdu(
+                    &buf[pdu_len], service_data->invoke_id,
+                    reject_convert_error_code(data.error_code));
+            }
+        } else if (Device_Create_Object(&data)) {
+            created = true;
+            ack_len = create_object_ack_encode(
+                &buf[pdu_len], service_data->invoke_id, &data);
+        } else {
+            ack_len = create_object_error_ack_encode(
+                &buf[pdu_len], service_data->invoke_id, &data);
+        }
+    }
+    if (ack_len > 0) {
+        (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len + ack_len);
+    }
+    if (created) {
+        bp_object_created_hook(
+            (uint16_t)data.object_type, data.object_instance, src);
+    }
+}
+
+/* DeleteObject (clause 15.4): lets a remote client delete an object. */
+static void bp_on_delete_object(
+    uint8_t *request,
+    uint16_t len,
+    BACNET_ADDRESS *src,
+    BACNET_CONFIRMED_SERVICE_DATA *service_data)
+{
+    BACNET_DELETE_OBJECT_DATA data;
+    BACNET_NPDU_DATA npdu_data;
+    BACNET_ADDRESS my_address;
+    uint8_t *buf = &Handler_Transmit_Buffer[0];
+    int pdu_len;
+    int ack_len = 0;
+    bool deleted = false;
+
+    memset(&data, 0, sizeof(data));
+    datalink_get_my_address(&my_address);
+    npdu_encode_npdu_data(&npdu_data, false, service_data->priority);
+    pdu_len = npdu_encode_pdu(buf, src, &my_address, &npdu_data);
+    if (len == 0) {
+        ack_len = reject_encode_apdu(
+            &buf[pdu_len], service_data->invoke_id,
+            REJECT_REASON_MISSING_REQUIRED_PARAMETER);
+    } else if (service_data->segmented_message) {
+        ack_len = abort_encode_apdu(
+            &buf[pdu_len], service_data->invoke_id,
+            ABORT_REASON_SEGMENTATION_NOT_SUPPORTED, true);
+    } else if (
+        delete_object_decode_service_request(request, len, &data) <= 0) {
+        ack_len = abort_encode_apdu(
+            &buf[pdu_len], service_data->invoke_id, ABORT_REASON_OTHER, true);
+    } else if (Device_Delete_Object(&data)) {
+        deleted = true;
+        ack_len = encode_simple_ack(
+            &buf[pdu_len], service_data->invoke_id,
+            SERVICE_CONFIRMED_DELETE_OBJECT);
+    } else {
+        ack_len = bacerror_encode_apdu(
+            &buf[pdu_len], service_data->invoke_id,
+            SERVICE_CONFIRMED_DELETE_OBJECT, data.error_class, data.error_code);
+    }
+    if (ack_len > 0) {
+        (void)datalink_send_pdu(src, &npdu_data, buf, pdu_len + ack_len);
+    }
+    if (deleted) {
+        bp_object_deleted_hook(
+            (uint16_t)data.object_type, data.object_instance, src);
+    }
+}
+
 BP_API int32_t
 bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
 {
@@ -476,6 +640,13 @@ bacnet_plugin_server_enable(uint32_t device_instance, const char *device_name)
             SERVICE_CONFIRMED_ADD_LIST_ELEMENT, bp_on_add_list_element);
         apdu_set_confirmed_handler(
             SERVICE_CONFIRMED_REMOVE_LIST_ELEMENT, bp_on_remove_list_element);
+        if (bp_state.remote_object_mgmt) {
+            /* opt-in: remote clients may create and delete objects */
+            apdu_set_confirmed_handler(
+                SERVICE_CONFIRMED_CREATE_OBJECT, bp_on_create_object);
+            apdu_set_confirmed_handler(
+                SERVICE_CONFIRMED_DELETE_OBJECT, bp_on_delete_object);
+        }
         apdu_set_unconfirmed_handler(
             SERVICE_UNCONFIRMED_WRITE_GROUP, bp_on_write_group);
         {

@@ -21,6 +21,8 @@ Future<void> main(List<String> args) async {
       interface: iface,
       port: port,
       transmitSegmentation: transmitSegmentation,
+      allowRemoteObjectManagement:
+          Platform.environment['BACNET_REMOTE_OBJECTS'] == '1',
       logLevel: BacnetLogLevel.warning,
       logger: const ConsoleBacnetLogger(),
     ),
@@ -55,6 +57,7 @@ Future<void> main(List<String> args) async {
   server.communicationControls.listen((e) => print('DCC $e'));
   server.reinitializeRequests.listen((e) => print('REINIT $e'));
   server.writeGroupEvents.listen((e) => print('GROUP $e'));
+  server.objectLifecycleEvents.listen((e) => print('LIFECYCLE $e'));
   for (var i = 0; i < objects; i++) {
     await server.addObject(
       BacnetObjectType.analogValue,

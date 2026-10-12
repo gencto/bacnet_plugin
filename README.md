@@ -48,6 +48,8 @@ Dart programs such as headless gateways and supervisory services.
   asks a supervisor for its device instance (Who-Am-I/You-Are); batch
   updates of present values; write notifications; state persistence
   (snapshot and restore its objects and values through a pluggable store);
+  optionally lets remote clients create and delete objects
+  (CreateObject/DeleteObject, opt-in);
   transmits large answers (object lists, GetEnrollmentSummary, AuditLogQuery)
   in segments when the requester accepts it;
   advertises itself as a router to virtual networks; runs over BACnet/IPv4

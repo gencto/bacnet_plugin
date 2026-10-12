@@ -25,6 +25,7 @@ class ServerProcess {
     int device,
     int objects, {
     bool transmitSegmentation = true,
+    bool remoteObjects = false,
   }) async {
     final process = await Process.start(
       Platform.resolvedExecutable,
@@ -36,7 +37,10 @@ class ServerProcess {
         '$objects',
         transmitSegmentation ? '1' : '0',
       ],
-      environment: {'BACNET_IFACE': '127.0.0.1'},
+      environment: {
+        'BACNET_IFACE': '127.0.0.1',
+        if (remoteObjects) 'BACNET_REMOTE_OBJECTS': '1',
+      },
     );
     final lines = <String>[];
     final ready = Completer<void>();
@@ -71,6 +75,20 @@ class ServerProcess {
 
   /// Writes a command line to the server (see tool/demo_server.dart).
   void send(String line) => process.stdin.writeln(line);
+
+  /// Waits until the server prints a stdout line matching [match].
+  Future<String> waitForLine(
+    bool Function(String) match, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      final line = lines.where(match);
+      if (line.isNotEmpty) return line.last;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    throw StateError('server line not seen (matching predicate): $lines');
+  }
 
   Future<void> stop() async {
     process.kill();
@@ -693,6 +711,71 @@ void main() {
       BacnetPropertyId.bacnetIpUdpPort,
     );
     expect(udpPort.asInt, serverPort);
+  });
+
+  group('remote object management', () {
+    const roDevice = 7400;
+    const roPort = 47866;
+    late ServerProcess roServer;
+
+    setUp(() async {
+      roServer = await ServerProcess.start(
+        roPort,
+        roDevice,
+        5,
+        remoteObjects: true,
+      );
+      await client.addDeviceBinding(roDevice, '127.0.0.1', port: roPort);
+    });
+
+    tearDown(() async {
+      await roServer.stop();
+    });
+
+    test('a client creates and deletes an object on the server', () async {
+      const object = BacnetObject(
+        type: BacnetObjectType.analogValue,
+        instance: 50,
+      );
+      final created = await client.createObject(roDevice, object: object);
+      expect(created, object);
+      // the object now exists and is readable (a fresh Analog Value reads back)
+      final pv = await client.readProperty(
+        roDevice,
+        object.type,
+        object.instance,
+        BacnetPropertyId.presentValue,
+      );
+      expect(pv, isA<BacnetValue>());
+      // and the server reported the creation to its application
+      final created2 = await roServer.waitForLine(
+        (l) => l.startsWith('LIFECYCLE') && l.contains('created'),
+      );
+      expect(created2, contains('Analog Value'));
+
+      // delete it: the object is gone and the deletion is reported
+      await client.deleteObject(roDevice, object);
+      await expectLater(
+        client.readProperty(
+          roDevice,
+          object.type,
+          object.instance,
+          BacnetPropertyId.presentValue,
+        ),
+        throwsA(isA<BacnetException>()),
+      );
+      await roServer.waitForLine(
+        (l) => l.startsWith('LIFECYCLE') && l.contains('deleted'),
+      );
+    });
+
+    test('a server rejects remote creation unless it opts in', () async {
+      // the shared primary server leaves allowRemoteObjectManagement off
+      await expectLater(
+        client.createObject(device, type: BacnetObjectType.analogValue),
+        throwsA(isA<BacnetException>()),
+      );
+    });
   });
 
   test('receives COV notifications with values', () async {

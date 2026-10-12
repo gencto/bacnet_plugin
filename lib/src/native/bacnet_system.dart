@@ -160,6 +160,7 @@ class BacnetSystem {
       offlineRetryMs: config.offlineRetryInterval.inMilliseconds,
       maxSegments: config.maxSegmentsAccepted.clamp(0, 32),
       transmitSegmentation: config.transmitSegmentation,
+      allowRemoteObjectManagement: config.allowRemoteObjectManagement,
       logLevel: config.logLevel,
     );
     try {

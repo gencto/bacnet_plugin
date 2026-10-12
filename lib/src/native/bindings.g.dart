@@ -733,6 +733,8 @@ const int BP_OPTION_MAX_SEGMENTS = 7;
 
 const int BP_OPTION_TX_SEGMENTATION = 8;
 
+const int BP_OPTION_REMOTE_OBJECT_MGMT = 9;
+
 const int BP_OPTION_STRICT_SOURCE = 1;
 
 /// Header that precedes every event in the event buffer (host byte order,

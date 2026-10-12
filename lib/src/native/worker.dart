@@ -92,6 +92,7 @@ final class _Worker implements RequestTransport {
         covScanIntervalMs: startup.covScanIntervalMs,
         maxSegments: startup.maxSegments,
         transmitSegmentation: startup.transmitSegmentation,
+        allowRemoteObjectManagement: startup.allowRemoteObjectManagement,
       );
     } on BacnetException {
       _engine.shutdown();
@@ -803,6 +804,18 @@ final class _Worker implements RequestTransport {
             arrayIndex: list.arrayIndex,
             added: event.service == BacnetConfirmedService.addListElement,
             elements: list.elements,
+            mac: event.sourceMac,
+            net: event.sourceNetwork,
+          );
+        case BacnetConfirmedService.createObject ||
+            BacnetConfirmedService.deleteObject:
+          // the object identity travels in the event header (a/b), not the data
+          return ObjectLifecycleEvent(
+            object: BacnetObject(
+              type: BacnetObjectType(event.a),
+              instance: event.b,
+            ),
+            created: event.service == BacnetConfirmedService.createObject,
             mac: event.sourceMac,
             net: event.sourceNetwork,
           );

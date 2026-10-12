@@ -45,6 +45,7 @@ class BacnetConfig {
     this.offlineRetryInterval = const Duration(seconds: 30),
     this.maxSegmentsAccepted = 32,
     this.transmitSegmentation = true,
+    this.allowRemoteObjectManagement = false,
     this.socketBufferSize = 4 * 1024 * 1024,
     this.strictSourceCheck = true,
     this.covScanInterval = const Duration(milliseconds: 50),
@@ -172,6 +173,17 @@ class BacnetConfig {
   /// (segmentedTransmit when enabled, noSegmentation otherwise).
   final bool transmitSegmentation;
 
+  /// Whether remote clients may create and delete objects on the server with
+  /// CreateObject and DeleteObject (default false).
+  ///
+  /// Off by default because deletion is destructive: any client could remove
+  /// the server's objects. Enable it for commissioning tools that provision
+  /// objects remotely. Successful remote create/delete arrive as
+  /// [BacnetServer.objectLifecycleEvents]; the local application always
+  /// manages objects through [BacnetServer.addObject] / removeObject
+  /// regardless of this flag.
+  final bool allowRemoteObjectManagement;
+
   /// Socket send/receive buffer size in bytes (0 keeps the OS default).
   /// Large buffers avoid packet loss during I-Am storms and bursts.
   final int socketBufferSize;
@@ -218,6 +230,7 @@ class BacnetConfig {
     Duration? offlineRetryInterval,
     int? maxSegmentsAccepted,
     bool? transmitSegmentation,
+    bool? allowRemoteObjectManagement,
     int? socketBufferSize,
     bool? strictSourceCheck,
     Duration? covScanInterval,
@@ -246,6 +259,8 @@ class BacnetConfig {
       offlineRetryInterval: offlineRetryInterval ?? this.offlineRetryInterval,
       maxSegmentsAccepted: maxSegmentsAccepted ?? this.maxSegmentsAccepted,
       transmitSegmentation: transmitSegmentation ?? this.transmitSegmentation,
+      allowRemoteObjectManagement:
+          allowRemoteObjectManagement ?? this.allowRemoteObjectManagement,
       socketBufferSize: socketBufferSize ?? this.socketBufferSize,
       strictSourceCheck: strictSourceCheck ?? this.strictSourceCheck,
       covScanInterval: covScanInterval ?? this.covScanInterval,

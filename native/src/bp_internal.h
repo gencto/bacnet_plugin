@@ -143,6 +143,8 @@ typedef struct {
     bool ipv6; /* BACnet/IPv6 datalink instead of BACnet/IPv4 */
     bool strict_source;
     bool suppress_write_events;
+    /* remote clients may create and delete objects (CreateObject/DeleteObject) */
+    bool remote_object_mgmt;
     /* set while an object of the server writes another one */
     bool internal_write;
     uint32_t last_ms;

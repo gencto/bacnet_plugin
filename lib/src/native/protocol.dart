@@ -29,6 +29,7 @@ class WorkerStartup {
     required this.offlineRetryMs,
     required this.maxSegments,
     required this.transmitSegmentation,
+    required this.allowRemoteObjectManagement,
     required this.logLevel,
   });
 
@@ -51,6 +52,7 @@ class WorkerStartup {
   final int offlineRetryMs;
   final int maxSegments;
   final bool transmitSegmentation;
+  final bool allowRemoteObjectManagement;
   final BacnetLogLevel logLevel;
 }
 

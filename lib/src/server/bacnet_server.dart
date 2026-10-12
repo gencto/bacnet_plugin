@@ -162,6 +162,13 @@ class BacnetServer {
       .where((e) => e is ListElementEvent)
       .cast<ListElementEvent>();
 
+  /// Objects created or deleted by remote clients (CreateObject/DeleteObject).
+  /// Only emitted when [BacnetConfig.allowRemoteObjectManagement] is enabled;
+  /// objects the local application manages do not appear here.
+  Stream<ObjectLifecycleEvent> get objectLifecycleEvents => _system.events
+      .where((e) => e is ObjectLifecycleEvent)
+      .cast<ObjectLifecycleEvent>();
+
   /// You-Are requests of supervisors: the device instance assigned to the
   /// device with a vendor, model name and serial number (see
   /// [requestDeviceInstance]).

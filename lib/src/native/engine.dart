@@ -79,6 +79,7 @@ class NativeEngine {
     required int covScanIntervalMs,
     required int maxSegments,
     required bool transmitSegmentation,
+    required bool allowRemoteObjectManagement,
   }) {
     checkNative(
       bacnet_plugin_set_option(BP_OPTION_APDU_TIMEOUT_MS, apduTimeoutMs),
@@ -101,6 +102,12 @@ class NativeEngine {
       bacnet_plugin_set_option(
         BP_OPTION_TX_SEGMENTATION,
         transmitSegmentation ? 1 : 0,
+      ),
+    );
+    checkNative(
+      bacnet_plugin_set_option(
+        BP_OPTION_REMOTE_OBJECT_MGMT,
+        allowRemoteObjectManagement ? 1 : 0,
       ),
     );
   }

@@ -570,6 +570,36 @@ class ListElementEvent extends BacnetEvent {
       '${propertyId.label}: $elements)';
 }
 
+/// A remote client created or deleted an object on the server with
+/// CreateObject or DeleteObject. Only delivered when the server opts in with
+/// `BacnetConfig.allowRemoteObjectManagement`; objects created or deleted by
+/// the local application do not raise it.
+class ObjectLifecycleEvent extends BacnetEvent {
+  /// Creates the event.
+  const ObjectLifecycleEvent({
+    required this.object,
+    required this.created,
+    this.mac = const [],
+    this.net = 0,
+  });
+
+  /// The object that was created or deleted.
+  final BacnetObject object;
+
+  /// True for CreateObject, false for DeleteObject.
+  final bool created;
+
+  /// Source MAC address.
+  final List<int> mac;
+
+  /// Source network number.
+  final int net;
+
+  @override
+  String toString() =>
+      'ObjectLifecycleEvent(${created ? 'created' : 'deleted'} $object)';
+}
+
 /// A Who-Am-I: a device without a configured device instance asks a
 /// supervisor for one; answer with `BacnetClient.sendYouAre`.
 class WhoAmIEvent extends BacnetEvent {

@@ -94,6 +94,8 @@ static void fuzz_setup(void)
         fprintf(stderr, "fuzz: cannot open the BACnet/IP port %u\n", port);
         abort();
     }
+    /* exercise the remote CreateObject/DeleteObject handlers (opt-in) */
+    bacnet_plugin_set_option(BP_OPTION_REMOTE_OBJECT_MGMT, 1);
     bacnet_plugin_server_enable(FUZZ_DEVICE, "fuzz");
     bacnet_plugin_device_set_password("fuzz");
     for (i = 0; i < sizeof(types) / sizeof(types[0]); i++) {

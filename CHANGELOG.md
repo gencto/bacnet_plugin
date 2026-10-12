@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Remote object creation and deletion** (ASHRAE 135 clauses 15.3/15.4, BIBB
+  DM-OCD-B): remote clients can create and delete objects on the server with
+  CreateObject and DeleteObject. It is **off by default** (deletion is
+  destructive) — enable it with `BacnetConfig(allowRemoteObjectManagement:
+  true)`. Successful remote operations arrive as
+  `BacnetServer.objectLifecycleEvents` and are written to the Audit Log; the
+  local application keeps managing objects through `addObject`/`removeObject`
+  regardless of the flag.
 - **Network Port object** (ASHRAE 135 clause 12.56): the server now describes
   its datalink with a proper Network Port object (object type, name,
   Network_Type, IP address and UDP port, APDU length, network number, …),

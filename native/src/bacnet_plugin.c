@@ -256,6 +256,7 @@ BP_API int32_t bacnet_plugin_init(
     bp_state.max_segments = BP_DEFAULT_MAX_SEGMENTS;
     bp_tx_segments_reset();
     bp_state.tx_segmentation = true;
+    bp_state.remote_object_mgmt = false;
     bp_state.server_enabled = false;
     bp_state.strict_source = true;
     bp_state.suppress_write_events = false;
@@ -406,6 +407,9 @@ BP_API int32_t bacnet_plugin_set_option(int32_t option, int64_t value)
             return BP_OK;
         case BP_OPTION_TX_SEGMENTATION:
             bp_state.tx_segmentation = value != 0;
+            return BP_OK;
+        case BP_OPTION_REMOTE_OBJECT_MGMT:
+            bp_state.remote_object_mgmt = value != 0;
             return BP_OK;
         default:
             return BP_ERR_INVALID_ARGUMENT;

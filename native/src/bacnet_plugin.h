@@ -169,6 +169,9 @@ typedef struct {
 /** Segment our own large responses when the requester accepts it (default on;
  *  0 disables and the server aborts oversize responses instead). */
 #define BP_OPTION_TX_SEGMENTATION 8
+/** Let remote clients create and delete objects (CreateObject/DeleteObject);
+ *  default off, since deletion is destructive. */
+#define BP_OPTION_REMOTE_OBJECT_MGMT 9
 
 /* ---- Lifecycle -------------------------------------------------------- */
 
