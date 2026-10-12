@@ -180,6 +180,41 @@ void main() {
       expect(spec1, isNot(equals(spec3)));
     });
 
+    test('equality compares property contents, not just count', () {
+      const obj = BacnetObject(type: BacnetObjectType.analogInput, instance: 1);
+      const presentValue = BacnetReadAccessSpecification(
+        objectIdentifier: obj,
+        properties: [
+          BacnetPropertyReference(
+            propertyIdentifier: BacnetPropertyId.presentValue,
+          ),
+        ],
+      );
+      const samePresentValue = BacnetReadAccessSpecification(
+        objectIdentifier: obj,
+        properties: [
+          BacnetPropertyReference(
+            propertyIdentifier: BacnetPropertyId.presentValue,
+          ),
+        ],
+      );
+      // same object and same property count, but a different property
+      const statusFlags = BacnetReadAccessSpecification(
+        objectIdentifier: obj,
+        properties: [
+          BacnetPropertyReference(
+            propertyIdentifier: BacnetPropertyId.statusFlags,
+          ),
+        ],
+      );
+
+      expect(presentValue, equals(samePresentValue));
+      expect(presentValue.hashCode, equals(samePresentValue.hashCode));
+      expect(presentValue, isNot(equals(statusFlags)));
+      // distinct specs must not collapse in a hash set
+      expect({presentValue, statusFlags}, hasLength(2));
+    });
+
     group('JSON serialization', () {
       test('toJson serializes nested objects', () {
         const obj = BacnetObject(

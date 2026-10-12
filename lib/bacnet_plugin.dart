@@ -60,7 +60,8 @@ export 'src/server/server_state.dart';
 export 'src/utilities/alarm_subscription.dart';
 export 'src/utilities/device_backup.dart';
 export 'src/utilities/device_description.dart';
-export 'src/utilities/device_scanner.dart';
+// mapConcurrent is an internal fan-out helper, not part of the public API.
+export 'src/utilities/device_scanner.dart' hide mapConcurrent;
 export 'src/utilities/file_transfer.dart';
 export 'src/utilities/network_discovery.dart';
 export 'src/utilities/property_monitor.dart';

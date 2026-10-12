@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `BacnetReadAccessSpecification` equality and `hashCode` compared only the
+  number of properties, so two specifications for the same object that
+  requested different properties compared equal and collided in a `Set` or
+  `Map`. They now compare the property list by content.
+
+### Changed
+
+- The internal `mapConcurrent` fan-out helper is no longer exported from the
+  public API; it was unintentionally re-exported through `device_scanner.dart`.
+
 ## [0.9.0] - 2026-10-12
 
 ### Added
