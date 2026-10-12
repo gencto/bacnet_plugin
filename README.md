@@ -67,7 +67,7 @@ Dart programs such as headless gateways and supervisory services.
 
 ```yaml
 dependencies:
-  bacnet_plugin: ^0.8.0
+  bacnet_plugin: ^0.9.0
 ```
 
 Requirements:
