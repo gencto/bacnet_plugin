@@ -20,6 +20,7 @@
 #include "bacnet/create_object.h"
 #include "bacnet/delete_object.h"
 #include "bacnet/alarm_ack.h"
+#include "bacnet/basic/object/netport.h"
 #include "bacnet/basic/object/bv.h"
 #include "bacnet/basic/object/device.h"
 #include "bacnet/basic/object/ai.h"
@@ -381,10 +382,18 @@ static void bp_on_read_property(
     } else {
         status = rp_decode_service_request(request, len, &rpdata);
         if (status > 0) {
+            /* the wildcard instance 4194303 resolves to the local object: for
+               the Device, and for the Network Port that received the request */
             if (rpdata.object_type == OBJECT_DEVICE &&
                 rpdata.object_instance == BACNET_MAX_INSTANCE) {
                 rpdata.object_instance = Device_Object_Instance_Number();
             }
+#if (BACNET_PROTOCOL_REVISION >= 17)
+            if (rpdata.object_type == OBJECT_NETWORK_PORT &&
+                rpdata.object_instance == BACNET_MAX_INSTANCE) {
+                rpdata.object_instance = Network_Port_Index_To_Instance(0);
+            }
+#endif
             ack_len =
                 rp_ack_encode_apdu_init(&ack[0], service_data->invoke_id, &rpdata);
             rpdata.application_data = &ack[ack_len];

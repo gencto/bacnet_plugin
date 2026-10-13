@@ -266,8 +266,11 @@ int bp_device_read_property(BACNET_READ_PROPERTY_DATA *rpdata)
                     bp_state.tx_segmentation ? SEGMENTATION_TRANSMIT
                                              : SEGMENTATION_NONE);
             case PROP_MAX_SEGMENTS_ACCEPTED:
-                return encode_application_unsigned(
-                    rpdata->application_data, bp_state.max_segments);
+                /* the engine does not reassemble segmented requests, so it
+                   accepts a one-segment (unsegmented) request only; this is not
+                   bp_state.max_segments, which caps segmented replies we
+                   receive as a client */
+                return encode_application_unsigned(rpdata->application_data, 1);
             default:
                 break;
         }

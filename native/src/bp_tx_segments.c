@@ -306,6 +306,10 @@ bool bp_tx_segment_ack(
     if (!t) {
         return false; /* not one of our responder transfers */
     }
+    if (sequence >= t->count) {
+        /* out of range for this transfer: a stale or malformed acknowledgement */
+        return true;
+    }
     if (negative) {
         /* The receiver got everything up to `sequence`; resend from there. A
            retransmission counts against the retry budget to stop a loop. */

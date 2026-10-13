@@ -711,6 +711,14 @@ void main() {
       BacnetPropertyId.bacnetIpUdpPort,
     );
     expect(udpPort.asInt, serverPort);
+    // the wildcard instance 4194303 resolves to the port that received it
+    final wildcard = await client.readProperty(
+      device,
+      BacnetObjectType.networkPort,
+      0x3FFFFF,
+      BacnetPropertyId.objectName,
+    );
+    expect(wildcard.asString, 'BACnet/IP Port');
   });
 
   group('remote object management', () {

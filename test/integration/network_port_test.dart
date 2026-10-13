@@ -72,4 +72,21 @@ void main() {
     expect((await read(BacnetPropertyId.objectName)).asString, 'Primary Port');
     expect((await read(BacnetPropertyId.networkNumber)).asInt, 42);
   });
+
+  test('advertises transmit segmentation consistently', () async {
+    final seg = await server.readProperty(
+      BacnetObjectType.device,
+      deviceId,
+      BacnetPropertyId.segmentationSupported,
+    );
+    // SEGMENTATION_TRANSMIT: sends segmented responses, no segmented requests
+    expect(seg.asInt, 1);
+    final maxSegs = await server.readProperty(
+      BacnetObjectType.device,
+      deviceId,
+      BacnetPropertyId.maxSegmentsAccepted,
+    );
+    // accepts a one-segment (unsegmented) request only, matching the above
+    expect(maxSegs.asInt, 1);
+  });
 }
